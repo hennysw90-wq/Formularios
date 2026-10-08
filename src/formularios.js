@@ -239,6 +239,55 @@ export async function cumplimientoDePersona(personaUid) {
   return salida;
 }
 
+// Datos crudos para la matriz mensual: los formularios donde la persona está
+// asignada, junto con todas sus respuestas. El cálculo por mes se hace
+// después en pantalla, así cambiar de mes no vuelve a pegarle a Firestore.
+export async function datosCumplimiento(personaUid) {
+  const formularios = await getDocs(collection(db, "formularios"));
+  const salida = [];
+  for (const doc_ of formularios.docs) {
+    const formulario = { id: doc_.id, ...doc_.data() };
+    if (formulario.activo === false) continue;
+    const mias = (formulario.asignaciones || []).filter((a) =>
+      (a.personas || []).some((p) => p.uid === personaUid)
+    );
+    if (mias.length === 0) continue;
+    const respuestas = await respuestasDePersona(formulario.id, personaUid);
+    salida.push({ formulario, asignaciones: mias, respuestas });
+  }
+  return salida;
+}
+
+// Días del mes, como objetos Date.
+export function diasDelMes(anio, mes) {
+  const ultimo = new Date(anio, mes + 1, 0).getDate();
+  return Array.from({ length: ultimo }, (_, i) => new Date(anio, mes, i + 1));
+}
+
+// Periodos de una frecuencia que caen dentro del mes, con el día en que
+// cada uno cierra. Se arma recorriendo los días y agrupándolos por su clave
+// de periodo, así se reutiliza la misma regla que usa el QR.
+export function periodosDelMes(frecuencia, anio, mes) {
+  if (frecuencia === "unica") return [];
+  const porClave = new Map();
+  for (const dia of diasDelMes(anio, mes)) {
+    const clave = periodoVigente(frecuencia, dia);
+    const previo = porClave.get(clave);
+    if (!previo || dia > previo.cierra) porClave.set(clave, { clave, cierra: dia });
+  }
+  return [...porClave.values()];
+}
+
+export function mismaFecha(iso, dia) {
+  if (!iso) return false;
+  const d = new Date(iso);
+  return (
+    d.getFullYear() === dia.getFullYear() &&
+    d.getMonth() === dia.getMonth() &&
+    d.getDate() === dia.getDate()
+  );
+}
+
 // "Feedbacks y confirmaciones recibidas": respuestas de cualquier formulario
 // en las que esta persona quedó como destinatario.
 export async function recibidasDePersona(personaUid) {
