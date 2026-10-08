@@ -242,20 +242,39 @@ export async function cumplimientoDePersona(personaUid) {
 // Datos crudos para la matriz mensual: los formularios donde la persona está
 // asignada, junto con todas sus respuestas. El cálculo por mes se hace
 // después en pantalla, así cambiar de mes no vuelve a pegarle a Firestore.
-export async function datosCumplimiento(personaUid) {
+// Compara personas por id y, como respaldo, por nombre sin tildes ni
+// mayúsculas. El respaldo cubre asignaciones guardadas antes de que se
+// usara el id, o casos donde la ficha del directorio se volvió a crear.
+export function esLaMismaPersona(p, usuario) {
+  if (!p || !usuario) return false;
+  if (p.uid && usuario.uid && p.uid === usuario.uid) return true;
+  const limpiar = (t) =>
+    (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, "");
+  const nombreP = limpiar(p.nombre || p.nombreUsuario);
+  const nombreU = limpiar(usuario.nombreUsuario);
+  return !!nombreP && nombreP === nombreU;
+}
+
+export async function datosCumplimiento(usuario) {
   const formularios = await getDocs(collection(db, "formularios"));
   const salida = [];
+  let totalFormularios = 0;
+  let conAsignaciones = 0;
+
   for (const doc_ of formularios.docs) {
     const formulario = { id: doc_.id, ...doc_.data() };
     if (formulario.activo === false) continue;
-    const mias = (formulario.asignaciones || []).filter((a) =>
-      (a.personas || []).some((p) => p.uid === personaUid)
+    totalFormularios++;
+    const asignaciones = formulario.asignaciones || [];
+    if (asignaciones.length > 0) conAsignaciones++;
+    const mias = asignaciones.filter((a) =>
+      (a.personas || []).some((p) => esLaMismaPersona(p, usuario))
     );
     if (mias.length === 0) continue;
-    const respuestas = await respuestasDePersona(formulario.id, personaUid);
+    const respuestas = await respuestasDePersona(formulario.id, usuario.uid);
     salida.push({ formulario, asignaciones: mias, respuestas });
   }
-  return salida;
+  return { filas: salida, totalFormularios, conAsignaciones };
 }
 
 // Días del mes, como objetos Date.

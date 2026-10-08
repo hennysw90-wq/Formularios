@@ -16,6 +16,7 @@ const DIAS_CORTOS = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"];
 
 export default function MiPlan({ usuario, onAbrirFormulario }) {
   const [datos, setDatos] = useState([]);
+  const [diagnostico, setDiagnostico] = useState({ totalFormularios: 0, conAsignaciones: 0 });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
@@ -25,12 +26,16 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
 
   useEffect(() => {
     let vivo = true;
-    datosCumplimiento(usuario.uid)
-      .then((r) => vivo && setDatos(r))
+    datosCumplimiento(usuario)
+      .then((r) => {
+        if (!vivo) return;
+        setDatos(r.filas);
+        setDiagnostico({ totalFormularios: r.totalFormularios, conAsignaciones: r.conAsignaciones });
+      })
       .catch(() => vivo && setError("No se pudo cargar tu plan."))
       .finally(() => vivo && setCargando(false));
     return () => { vivo = false; };
-  }, [usuario.uid]);
+  }, [usuario.uid, usuario.nombreUsuario]);
 
   const dias = useMemo(() => diasDelMes(anio, mes), [anio, mes]);
 
@@ -175,9 +180,18 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
       </div>
 
       {filas.length === 0 ? (
-        <div className="ca-card" style={{ textAlign: "center", padding: "40px 24px" }}>
+        <div className="ca-card" style={{ textAlign: "center", padding: "36px 24px" }}>
           <div style={{ fontSize: 38, marginBottom: 10 }}>🗓️</div>
-          <p style={{ ...gris, margin: 0 }}>No tienes formularios asignados.</p>
+          <p style={{ fontWeight: 700, margin: "0 0 6px" }}>
+            Ningún formulario te tiene asignado.
+          </p>
+          <p style={{ ...gris, margin: "0 auto", maxWidth: 520, fontSize: 13 }}>
+            {diagnostico.totalFormularios === 0
+              ? "Todavía no hay formularios creados."
+              : diagnostico.conAsignaciones === 0
+              ? `Hay ${diagnostico.totalFormularios} formulario(s), pero ninguno tiene asignaciones cargadas. Al editar un formulario, agrega una asignación con su reunión, las personas, la cantidad y la frecuencia.`
+              : `Hay ${diagnostico.conAsignaciones} formulario(s) con asignaciones, pero en ninguna apareces como ${usuario.nombreUsuario}. Revisa que te hayan marcado entre las personas de la asignación.`}
+          </p>
         </div>
       ) : (
         <>
