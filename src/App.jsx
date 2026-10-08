@@ -111,12 +111,18 @@ function PanelPrincipal() {
     !busqueda || f.titulo.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  // Si es usuario normal, filtra por responsables
-  const formulariosMostrados = (usuario.rol === "usuario")
-    ? formulariosFiltrados.filter((f) =>
-        !f.responsables?.length || f.responsables.includes(usuario.uid)
-      )
-    : formulariosFiltrados;
+  // Un usuario normal solo ve los formularios donde está asignado (o los
+  // que no tienen asignaciones, que quedan abiertos para todos).
+  const formulariosMostrados =
+    usuario.rol === "usuario"
+      ? formulariosFiltrados.filter((f) => {
+          const asigs = f.asignaciones || [];
+          return (
+            asigs.length === 0 ||
+            asigs.some((a) => (a.personas || []).some((p) => p.uid === usuario.uid))
+          );
+        })
+      : formulariosFiltrados;
 
   return (
     <>
@@ -170,8 +176,10 @@ function PanelPrincipal() {
 }
 
 function TarjetaFormulario({ formulario, esMasterOAdmin, onAbrir, onQR }) {
-  const FREC = { diaria: "Diaria", semanal: "Semanal", quincenal: "Quincenal", mensual: "Mensual", unica: "Una vez" };
-  const frec = FREC[formulario.frecuencia] || formulario.frecuencia;
+  const asignaciones = formulario.asignaciones || [];
+  const reuniones = [...new Set(asignaciones.map((a) => a.reunionNombre).filter(Boolean))];
+  const personas = new Set();
+  asignaciones.forEach((a) => (a.personas || []).forEach((p) => personas.add(p.uid)));
 
   return (
     <div className="ca-card" style={{ marginBottom: 12, cursor: "pointer" }} onClick={onAbrir}>
@@ -186,14 +194,22 @@ function TarjetaFormulario({ formulario, esMasterOAdmin, onAbrir, onQR }) {
             </p>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span className="ca-chip">{frec}{formulario.frecuencia === "unica" && formulario.fechaUnica ? ` · ${formulario.fechaUnica}` : ""}</span>
             <span className="ca-chip" style={{ background: "#f0f0f0", color: "#5b6b6e" }}>
               {(formulario.preguntas || []).length} pregunta{(formulario.preguntas || []).length !== 1 ? "s" : ""}
             </span>
-            {formulario.responsables?.length > 0 && (
+            {reuniones.slice(0, 2).map((n) => (
+              <span key={n} className="ca-chip">{n}</span>
+            ))}
+            {reuniones.length > 2 && (
+              <span className="ca-chip">+{reuniones.length - 2} reuniones</span>
+            )}
+            {personas.size > 0 && (
               <span className="ca-chip" style={{ background: "#f0f0f0", color: "#5b6b6e" }}>
-                {formulario.responsables.length} responsable{formulario.responsables.length !== 1 ? "s" : ""}
+                {personas.size} persona{personas.size !== 1 ? "s" : ""}
               </span>
+            )}
+            {asignaciones.length === 0 && (
+              <span className="ca-chip" style={{ background: "#f0f0f0", color: "#5b6b6e" }}>Abierto</span>
             )}
           </div>
         </div>

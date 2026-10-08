@@ -1,9 +1,17 @@
-import { useState } from "react";
-import { TIPOS_PREGUNTA, FRECUENCIAS, crearFormulario, actualizarFormulario } from "./formularios.js";
+import { useState, useEffect } from "react";
+import {
+  TIPOS_PREGUNTA,
+  FRECUENCIAS,
+  necesitaOpciones,
+  etiquetaCadencia,
+  crearFormulario,
+  actualizarFormulario,
+} from "./formularios.js";
+import { listarReunionesAsistencia } from "./reuniones.js";
 
-let contadorId = 1;
-function nuevoId() {
-  return `p${Date.now()}_${contadorId++}`;
+let contador = 1;
+function nuevoId(pre) {
+  return `${pre}${Date.now().toString(36)}${contador++}`;
 }
 
 export default function ConstructorFormulario({ formulario, usuarios, onGuardado, onCancelar }) {
@@ -11,83 +19,106 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
 
   const [titulo, setTitulo] = useState(formulario?.titulo || "");
   const [descripcion, setDescripcion] = useState(formulario?.descripcion || "");
-  const [frecuencia, setFrecuencia] = useState(formulario?.frecuencia || "unica");
-  const [fechaUnica, setFechaUnica] = useState(formulario?.fechaUnica || "");
-  const [responsables, setResponsables] = useState(formulario?.responsables || []);
   const [preguntas, setPreguntas] = useState(
     formulario?.preguntas?.length
       ? formulario.preguntas
-      : [{ id: nuevoId(), tipo: "texto", texto: "", obligatoria: true, opciones: [] }]
+      : [{ id: nuevoId("p"), tipo: "texto", texto: "", obligatoria: true, opciones: [] }]
   );
+  const [asignaciones, setAsignaciones] = useState(formulario?.asignaciones || []);
+  const [reuniones, setReuniones] = useState([]);
+  const [errorReuniones, setErrorReuniones] = useState("");
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => {
+    const cancelar = listarReunionesAsistencia(setReuniones, () =>
+      setErrorReuniones("No se pudo leer el listado de reuniones de Asistencia.")
+    );
+    return () => cancelar();
+  }, []);
 
   // ─── Preguntas ────────────────────────────────────────────────────────────
 
   function agregarPregunta() {
-    setPreguntas((prev) => [
-      ...prev,
-      { id: nuevoId(), tipo: "texto", texto: "", obligatoria: false, opciones: [] },
+    setPreguntas((p) => [
+      ...p,
+      { id: nuevoId("p"), tipo: "texto", texto: "", obligatoria: false, opciones: [] },
     ]);
   }
-
   function eliminarPregunta(id) {
-    setPreguntas((prev) => prev.filter((p) => p.id !== id));
+    setPreguntas((p) => p.filter((x) => x.id !== id));
   }
-
-  function actualizarPregunta(id, campo, valor) {
-    setPreguntas((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, [campo]: valor } : p))
+  function cambiarPregunta(id, campo, valor) {
+    setPreguntas((p) => p.map((x) => (x.id === id ? { ...x, [campo]: valor } : x)));
+  }
+  function moverPregunta(id, dir) {
+    setPreguntas((p) => {
+      const i = p.findIndex((x) => x.id === id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= p.length) return p;
+      const copia = [...p];
+      [copia[i], copia[j]] = [copia[j], copia[i]];
+      return copia;
+    });
+  }
+  function agregarOpcion(pid) {
+    setPreguntas((p) =>
+      p.map((x) => (x.id === pid ? { ...x, opciones: [...(x.opciones || []), ""] } : x))
+    );
+  }
+  function cambiarOpcion(pid, idx, valor) {
+    setPreguntas((p) =>
+      p.map((x) => {
+        if (x.id !== pid) return x;
+        const ops = [...(x.opciones || [])];
+        ops[idx] = valor;
+        return { ...x, opciones: ops };
+      })
+    );
+  }
+  function quitarOpcion(pid, idx) {
+    setPreguntas((p) =>
+      p.map((x) => {
+        if (x.id !== pid) return x;
+        const ops = [...(x.opciones || [])];
+        ops.splice(idx, 1);
+        return { ...x, opciones: ops };
+      })
     );
   }
 
-  function agregarOpcion(preguntaId) {
-    setPreguntas((prev) =>
-      prev.map((p) =>
-        p.id === preguntaId ? { ...p, opciones: [...(p.opciones || []), ""] } : p
+  // ─── Asignaciones ─────────────────────────────────────────────────────────
+
+  function agregarAsignacion() {
+    setAsignaciones((a) => [
+      ...a,
+      { id: nuevoId("a"), reunionId: "", reunionNombre: "", personas: [], cantidad: 1, frecuencia: "semanal" },
+    ]);
+  }
+  function quitarAsignacion(id) {
+    setAsignaciones((a) => a.filter((x) => x.id !== id));
+  }
+  function cambiarAsignacion(id, campo, valor) {
+    setAsignaciones((a) => a.map((x) => (x.id === id ? { ...x, [campo]: valor } : x)));
+  }
+  function elegirReunion(id, reunionId) {
+    const r = reuniones.find((x) => x.id === reunionId);
+    setAsignaciones((a) =>
+      a.map((x) =>
+        x.id === id ? { ...x, reunionId, reunionNombre: r ? r.nombre : "" } : x
       )
     );
   }
-
-  function actualizarOpcion(preguntaId, idx, valor) {
-    setPreguntas((prev) =>
-      prev.map((p) => {
-        if (p.id !== preguntaId) return p;
-        const ops = [...(p.opciones || [])];
-        ops[idx] = valor;
-        return { ...p, opciones: ops };
+  function togglePersona(asigId, usuario) {
+    setAsignaciones((a) =>
+      a.map((x) => {
+        if (x.id !== asigId) return x;
+        const existe = (x.personas || []).some((p) => p.uid === usuario.uid);
+        const personas = existe
+          ? x.personas.filter((p) => p.uid !== usuario.uid)
+          : [...(x.personas || []), { uid: usuario.uid, nombre: usuario.nombreUsuario }];
+        return { ...x, personas };
       })
-    );
-  }
-
-  function eliminarOpcion(preguntaId, idx) {
-    setPreguntas((prev) =>
-      prev.map((p) => {
-        if (p.id !== preguntaId) return p;
-        const ops = [...(p.opciones || [])];
-        ops.splice(idx, 1);
-        return { ...p, opciones: ops };
-      })
-    );
-  }
-
-  function moverPregunta(id, dir) {
-    setPreguntas((prev) => {
-      const idx = prev.findIndex((p) => p.id === id);
-      if (idx < 0) return prev;
-      const nuevo = [...prev];
-      const destino = idx + dir;
-      if (destino < 0 || destino >= nuevo.length) return prev;
-      [nuevo[idx], nuevo[destino]] = [nuevo[destino], nuevo[idx]];
-      return nuevo;
-    });
-  }
-
-  // ─── Responsables ─────────────────────────────────────────────────────────
-
-  function toggleResponsable(uid) {
-    setResponsables((prev) =>
-      prev.includes(uid) ? prev.filter((r) => r !== uid) : [...prev, uid]
     );
   }
 
@@ -95,15 +126,23 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
 
   async function guardar(ev) {
     ev.preventDefault();
-    if (!titulo.trim()) { setError("El título es obligatorio."); return; }
-    if (preguntas.length === 0) { setError("Agrega al menos una pregunta."); return; }
+    if (!titulo.trim()) return setError("Ponle un título al formulario.");
+    if (preguntas.length === 0) return setError("Agrega al menos una pregunta.");
     for (const p of preguntas) {
-      if (!p.texto.trim()) { setError("Todas las preguntas deben tener texto."); return; }
-      if ((p.tipo === "seleccion" || p.tipo === "multiple") && (p.opciones || []).filter(Boolean).length < 2) {
-        setError(`La pregunta "${p.texto}" necesita al menos 2 opciones.`); return;
+      if (!p.texto.trim()) return setError("Todas las preguntas deben tener texto.");
+      if (necesitaOpciones(p.tipo) && (p.opciones || []).filter((o) => o.trim()).length < 2) {
+        return setError(`"${p.texto}" necesita al menos 2 alternativas.`);
       }
     }
-    if (frecuencia === "unica" && !fechaUnica) { setError("Selecciona la fecha del formulario."); return; }
+    for (const a of asignaciones) {
+      if (!a.reunionId) return setError("Cada asignación tiene que apuntar a una reunión.");
+      if ((a.personas || []).length === 0) {
+        return setError(`La asignación de "${a.reunionNombre}" no tiene personas.`);
+      }
+      if (!Number(a.cantidad) || Number(a.cantidad) < 1) {
+        return setError(`Pon una cantidad válida en "${a.reunionNombre}".`);
+      }
+    }
     setError("");
     setGuardando(true);
     try {
@@ -113,206 +152,225 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
         preguntas: preguntas.map((p) => ({
           ...p,
           texto: p.texto.trim(),
-          opciones: (p.opciones || []).filter(Boolean),
+          opciones: necesitaOpciones(p.tipo) ? (p.opciones || []).filter((o) => o.trim()) : [],
         })),
-        responsables,
-        frecuencia,
-        fechaUnica: frecuencia === "unica" ? fechaUnica : "",
+        asignaciones: asignaciones.map((a) => ({ ...a, cantidad: Number(a.cantidad) || 1 })),
       };
-      if (editando) {
-        await actualizarFormulario(formulario.id, datos);
-      } else {
-        await crearFormulario(datos);
-      }
+      if (editando) await actualizarFormulario(formulario.id, datos);
+      else await crearFormulario(datos);
       onGuardado();
     } catch (e) {
-      setError("Error al guardar. Intenta de nuevo.");
+      setError("No se pudo guardar. Intenta de nuevo.");
     } finally {
       setGuardando(false);
     }
   }
 
-  const usuariosDisponibles = usuarios.filter(
+  const usuariosActivos = usuarios.filter(
     (u) => u.rol !== "deshabilitado" && u.estado === "activo"
   );
 
   return (
-    <div style={{ maxWidth: 760, margin: "0 auto", padding: "18px 28px 60px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "24px 0 20px" }}>
-        <h2 style={{ margin: 0, fontSize: 20, color: "#1f2a2e" }}>
+    <div style={{ maxWidth: 860, margin: "0 auto", padding: "18px 28px 60px" }}>
+      <div style={cab}>
+        <h2 style={{ margin: 0, fontSize: 20 }}>
           {editando ? "Editar formulario" : "Nuevo formulario"}
         </h2>
-        <button className="ca-btn-texto" onClick={onCancelar}>← Volver</button>
+        <button type="button" className="ca-btn-texto" onClick={onCancelar}>← Volver</button>
       </div>
 
       <form onSubmit={guardar}>
-        {/* ── Datos generales ── */}
+        {/* ── General ── */}
         <div className="ca-card" style={{ marginBottom: 16 }}>
-          <h3 style={estilos.subtitulo}>Información general</h3>
-
+          <h3 style={sub}>Información general</h3>
           <label className="ca-label">Título *</label>
           <input
             className="ca-input"
-            style={{ marginBottom: 14 }}
+            style={{ marginBottom: 12 }}
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
-            placeholder="Ej: Inspección diaria de equipos"
+            placeholder="Ej: Checklist de inspección de equipos"
           />
-
           <label className="ca-label">Descripción</label>
           <textarea
             className="ca-input"
             rows={2}
-            style={{ marginBottom: 14, resize: "vertical" }}
+            style={{ resize: "vertical" }}
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
-            placeholder="Instrucciones o contexto del formulario (opcional)"
+            placeholder="Instrucciones o contexto (opcional)"
           />
-
-          <label className="ca-label">Frecuencia *</label>
-          <select
-            className="ca-input"
-            style={{ marginBottom: frecuencia === "unica" ? 14 : 0 }}
-            value={frecuencia}
-            onChange={(e) => setFrecuencia(e.target.value)}
-          >
-            {FRECUENCIAS.map((f) => (
-              <option key={f.valor} value={f.valor}>{f.etiqueta}</option>
-            ))}
-          </select>
-          {frecuencia === "unica" && (
-            <div style={{ marginTop: 10 }}>
-              <label className="ca-label">Fecha *</label>
-              <input
-                className="ca-input"
-                type="date"
-                value={fechaUnica}
-                onChange={(e) => setFechaUnica(e.target.value)}
-              />
-            </div>
-          )}
         </div>
 
-        {/* ── Responsables ── */}
+        {/* ── Asignaciones ── */}
         <div className="ca-card" style={{ marginBottom: 16 }}>
-          <h3 style={estilos.subtitulo}>Responsables</h3>
-          <p style={{ fontSize: 13, color: "#5b6b6e", marginTop: 0, marginBottom: 12 }}>
-            Selecciona quiénes deben completar este formulario.
+          <h3 style={sub}>Asignaciones</h3>
+          <p style={ayuda}>
+            Cada asignación indica una reunión, quiénes deben responder, cuántas veces
+            y cada cuánto. Las reuniones vienen del listado de Asistencia QR.
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {usuariosDisponibles.map((u) => {
-              const sel = responsables.includes(u.uid);
-              return (
-                <button
-                  key={u.uid}
-                  type="button"
-                  onClick={() => toggleResponsable(u.uid)}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 100,
-                    border: `2px solid ${sel ? "#14a79d" : "#dbe6e5"}`,
-                    background: sel ? "#e5f6f4" : "#fff",
-                    color: sel ? "#0e7d75" : "#5b6b6e",
-                    fontWeight: sel ? 700 : 400,
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  {sel ? "✓ " : ""}{u.nombreUsuario}
-                  {u.area ? ` · ${u.area}` : ""}
+          {errorReuniones && <p style={err}>{errorReuniones}</p>}
+
+          {asignaciones.length === 0 && (
+            <p style={{ ...ayuda, fontStyle: "italic" }}>
+              Sin asignaciones: el formulario queda abierto para cualquiera que lea el QR.
+            </p>
+          )}
+
+          {asignaciones.map((a, idx) => (
+            <div key={a.id} style={caja}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <strong style={{ fontSize: 13, color: "var(--verde-oscuro)" }}>
+                  Asignación {idx + 1}
+                </strong>
+                <button type="button" onClick={() => quitarAsignacion(a.id)} style={btnQuitar}>
+                  Quitar
                 </button>
-              );
-            })}
-            {usuariosDisponibles.length === 0 && (
-              <p style={{ color: "#5b6b6e", fontSize: 13, margin: 0 }}>No hay usuarios activos.</p>
-            )}
-          </div>
+              </div>
+
+              <label className="ca-label">Reunión *</label>
+              <select
+                className="ca-input"
+                style={{ marginBottom: 10 }}
+                value={a.reunionId}
+                onChange={(e) => elegirReunion(a.id, e.target.value)}
+              >
+                <option value="">Selecciona una reunión…</option>
+                {reuniones.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.nombre}{r.area ? ` · ${r.area}` : ""}
+                  </option>
+                ))}
+              </select>
+
+              <div style={{ display: "flex", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+                <div style={{ flex: "0 0 110px" }}>
+                  <label className="ca-label">Cantidad *</label>
+                  <input
+                    className="ca-input"
+                    type="number"
+                    min="1"
+                    value={a.cantidad}
+                    onChange={(e) => cambiarAsignacion(a.id, "cantidad", e.target.value)}
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 170 }}>
+                  <label className="ca-label">Frecuencia *</label>
+                  <select
+                    className="ca-input"
+                    value={a.frecuencia}
+                    onChange={(e) => cambiarAsignacion(a.id, "frecuencia", e.target.value)}
+                  >
+                    {FRECUENCIAS.map((f) => (
+                      <option key={f.valor} value={f.valor}>{f.etiqueta}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <label className="ca-label">Personas *</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+                {usuariosActivos.map((u) => {
+                  const sel = (a.personas || []).some((p) => p.uid === u.uid);
+                  return (
+                    <button
+                      key={u.uid}
+                      type="button"
+                      onClick={() => togglePersona(a.id, u)}
+                      style={chip(sel)}
+                    >
+                      {sel ? "✓ " : ""}{u.nombreUsuario}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: "6px 0 0" }}>
+                {(a.personas || []).length} persona{(a.personas || []).length === 1 ? "" : "s"} ·{" "}
+                {etiquetaCadencia(a.cantidad, a.frecuencia)}
+              </p>
+            </div>
+          ))}
+
+          <button type="button" className="ca-btn ca-btn-secundario" onClick={agregarAsignacion}>
+            + Agregar asignación
+          </button>
         </div>
 
         {/* ── Preguntas ── */}
         <div className="ca-card" style={{ marginBottom: 16 }}>
-          <h3 style={estilos.subtitulo}>Preguntas</h3>
+          <h3 style={sub}>Preguntas</h3>
 
           {preguntas.map((p, idx) => (
-            <div key={p.id} style={estilos.preguntaCard}>
+            <div key={p.id} style={caja}>
               <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10 }}>
-                <span style={{ fontWeight: 700, color: "#14a79d", minWidth: 22, paddingTop: 14 }}>
+                <span style={{ fontWeight: 700, color: "var(--verde)", minWidth: 22, paddingTop: 13 }}>
                   {idx + 1}.
                 </span>
                 <input
                   className="ca-input"
                   value={p.texto}
-                  onChange={(e) => actualizarPregunta(p.id, "texto", e.target.value)}
+                  onChange={(e) => cambiarPregunta(p.id, "texto", e.target.value)}
                   placeholder="Texto de la pregunta"
                   style={{ flex: 1 }}
                 />
               </div>
 
-              <div style={{ display: "flex", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 10, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
                 <select
                   className="ca-input"
-                  style={{ flex: 1, minWidth: 160 }}
+                  style={{ flex: 1, minWidth: 180 }}
                   value={p.tipo}
-                  onChange={(e) => actualizarPregunta(p.id, "tipo", e.target.value)}
+                  onChange={(e) => cambiarPregunta(p.id, "tipo", e.target.value)}
                 >
                   {TIPOS_PREGUNTA.map((t) => (
                     <option key={t.valor} value={t.valor}>{t.etiqueta}</option>
                   ))}
                 </select>
-
-                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#5b6b6e", cursor: "pointer" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--texto-suave)", cursor: "pointer" }}>
                   <input
                     type="checkbox"
-                    checked={p.obligatoria}
-                    onChange={(e) => actualizarPregunta(p.id, "obligatoria", e.target.checked)}
+                    checked={!!p.obligatoria}
+                    onChange={(e) => cambiarPregunta(p.id, "obligatoria", e.target.checked)}
                   />
                   Obligatoria
                 </label>
               </div>
 
-              {/* Opciones para selección / múltiple */}
-              {(p.tipo === "seleccion" || p.tipo === "multiple") && (
+              {necesitaOpciones(p.tipo) && (
                 <div style={{ marginBottom: 10 }}>
                   {(p.opciones || []).map((op, i) => (
                     <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
                       <input
                         className="ca-input"
                         value={op}
-                        onChange={(e) => actualizarOpcion(p.id, i, e.target.value)}
-                        placeholder={`Opción ${i + 1}`}
+                        onChange={(e) => cambiarOpcion(p.id, i, e.target.value)}
+                        placeholder={`Alternativa ${i + 1}`}
                         style={{ flex: 1 }}
                       />
-                      <button
-                        type="button"
-                        onClick={() => eliminarOpcion(p.id, i)}
-                        style={{ background: "none", border: "none", color: "#d9534f", cursor: "pointer", fontSize: 18 }}
-                      >✕</button>
+                      <button type="button" onClick={() => quitarOpcion(p.id, i)} style={btnX}>✕</button>
                     </div>
                   ))}
-                  <button type="button" className="ca-btn-texto" onClick={() => agregarOpcion(p.id)} style={{ fontSize: 13 }}>
-                    + Agregar opción
+                  <button type="button" className="ca-btn-texto" style={{ fontSize: 13 }} onClick={() => agregarOpcion(p.id)}>
+                    + Agregar alternativa
                   </button>
                 </div>
               )}
 
-              {/* Controles de la pregunta */}
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <button type="button" onClick={() => moverPregunta(p.id, -1)} disabled={idx === 0}
-                  style={estilos.btnIcono}>↑</button>
-                <button type="button" onClick={() => moverPregunta(p.id, 1)} disabled={idx === preguntas.length - 1}
-                  style={estilos.btnIcono}>↓</button>
-                <button type="button" onClick={() => eliminarPregunta(p.id)} disabled={preguntas.length === 1}
-                  style={{ ...estilos.btnIcono, color: "#d9534f" }}>🗑</button>
+                <button type="button" onClick={() => moverPregunta(p.id, -1)} disabled={idx === 0} style={btnIcono}>↑</button>
+                <button type="button" onClick={() => moverPregunta(p.id, 1)} disabled={idx === preguntas.length - 1} style={btnIcono}>↓</button>
+                <button type="button" onClick={() => eliminarPregunta(p.id)} disabled={preguntas.length === 1} style={{ ...btnIcono, color: "var(--rojo)" }}>Eliminar</button>
               </div>
             </div>
           ))}
 
-          <button type="button" className="ca-btn ca-btn-secundario" onClick={agregarPregunta} style={{ marginTop: 4 }}>
+          <button type="button" className="ca-btn ca-btn-secundario" onClick={agregarPregunta}>
             + Agregar pregunta
           </button>
         </div>
 
-        {error && <p style={estilos.error}>{error}</p>}
+        {error && <p style={err}>{error}</p>}
 
         <div style={{ display: "flex", gap: 10 }}>
           <button type="button" className="ca-btn ca-btn-secundario" onClick={onCancelar} style={{ flex: 1 }}>
@@ -327,21 +385,24 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
   );
 }
 
-const estilos = {
-  subtitulo: { margin: "0 0 14px", fontSize: 15, fontWeight: 700, color: "#1f2a2e" },
-  preguntaCard: {
-    background: "#f4f8f8",
-    borderRadius: 12,
-    padding: "14px 14px 10px",
-    marginBottom: 12,
-    border: "1px solid #dbe6e5",
-  },
-  btnIcono: {
-    background: "none", border: "1px solid #dbe6e5", borderRadius: 8,
-    padding: "4px 10px", cursor: "pointer", fontSize: 15, color: "#5b6b6e",
-  },
-  error: {
-    color: "#d9534f", fontSize: 14, margin: "0 0 14px",
-    background: "#fdf2f2", padding: "8px 12px", borderRadius: 8,
-  },
-};
+const cab = { display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 0 18px" };
+const sub = { margin: "0 0 12px", fontSize: 15, fontWeight: 700 };
+const ayuda = { fontSize: 13, color: "var(--texto-suave)", margin: "0 0 12px" };
+const caja = { background: "var(--fondo)", borderRadius: 12, padding: "14px 14px 12px", marginBottom: 12, border: "1px solid var(--borde)" };
+const btnIcono = { background: "none", border: "1px solid var(--borde)", borderRadius: 8, padding: "4px 12px", cursor: "pointer", fontSize: 13, color: "var(--texto-suave)" };
+const btnX = { background: "none", border: "none", color: "var(--rojo)", cursor: "pointer", fontSize: 17 };
+const btnQuitar = { background: "none", border: "none", color: "var(--rojo)", cursor: "pointer", fontSize: 12, fontWeight: 600 };
+const err = { color: "var(--rojo)", fontSize: 14, margin: "0 0 12px", background: "#fdf2f2", padding: "8px 12px", borderRadius: 8 };
+
+function chip(sel) {
+  return {
+    padding: "5px 12px",
+    borderRadius: 100,
+    border: `2px solid ${sel ? "var(--verde)" : "var(--borde)"}`,
+    background: sel ? "var(--verde-claro)" : "#fff",
+    color: sel ? "var(--verde-oscuro)" : "var(--texto-suave)",
+    fontWeight: sel ? 700 : 400,
+    cursor: "pointer",
+    fontSize: 13,
+  };
+}

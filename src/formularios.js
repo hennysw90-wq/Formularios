@@ -8,35 +8,92 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
-  serverTimestamp,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "./firebase.js";
 
-// ─── Constantes ────────────────────────────────────────────────────────────
+// ─── Frecuencias de asignación ──────────────────────────────────────────────
+// Cada asignación dentro de un formulario dice: tal reunión, tales personas,
+// tantas veces (cantidad) por tal periodo (frecuencia).
 export const FRECUENCIAS = [
-  { valor: "diaria", etiqueta: "Diaria" },
-  { valor: "semanal", etiqueta: "Semanal" },
-  { valor: "quincenal", etiqueta: "Quincenal" },
-  { valor: "mensual", etiqueta: "Mensual" },
+  { valor: "diaria", etiqueta: "Al día" },
+  { valor: "semanal", etiqueta: "A la semana" },
+  { valor: "quincenal", etiqueta: "A la quincena" },
+  { valor: "mensual", etiqueta: "Al mes" },
   { valor: "unica", etiqueta: "Una sola vez" },
 ];
 
+export function etiquetaFrecuencia(valor) {
+  return FRECUENCIAS.find((f) => f.valor === valor)?.etiqueta || valor;
+}
+
+// Texto legible de una asignación: "2 veces a la semana", "1 vez al día".
+export function etiquetaCadencia(cantidad, frecuencia) {
+  const n = Number(cantidad) || 1;
+  const veces = n === 1 ? "1 vez" : `${n} veces`;
+  if (frecuencia === "unica") return n === 1 ? "Una sola vez" : `${veces} en total`;
+  return `${veces} ${etiquetaFrecuencia(frecuencia).toLowerCase()}`;
+}
+
+// ─── Periodo vigente ────────────────────────────────────────────────────────
+// Clave del periodo actual según la frecuencia. Las respuestas se cuentan
+// contra esta clave, así "2 veces a la semana" se reinicia cada semana.
+
+function claveSemana(fecha) {
+  // Semana ISO: lunes como primer día.
+  const d = new Date(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()));
+  const diaSemana = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - diaSemana);
+  const inicioAnio = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const semana = Math.ceil(((d - inicioAnio) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(semana).padStart(2, "0")}`;
+}
+
+export function periodoVigente(frecuencia, ahora = new Date()) {
+  const a = ahora.getFullYear();
+  const m = String(ahora.getMonth() + 1).padStart(2, "0");
+  const d = String(ahora.getDate()).padStart(2, "0");
+  if (frecuencia === "diaria") return `${a}-${m}-${d}`;
+  if (frecuencia === "semanal") return claveSemana(ahora);
+  if (frecuencia === "quincenal") {
+    // Dos quincenas por mes: días 1–15 y 16 en adelante.
+    return `${a}-${m}-Q${ahora.getDate() <= 15 ? 1 : 2}`;
+  }
+  if (frecuencia === "mensual") return `${a}-${m}`;
+  return "unica";
+}
+
+// ─── Tipos de pregunta ──────────────────────────────────────────────────────
 export const TIPOS_PREGUNTA = [
-  { valor: "texto", etiqueta: "Respuesta de texto" },
+  { valor: "texto", etiqueta: "Texto corto" },
+  { valor: "parrafo", etiqueta: "Texto largo" },
   { valor: "numero", etiqueta: "Número" },
   { valor: "si_no", etiqueta: "Sí / No" },
-  { valor: "seleccion", etiqueta: "Selección (una opción)" },
-  { valor: "multiple", etiqueta: "Selección múltiple" },
+  { valor: "seleccion", etiqueta: "Alternativas (una)" },
+  { valor: "multiple", etiqueta: "Alternativas (varias)" },
+  { valor: "escala", etiqueta: "Escala 1 a 5" },
+  { valor: "fecha", etiqueta: "Fecha" },
+  { valor: "hora", etiqueta: "Hora" },
+  { valor: "imagen", etiqueta: "Foto / imagen" },
 ];
 
-// URL base para el link del QR de respuesta
+export function necesitaOpciones(tipo) {
+  return tipo === "seleccion" || tipo === "multiple";
+}
+
+export function etiquetaTipoPregunta(tipo) {
+  return TIPOS_PREGUNTA.find((t) => t.valor === tipo)?.etiqueta || tipo;
+}
+
+// URL del QR: uno solo por formulario. Al abrirlo, la persona se identifica
+// y ve sus asignaciones pendientes del periodo.
 export function linkRespuesta(formularioId) {
   return `${window.location.origin}${window.location.pathname}?formulario=${formularioId}`;
 }
 
 // ─── CRUD Formularios ───────────────────────────────────────────────────────
 
-// Escucha en tiempo real todos los formularios
 export function listarFormularios(callback, onError) {
   return onSnapshot(
     collection(db, "formularios"),
@@ -59,16 +116,15 @@ export async function obtenerFormulario(id) {
   return { id: snap.id, ...snap.data() };
 }
 
-// Crea un formulario nuevo y devuelve su id
-export async function crearFormulario({ titulo, descripcion, preguntas, responsables, frecuencia, fechaUnica }) {
+// datos.asignaciones: [{ id, reunionId, reunionNombre, personas: [{uid,nombre}],
+//                        cantidad, frecuencia }]
+export async function crearFormulario(datos) {
   const ref = doc(collection(db, "formularios"));
   await setDoc(ref, {
-    titulo: titulo.trim(),
-    descripcion: (descripcion || "").trim(),
-    preguntas: preguntas || [],
-    responsables: responsables || [],
-    frecuencia: frecuencia || "unica",
-    fechaUnica: fechaUnica || "",
+    titulo: (datos.titulo || "").trim(),
+    descripcion: (datos.descripcion || "").trim(),
+    preguntas: datos.preguntas || [],
+    asignaciones: datos.asignaciones || [],
     activo: true,
     creado: new Date().toISOString(),
   });
@@ -88,9 +144,25 @@ export async function eliminarFormulario(id) {
 
 // ─── Respuestas ─────────────────────────────────────────────────────────────
 
-// Guarda una respuesta de un formulario
-export async function guardarRespuesta({ formularioId, nombreUsuario, area, respuestas }) {
+// Cada respuesta queda amarrada a la asignación, la reunión y el periodo en
+// que se ejecutó, para poder contar cuántas lleva la persona en el periodo.
+export async function guardarRespuesta({
+  formularioId,
+  asignacionId,
+  reunionId,
+  reunionNombre,
+  periodo,
+  personaUid,
+  nombreUsuario,
+  area,
+  respuestas,
+}) {
   await addDoc(collection(db, "formularios", formularioId, "respuestas"), {
+    asignacionId: asignacionId || "",
+    reunionId: reunionId || "",
+    reunionNombre: reunionNombre || "",
+    periodo: periodo || "",
+    personaUid: personaUid || "",
     nombreUsuario: nombreUsuario || "Anónimo",
     area: area || "",
     respuestas: respuestas || {},
@@ -98,7 +170,6 @@ export async function guardarRespuesta({ formularioId, nombreUsuario, area, resp
   });
 }
 
-// Escucha las respuestas de un formulario en tiempo real
 export function listarRespuestas(formularioId, callback, onError) {
   return onSnapshot(
     collection(db, "formularios", formularioId, "respuestas"),
@@ -113,4 +184,36 @@ export function listarRespuestas(formularioId, callback, onError) {
       if (onError) onError(error);
     }
   );
+}
+
+// Respuestas que una persona ya entregó para este formulario, usadas para
+// saber cuántas lleva en el periodo vigente de cada asignación.
+export async function respuestasDePersona(formularioId, personaUid) {
+  const col = collection(db, "formularios", formularioId, "respuestas");
+  const snap = await getDocs(query(col, where("personaUid", "==", personaUid)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Arma la agenda que ve la persona al leer el QR: una tarjeta por cada
+// asignación donde está incluida, con cuántas lleva y cuántas le faltan en
+// el periodo vigente.
+export function agendaDePersona(formulario, personaUid, respuestas) {
+  const hechas = respuestas || [];
+  return (formulario.asignaciones || [])
+    .filter((a) => (a.personas || []).some((p) => p.uid === personaUid))
+    .map((a) => {
+      const periodo = periodoVigente(a.frecuencia);
+      const yaHechas = hechas.filter(
+        (r) => r.asignacionId === a.id && r.periodo === periodo
+      ).length;
+      const total = Number(a.cantidad) || 1;
+      return {
+        asignacion: a,
+        periodo,
+        hechas: yaHechas,
+        total,
+        pendientes: Math.max(0, total - yaHechas),
+        completa: yaHechas >= total,
+      };
+    });
 }
