@@ -18,7 +18,7 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
   const esMasterOAdmin = usuario?.rol === "master" || usuario?.rol === "admin";
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 16px 40px" }}>
+    <div style={{ maxWidth: 900, margin: "0 auto", padding: "18px 28px 60px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "24px 0 4px" }}>
         <button className="ca-btn-texto" onClick={onVolver}>← Volver</button>
         {esMasterOAdmin && (

@@ -8,7 +8,7 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir }) {
         <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
         <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
       </div>
-      <p className="ca-eyebrow">Formularios · v1.0.0 · Henny</p>
+      <p className="ca-eyebrow">Formularios · V1.1.0 · Henny</p>
       <p className="ca-titulo">Formularios</p>
 
       <div className="ca-nav">
@@ -18,7 +18,7 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir }) {
         >
           Mis formularios
         </button>
-        {(usuario?.rol === "admin" || usuario?.rol === "master") && (
+        {(usuario.rol === "admin" || usuario.rol === "master") && (
           <button
             className={`ca-nav-link ${vista === "admin" ? "activo" : ""}`}
             onClick={() => onCambiarVista("admin")}
@@ -26,11 +26,11 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir }) {
             Administración
           </button>
         )}
-      </div>
-
-      <div className="ca-cabecera-usuario">
-        <span>{usuario?.nombreUsuario}</span>
-        <button className="ca-btn-texto" onClick={onSalir} style={{ fontSize: 13 }}>
+        <div className="ca-nav-espaciador" />
+        <span style={{ fontSize: 14, color: "var(--texto-suave)" }}>{usuario.nombreUsuario}</span>
+        {usuario.rol === "master" && <span className="ca-badge-rol">Master</span>}
+        {usuario.rol === "admin" && <span className="ca-badge-rol">Administrador</span>}
+        <button className="ca-btn-salir" onClick={onSalir}>
           Salir
         </button>
       </div>

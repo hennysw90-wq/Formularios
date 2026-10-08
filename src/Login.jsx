@@ -96,7 +96,7 @@ export default function Login({ onIngresar }) {
             </button>
           </div>
         </div>
-        <p style={estilos.footer}>Formularios · v1.0.0 · Henny</p>
+        <p style={estilos.footer}>Formularios · v1.1.0 · Henny</p>
       </div>
     );
   }
@@ -251,7 +251,7 @@ export default function Login({ onIngresar }) {
           </form>
         )}
       </div>
-      <p style={estilos.footer}>Formularios · v1.0.0 · Henny</p>
+      <p style={estilos.footer}>Formularios · v1.1.0 · Henny</p>
     </div>
   );
 }

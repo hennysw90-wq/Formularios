@@ -156,7 +156,7 @@ export default function RegistroFormulario({ formularioId }) {
           </button>
         </form>
       </div>
-      <p style={estilos.footer}>Formularios · v1.0.0 · Henny</p>
+      <p style={estilos.footer}>Formularios · v1.1.0 · Henny</p>
     </div>
   );
 }

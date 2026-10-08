@@ -137,7 +137,7 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
   );
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto", padding: "0 16px 40px" }}>
+    <div style={{ maxWidth: 760, margin: "0 auto", padding: "18px 28px 60px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "24px 0 20px" }}>
         <h2 style={{ margin: 0, fontSize: 20, color: "#1f2a2e" }}>
           {editando ? "Editar formulario" : "Nuevo formulario"}

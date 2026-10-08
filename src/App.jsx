@@ -99,7 +99,7 @@ function PanelPrincipal() {
     return (
       <>
         <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
-        <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 40px" }}>
+        <div style={{ marginTop: 20, padding: "0 28px 40px" }}>
           <Administracion usuarioActual={usuario} />
         </div>
       </>
@@ -121,7 +121,7 @@ function PanelPrincipal() {
   return (
     <>
       <Cabecera usuario={usuario} vista="lista" onCambiarVista={setVista} onSalir={salir} />
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px 40px" }}>
+      <div className="ca-contenido">
 
         <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
           <input

@@ -348,3 +348,28 @@ textarea {
   font-size: 13px;
   cursor: pointer;
 }
+
+/* --- Clases "rp-*" ---
+   Usadas por el panel de Administración (src/Administracion.jsx), que es
+   el mismo archivo que en RdP Tracker Henny, para que ambas apps tengan
+   la misma pantalla de administración. */
+.rp-input, .rp-select, .rp-textarea {
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid #D3D1C7;
+  background: #FFFFFF;
+  color: #2C2C2A;
+  width: 100%;
+  max-width: 100%;
+  outline: none;
+}
+.rp-input { text-overflow: ellipsis; }
+.rp-input:focus, .rp-select:focus, .rp-textarea:focus {
+  border-color: #009899;
+  box-shadow: 0 0 0 2px rgba(0,152,153,0.15);
+}
+.rp-textarea { resize: vertical; min-height: 60px; word-break: break-word; overflow-wrap: break-word; }
+.rp-btn-icon { cursor: pointer; border: none; background: transparent; padding: 4px; border-radius: 4px; }
+.rp-btn-icon:hover { background: rgba(0,0,0,0.06); }
