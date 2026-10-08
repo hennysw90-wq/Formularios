@@ -113,6 +113,16 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
       )
     );
   }
+  function cambiarDesde(asigId, uid, desde) {
+    setAsignaciones((a) =>
+      a.map((x) =>
+        x.id !== asigId
+          ? x
+          : { ...x, personas: (x.personas || []).map((p) => (p.uid === uid ? { ...p, desde } : p)) }
+      )
+    );
+  }
+
   function togglePersona(asigId, usuario) {
     setAsignaciones((a) =>
       a.map((x) => {
@@ -120,7 +130,7 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
         const existe = (x.personas || []).some((p) => p.uid === usuario.uid);
         const personas = existe
           ? x.personas.filter((p) => p.uid !== usuario.uid)
-          : [...(x.personas || []), { uid: usuario.uid, nombre: usuario.nombreUsuario }];
+          : [...(x.personas || []), { uid: usuario.uid, nombre: usuario.nombreUsuario, desde: "" }];
         return { ...x, personas };
       })
     );
@@ -323,6 +333,7 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
                 usuarios={usuariosActivos}
                 seleccionadas={a.personas || []}
                 onToggle={(u) => togglePersona(a.id, u)}
+                onCambiarDesde={(uid, desde) => cambiarDesde(a.id, uid, desde)}
               />
 
               <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: "8px 0 0" }}>
@@ -428,7 +439,7 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
 // Las personas seleccionadas se muestran siempre arriba, para no perderlas
 // de vista al filtrar. El buscador ignora mayúsculas y tildes, igual que el
 // de Administración.
-function SelectorPersonas({ usuarios, seleccionadas, onToggle }) {
+function SelectorPersonas({ usuarios, seleccionadas, onToggle, onCambiarDesde }) {
   const [busqueda, setBusqueda] = useState("");
 
   const sinTildes = (t) =>
@@ -445,17 +456,30 @@ function SelectorPersonas({ usuarios, seleccionadas, onToggle }) {
       <label className="ca-label">Personas *</label>
 
       {seleccionadas.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+        <div style={{ marginBottom: 10 }}>
           {seleccionadas.map((p) => (
-            <button
-              key={p.uid}
-              type="button"
-              onClick={() => onToggle({ uid: p.uid, nombreUsuario: p.nombre })}
-              style={chip(true)}
-              title="Quitar"
-            >
-              ✓ {p.nombre} ✕
-            </button>
+            <div key={p.uid} style={filaPersonaSel}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600 }}>{p.nombre}</span>
+              <label style={{ fontSize: 11, color: "var(--texto-suave)", whiteSpace: "nowrap" }}>
+                Controlar desde
+              </label>
+              <input
+                type="date"
+                className="ca-input"
+                style={{ width: 150, padding: "6px 8px", fontSize: 13 }}
+                value={p.desde || ""}
+                onChange={(e) => onCambiarDesde(p.uid, e.target.value)}
+                title="Vacío = se controla desde siempre"
+              />
+              <button
+                type="button"
+                onClick={() => onToggle({ uid: p.uid, nombreUsuario: p.nombre })}
+                style={{ background: "none", border: "none", color: "var(--rojo)", cursor: "pointer", fontSize: 16 }}
+                title="Quitar"
+              >
+                ✕
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -483,6 +507,18 @@ function SelectorPersonas({ usuarios, seleccionadas, onToggle }) {
     </>
   );
 }
+
+const filaPersonaSel = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  flexWrap: "wrap",
+  background: "#fff",
+  border: "1px solid var(--borde)",
+  borderRadius: 10,
+  padding: "7px 10px",
+  marginBottom: 6,
+};
 
 const cab = { display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 0 18px" };
 const sub = { margin: "0 0 12px", fontSize: 15, fontWeight: 700 };

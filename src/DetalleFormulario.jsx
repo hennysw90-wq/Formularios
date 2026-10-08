@@ -88,7 +88,10 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
                 </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                   {(a.personas || []).map((p) => (
-                    <span key={p.uid} className="ca-chip" style={{ fontSize: 11 }}>{p.nombre}</span>
+                    <span key={p.uid} className="ca-chip" style={{ fontSize: 11 }}>
+                      {p.nombre}
+                      {p.desde && ` · desde ${fechaCorta(p.desde)}`}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -180,6 +183,11 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
       </div>
     </div>
   );
+}
+
+function fechaCorta(iso) {
+  const [a, m, d] = (iso || "").split("-");
+  return a && m && d ? `${d}-${m}-${a}` : iso;
 }
 
 function fecha(iso) {

@@ -11,7 +11,7 @@ import {
   configDestinatario,
 } from "./formularios.js";
 
-const VERSION = "v1.6.0";
+const VERSION = "v1.7.0";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -39,7 +39,7 @@ export default function RegistroFormulario({ formularioId }) {
 
   async function refrescarAgenda(p) {
     const previas = await respuestasDePersona(formularioId, p.uid);
-    setAgenda(agendaDePersona(formulario, p.uid, previas));
+    setAgenda(agendaDePersona(formulario, p.uid, previas, p));
   }
 
   async function identificarse(p) {

@@ -4,6 +4,8 @@ import {
   periodosDelMes,
   periodoVigente,
   etiquetaCadencia,
+  desdeDePersona,
+  periodoDentroDelControl,
 } from "./formularios.js";
 
 const MESES_CORTOS = [
@@ -56,6 +58,7 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
       for (const asig of asignaciones) {
         const cantidad = Number(asig.cantidad) || 1;
         const mias = respuestas.filter((r) => r.asignacionId === asig.id);
+        const desde = desdeDePersona(asig, usuario);
 
         const celdas = columnas.map(({ anio, mes }) => {
           const periodos = periodosDelMes(asig.frecuencia, anio, mes);
@@ -72,7 +75,11 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
 
           // Los periodos que todavía no empiezan no se exigen.
           const actual = periodoActual(asig.frecuencia);
-          const considerados = periodos.filter((p) => p.cierra <= ahora || p.clave === actual);
+          const considerados = periodos.filter(
+            (p) =>
+              (p.cierra <= ahora || p.clave === actual) &&
+              periodoDentroDelControl(p.cierra, desde)
+          );
           const exigido = considerados.length * cantidad;
           const hechas = considerados.reduce((s, p) => {
             const n = mias.filter((r) => r.periodo === p.clave).length;
@@ -88,6 +95,7 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
           clave: `${formulario.id}__${asig.id}`,
           formulario,
           asignacion: asig,
+          desde,
           celdas,
           totalExigido,
           totalHecho,
@@ -96,7 +104,7 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
       }
     }
     return salida.sort((a, b) => (a.porcentaje ?? 999) - (b.porcentaje ?? 999));
-  }, [datos, columnas]);
+  }, [datos, columnas, usuario]);
 
   // Totales por columna y generales.
   const totalesColumna = columnas.map((_, i) => {
@@ -228,6 +236,9 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
                     <td style={td}>{f.asignacion.reunionNombre || "—"}</td>
                     <td style={{ ...td, textAlign: "center", color: "var(--texto-suave)", fontSize: 12 }}>
                       {etiquetaCadencia(f.asignacion.cantidad, f.asignacion.frecuencia)}
+                      {f.desde && (
+                        <div style={{ fontSize: 10, marginTop: 2 }}>desde {fechaCorta(f.desde)}</div>
+                      )}
                     </td>
                     {f.celdas.map((c, i) => (
                       <td key={i} style={{ ...td, textAlign: "center", ...fondo(c) }}>
@@ -270,6 +281,13 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
       )}
     </div>
   );
+}
+
+// "2026-10-15" -> "15-10-2026", sin pasar por Date para que no se corra un
+// día por la zona horaria.
+function fechaCorta(iso) {
+  const [a, m, d] = (iso || "").split("-");
+  return a && m && d ? `${d}-${m}-${a}` : iso;
 }
 
 function color(p) {

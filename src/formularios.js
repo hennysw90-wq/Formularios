@@ -245,6 +245,23 @@ export async function cumplimientoDePersona(personaUid) {
 // Compara personas por id y, como respaldo, por nombre sin tildes ni
 // mayúsculas. El respaldo cubre asignaciones guardadas antes de que se
 // usara el id, o casos donde la ficha del directorio se volvió a crear.
+// Fecha desde la que se le controla el formulario a esta persona dentro de
+// una asignación. Vacío significa que se controla desde siempre.
+export function desdeDePersona(asignacion, usuario) {
+  const p = (asignacion?.personas || []).find((x) => esLaMismaPersona(x, usuario));
+  return p?.desde || "";
+}
+
+// ¿Este periodo ya cae dentro del control de la persona? Cuenta si el
+// periodo termina en la fecha de inicio o después, así la semana (o el mes)
+// en que arrancó el control sí se exige.
+export function periodoDentroDelControl(periodoCierra, desde) {
+  if (!desde) return true;
+  const [a, m, d] = desde.split("-").map(Number);
+  if (!a || !m || !d) return true;
+  return periodoCierra >= new Date(a, m - 1, d);
+}
+
 export function esLaMismaPersona(p, usuario) {
   if (!p || !usuario) return false;
   if (p.uid && usuario.uid && p.uid === usuario.uid) return true;
@@ -328,10 +345,20 @@ export async function recibidasDePersona(personaUid) {
 // Arma la agenda que ve la persona al leer el QR: una tarjeta por cada
 // asignación donde está incluida, con cuántas lleva y cuántas le faltan en
 // el periodo vigente.
-export function agendaDePersona(formulario, personaUid, respuestas) {
+export function agendaDePersona(formulario, personaUid, respuestas, usuario = null) {
   const hechas = respuestas || [];
+  const quien = usuario || { uid: personaUid };
+  const hoy = new Date();
   return (formulario.asignaciones || [])
-    .filter((a) => (a.personas || []).some((p) => p.uid === personaUid))
+    .filter((a) => (a.personas || []).some((p) => esLaMismaPersona(p, quien)))
+    // Si el control de esta persona todavía no empieza, la asignación no se
+    // le muestra como pendiente.
+    .filter((a) => {
+      const desde = desdeDePersona(a, quien);
+      if (!desde) return true;
+      const [y, m, d] = desde.split("-").map(Number);
+      return !y || new Date(y, m - 1, d) <= hoy;
+    })
     .map((a) => {
       const periodo = periodoVigente(a.frecuencia);
       const yaHechas = hechas.filter(
