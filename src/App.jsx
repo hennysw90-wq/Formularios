@@ -100,7 +100,7 @@ function PanelPrincipal() {
       <>
         <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
         <div style={{ maxWidth: 960, margin: "0 auto", padding: "24px 16px 40px" }}>
-          <Administracion />
+          <Administracion usuarioActual={usuario} />
         </div>
       </>
     );
