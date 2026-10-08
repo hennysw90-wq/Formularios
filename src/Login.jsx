@@ -24,7 +24,7 @@ export default function Login({ onIngresar }) {
 
   useEffect(() => {
     asegurarUsuarioMaestro().catch(() => {});
-    const c1 = listarUsuarios(setUsuarios);
+    const c1 = listarUsuarios((lista) => setUsuarios(lista.filter((u) => u.rol !== "deshabilitado")));
     const c2 = listarAreas(setAreas);
     return () => {
       c1();
@@ -40,7 +40,14 @@ export default function Login({ onIngresar }) {
       const usuario = await iniciarSesion(nombreUsuario, password);
       onIngresar(usuario);
     } catch (e) {
-      setError(e.message);
+      if (e.message === "Ese usuario ya no existe.") {
+        // No existe todavía: le ofrecemos crear su perfil en vez de solo
+        // decirle que está mal escrito.
+        setModo("registro");
+        setError("");
+      } else {
+        setError(e.message || "No se pudo iniciar sesión.");
+      }
     } finally {
       setCargando(false);
     }
@@ -49,256 +56,237 @@ export default function Login({ onIngresar }) {
   async function enviarRegistro(ev) {
     ev.preventDefault();
     setError("");
-    if (!area) {
-      setError("El área es obligatoria.");
+    if (password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres.");
       return;
     }
     setCargando(true);
     try {
-      await crearUsuarioPendiente(nombreUsuario, password, correo, area);
-      setModo("esperando_validacion");
+      const resultado = await crearUsuarioPendiente(nombreUsuario, password, correo, area);
+      if (resultado?.fusionado && resultado.estado === "activo") {
+        // Ya tenía una cuenta activa creada desde otra app: no se creó
+        // ninguna cuenta nueva ni se pisó su contraseña, solo se le
+        // habilitó el acceso a Asistencia QR. Se le avisa y se lo manda
+        // a iniciar sesión con su clave de siempre (no la que acaba de
+        // escribir acá, que no se guardó).
+        setModo("login");
+        setNombreUsuario(resultado.nombreUsuario);
+        setPassword("");
+        setError("");
+        window.alert(
+          `"${resultado.nombreUsuario}" ya tenía una cuenta (creada desde otra app) — se le habilitó el acceso a Formularios. Inicia sesión con tu usuario y tu contraseña de siempre (no la que acabas de escribir acá).`
+        );
+      } else {
+        setModo("esperando_validacion");
+      }
     } catch (e) {
-      setError(e.message);
+      setError(e.message || "No se pudo crear tu perfil.");
     } finally {
       setCargando(false);
     }
   }
 
-  async function guardarAreaNueva(ev) {
-    ev.preventDefault();
-    if (!areaNueva.trim()) return;
+  async function agregarAreaNueva() {
+    const limpio = areaNueva.trim();
+    if (!limpio) return;
+    setCreandoArea(true);
+    setError("");
     try {
-      await crearArea(areaNueva);
-      setArea(areaNueva.trim());
+      await crearArea(limpio);
+      setArea(limpio);
       setAreaNueva("");
-      setCreandoArea(false);
     } catch (e) {
-      setError(e.message);
+      setError(e.message || "No se pudo crear el área.");
+    } finally {
+      setCreandoArea(false);
     }
   }
 
-  // Filtrar usuarios deshabilitados del autocomplete
-  const usuariosFiltrados = usuarios.filter((u) => u.rol !== "deshabilitado");
-
   if (modo === "esperando_validacion") {
     return (
-      <div style={estilos.fondo}>
-        <div style={estilos.card}>
-          <img src={logoLomasBayas} alt="Lomas Bayas" style={estilos.logo} />
-          <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>⏳</div>
-            <h2 style={{ margin: "0 0 10px", color: "#1f2a2e" }}>Cuenta en revisión</h2>
-            <p style={{ color: "#5b6b6e", margin: "0 0 20px" }}>
-              Tu solicitud fue enviada. Un administrador la revisará pronto.
-            </p>
-            <button className="ca-btn ca-btn-secundario" onClick={() => setModo("login")}>
-              Volver al ingreso
+      <Envoltorio>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 34 }}>✅</div>
+          <p style={{ fontWeight: 700, marginTop: 8 }}>Perfil creado</p>
+          <p style={{ color: "var(--texto-suave)", fontSize: 14 }}>
+            Un administrador tiene que validar tu cuenta antes de que puedas entrar. Avísale que ya te
+            registraste como <b>{nombreUsuario}</b>.
+          </p>
+          <button
+            type="button"
+            className="ca-btn ca-btn-secundario"
+            style={{ marginTop: 14 }}
+            onClick={() => {
+              setModo("login");
+              setPassword("");
+            }}
+          >
+            Volver a intentar entrar
+          </button>
+        </div>
+      </Envoltorio>
+    );
+  }
+
+  if (modo === "registro") {
+    return (
+      <Envoltorio>
+        <form onSubmit={enviarRegistro}>
+          <p style={{ textAlign: "center", fontWeight: 800, fontSize: 17, margin: "0 0 4px" }}>
+            No encontramos a "{nombreUsuario}"
+          </p>
+          <p style={{ textAlign: "center", color: "var(--texto-suave)", fontSize: 13, margin: "0 0 16px" }}>
+            Crea tu perfil — un administrador lo tiene que validar antes de que puedas entrar.
+          </p>
+
+          <label className="ca-label">Nombre completo</label>
+          <input
+            className="ca-input"
+            value={nombreUsuario}
+            onChange={(e) => setNombreUsuario(e.target.value)}
+          />
+
+          <label className="ca-label" style={{ marginTop: 10 }}>
+            Elige una contraseña
+          </label>
+          <input
+            className="ca-input"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="mínimo 6 caracteres"
+          />
+
+          <label className="ca-label" style={{ marginTop: 10 }}>
+            Correo
+          </label>
+          <input
+            className="ca-input"
+            type="email"
+            value={correo}
+            onChange={(e) => setCorreo(e.target.value)}
+            placeholder="nombre.apellido@empresa.cl"
+          />
+
+          <label className="ca-label" style={{ marginTop: 10 }}>
+            Área
+          </label>
+          <select className="ca-input" value={area} onChange={(e) => setArea(e.target.value)}>
+            <option value="">Sin área…</option>
+            {areas.map((a) => (
+              <option key={a.id} value={a.nombre}>
+                {a.nombre}
+              </option>
+            ))}
+          </select>
+          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+            <input
+              className="ca-input"
+              placeholder="¿No está tu área? Escríbela aquí…"
+              value={areaNueva}
+              onChange={(e) => setAreaNueva(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  agregarAreaNueva();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="ca-btn ca-btn-secundario"
+              style={{ width: "auto" }}
+              onClick={agregarAreaNueva}
+              disabled={creandoArea}
+            >
+              + Agregar
             </button>
           </div>
-        </div>
-        <p style={estilos.footer}>Formularios · v1.1.0 · Henny</p>
-      </div>
+
+          {error && <p style={{ color: "var(--rojo)", fontSize: 13, marginTop: 10 }}>{error}</p>}
+
+          <button className="ca-btn" style={{ marginTop: 16 }} disabled={cargando}>
+            {cargando ? "Creando…" : "Crear mi perfil"}
+          </button>
+          <button
+            type="button"
+            className="ca-btn-texto"
+            style={{ marginTop: 6, width: "100%" }}
+            onClick={() => {
+              setModo("login");
+              setError("");
+            }}
+          >
+            ← Volver a intentar entrar
+          </button>
+        </form>
+      </Envoltorio>
     );
   }
 
   return (
-    <div style={estilos.fondo}>
-      <div style={estilos.card}>
-        <img src={logoLomasBayas} alt="Lomas Bayas" style={estilos.logo} />
-        <h2 style={estilos.titulo}>Formularios</h2>
+    <Envoltorio>
+      <form onSubmit={enviarLogin}>
+        <label className="ca-label">Usuario</label>
+        <input
+          className="ca-input"
+          list="lista-usuarios"
+          value={nombreUsuario}
+          onChange={(e) => setNombreUsuario(e.target.value)}
+          placeholder="Tu nombre de usuario"
+          autoFocus
+        />
+        <datalist id="lista-usuarios">
+          {usuarios.map((u) => (
+            <option key={u.uid} value={u.nombreUsuario} />
+          ))}
+        </datalist>
 
-        {modo === "login" ? (
-          <form onSubmit={enviarLogin}>
-            <label className="ca-label">Usuario</label>
-            <input
-              className="ca-input"
-              style={{ marginBottom: 14 }}
-              list="lista-usuarios"
-              value={nombreUsuario}
-              onChange={(e) => setNombreUsuario(e.target.value)}
-              placeholder="Tu nombre"
-              autoFocus
-            />
-            <datalist id="lista-usuarios">
-              {usuariosFiltrados.map((u) => (
-                <option key={u.uid} value={u.nombreUsuario} />
-              ))}
-            </datalist>
+        <label className="ca-label" style={{ marginTop: 12 }}>
+          Contraseña
+        </label>
+        <input
+          className="ca-input"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+        />
 
-            <label className="ca-label">Contraseña</label>
-            <input
-              className="ca-input"
-              style={{ marginBottom: 18 }}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Tu contraseña"
-            />
+        {error && <p style={{ color: "var(--rojo)", fontSize: 13, marginTop: 10 }}>{error}</p>}
 
-            {error && <p style={estilos.error}>{error}</p>}
-
-            <button className="ca-btn" disabled={cargando}>
-              {cargando ? "Ingresando…" : "Ingresar"}
-            </button>
-
-            <p style={{ textAlign: "center", marginTop: 14 }}>
-              <button
-                type="button"
-                className="ca-btn-texto"
-                onClick={() => { setModo("registro"); setError(""); }}
-              >
-                Crear cuenta nueva
-              </button>
-            </p>
-          </form>
-        ) : (
-          <form onSubmit={enviarRegistro}>
-            <label className="ca-label">Nombre completo</label>
-            <input
-              className="ca-input"
-              style={{ marginBottom: 14 }}
-              value={nombreUsuario}
-              onChange={(e) => setNombreUsuario(e.target.value)}
-              placeholder="Nombre y apellido"
-              autoFocus
-            />
-
-            <label className="ca-label">Contraseña (mín. 6 caracteres)</label>
-            <input
-              className="ca-input"
-              style={{ marginBottom: 14 }}
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Elige una contraseña"
-            />
-
-            <label className="ca-label">Correo (opcional)</label>
-            <input
-              className="ca-input"
-              style={{ marginBottom: 14 }}
-              type="email"
-              value={correo}
-              onChange={(e) => setCorreo(e.target.value)}
-              placeholder="tu.correo@empresa.cl"
-            />
-
-            <label className="ca-label">Área *</label>
-            {!creandoArea ? (
-              <div style={{ marginBottom: 14 }}>
-                <select
-                  className="ca-input"
-                  value={area}
-                  onChange={(e) => setArea(e.target.value)}
-                  style={{ marginBottom: 8 }}
-                >
-                  <option value="">Selecciona un área…</option>
-                  {areas.map((a) => (
-                    <option key={a.id} value={a.nombre}>{a.nombre}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="ca-btn-texto"
-                  style={{ padding: "4px 0", fontSize: 13 }}
-                  onClick={() => setCreandoArea(true)}
-                >
-                  + Agregar área nueva
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                <input
-                  className="ca-input"
-                  value={areaNueva}
-                  onChange={(e) => setAreaNueva(e.target.value)}
-                  placeholder="Nombre del área"
-                />
-                <button
-                  type="button"
-                  className="ca-btn"
-                  style={{ width: "auto", padding: "12px 16px" }}
-                  onClick={guardarAreaNueva}
-                >
-                  Guardar
-                </button>
-                <button
-                  type="button"
-                  className="ca-btn ca-btn-secundario"
-                  style={{ width: "auto", padding: "12px 16px" }}
-                  onClick={() => setCreandoArea(false)}
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
-            {error && <p style={estilos.error}>{error}</p>}
-
-            <button className="ca-btn" disabled={cargando}>
-              {cargando ? "Enviando…" : "Solicitar acceso"}
-            </button>
-
-            <p style={{ textAlign: "center", marginTop: 14 }}>
-              <button
-                type="button"
-                className="ca-btn-texto"
-                onClick={() => { setModo("login"); setError(""); }}
-              >
-                Ya tengo cuenta
-              </button>
-            </p>
-          </form>
-        )}
-      </div>
-      <p style={estilos.footer}>Formularios · v1.1.0 · Henny</p>
-    </div>
+        <button className="ca-btn" style={{ marginTop: 16 }} disabled={cargando}>
+          {cargando ? "Ingresando…" : "Ingresar"}
+        </button>
+        <p style={{ textAlign: "center", fontSize: 12, color: "var(--texto-suave)", marginTop: 12 }}>
+          ¿No tienes cuenta? Escribe tu nombre arriba e intenta entrar — te vamos a ofrecer crear tu perfil.
+        </p>
+      </form>
+    </Envoltorio>
   );
 }
 
-const estilos = {
-  fondo: {
-    minHeight: "100vh",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#f4f8f8",
-    padding: "20px",
-    gap: 16,
-  },
-  card: {
-    background: "#fff",
-    borderRadius: 18,
-    padding: "32px 28px",
-    maxWidth: 400,
-    width: "100%",
-    boxShadow: "0 4px 20px rgba(14,125,117,0.10)",
-    border: "1px solid #dbe6e5",
-  },
-  logo: {
-    display: "block",
-    margin: "0 auto 18px",
-    height: 48,
-  },
-  titulo: {
-    textAlign: "center",
-    margin: "0 0 24px",
-    fontSize: 22,
-    fontWeight: 700,
-    color: "#1f2a2e",
-  },
-  error: {
-    color: "#d9534f",
-    fontSize: 14,
-    margin: "0 0 12px",
-    background: "#fdf2f2",
-    padding: "8px 12px",
-    borderRadius: 8,
-  },
-  footer: {
-    color: "#5b6b6e",
-    fontSize: 12,
-    margin: 0,
-  },
-};
+function Envoltorio({ children }) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div className="ca-card" style={{ width: "100%", maxWidth: 360 }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+          <img src={logoLomasBayas} alt="Logo" style={{ height: 42 }} />
+        </div>
+        <p style={{ textAlign: "center", fontWeight: 800, fontSize: 18, margin: "0 0 18px" }}>
+          Formularios
+        </p>
+        {children}
+        <p style={{ textAlign: "center", fontSize: 10, color: "#b8c4c2", marginTop: 16 }}>v1.1.0</p>
+      </div>
+    </div>
+  );
+}
