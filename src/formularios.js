@@ -217,6 +217,46 @@ export async function respuestasDePersona(formularioId, personaUid) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+// ─── Vistas por persona ─────────────────────────────────────────────────────
+
+// "Cumplimiento de mi plan": todos los formularios donde la persona está
+// asignada, con cuántas lleva y cuántas le faltan en el periodo vigente.
+// Se recorren los formularios de a uno en vez de hacer una consulta
+// transversal, porque así no hace falta crear índices en Firestore.
+export async function cumplimientoDePersona(personaUid) {
+  const formularios = await getDocs(collection(db, "formularios"));
+  const salida = [];
+  for (const doc_ of formularios.docs) {
+    const formulario = { id: doc_.id, ...doc_.data() };
+    if (formulario.activo === false) continue;
+    const mias = (formulario.asignaciones || []).filter((a) =>
+      (a.personas || []).some((p) => p.uid === personaUid)
+    );
+    if (mias.length === 0) continue;
+    const previas = await respuestasDePersona(formulario.id, personaUid);
+    salida.push({ formulario, agenda: agendaDePersona(formulario, personaUid, previas) });
+  }
+  return salida;
+}
+
+// "Feedbacks y confirmaciones recibidas": respuestas de cualquier formulario
+// en las que esta persona quedó como destinatario.
+export async function recibidasDePersona(personaUid) {
+  const formularios = await getDocs(collection(db, "formularios"));
+  const salida = [];
+  for (const doc_ of formularios.docs) {
+    const formulario = { id: doc_.id, ...doc_.data() };
+    const respuestas = await getDocs(collection(db, "formularios", doc_.id, "respuestas"));
+    respuestas.docs.forEach((r) => {
+      const datos = r.data();
+      if (datos.destinatario?.uid === personaUid) {
+        salida.push({ id: r.id, formulario, ...datos });
+      }
+    });
+  }
+  return salida.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+}
+
 // Arma la agenda que ve la persona al leer el QR: una tarjeta por cada
 // asignación donde está incluida, con cuántas lleva y cuántas le faltan en
 // el periodo vigente.

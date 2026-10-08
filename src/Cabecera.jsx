@@ -8,7 +8,7 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir }) {
         <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
         <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
       </div>
-      <p className="ca-eyebrow">Formularios · V1.3.0 · Henny</p>
+      <p className="ca-eyebrow">Formularios · V1.4.0 · Henny</p>
       <p className="ca-titulo">Formularios</p>
 
       <div className="ca-nav">
@@ -17,6 +17,18 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir }) {
           onClick={() => onCambiarVista("lista")}
         >
           Mis formularios
+        </button>
+        <button
+          className={`ca-nav-link ${vista === "miplan" ? "activo" : ""}`}
+          onClick={() => onCambiarVista("miplan")}
+        >
+          Cumplimiento de mi plan
+        </button>
+        <button
+          className={`ca-nav-link ${vista === "recibidas" ? "activo" : ""}`}
+          onClick={() => onCambiarVista("recibidas")}
+        >
+          Feedbacks y confirmaciones recibidas
         </button>
         {(usuario.rol === "admin" || usuario.rol === "master") && (
           <button

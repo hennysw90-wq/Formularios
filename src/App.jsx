@@ -8,6 +8,8 @@ import DetalleFormulario from "./DetalleFormulario.jsx";
 import QRFormulario from "./QRFormulario.jsx";
 import Administracion from "./Administracion.jsx";
 import RegistroFormulario from "./RegistroFormulario.jsx";
+import MiPlan from "./MiPlan.jsx";
+import Recibidas from "./Recibidas.jsx";
 
 export default function App() {
   // El link del QR es público: no pasa por login, se muestra directo.
@@ -90,6 +92,29 @@ function PanelPrincipal() {
           onEliminar={() => { setVista("lista"); setFormularioActivo(null); }}
           onVolver={() => setVista("lista")}
         />
+      </>
+    );
+  }
+
+  // ── Cumplimiento de mi plan ──
+  if (vista === "miplan") {
+    return (
+      <>
+        <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
+        <MiPlan
+          usuario={usuario}
+          onAbrirFormulario={(f) => { setFormularioActivo(f); setVista("detalle"); }}
+        />
+      </>
+    );
+  }
+
+  // ── Feedbacks y confirmaciones recibidas ──
+  if (vista === "recibidas") {
+    return (
+      <>
+        <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
+        <Recibidas usuario={usuario} />
       </>
     );
   }
