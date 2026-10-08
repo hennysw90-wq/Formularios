@@ -1,28 +1,22 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   datosCumplimiento,
-  diasDelMes,
   periodosDelMes,
   periodoVigente,
-  mismaFecha,
   etiquetaCadencia,
 } from "./formularios.js";
 
-const MESES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+const MESES_CORTOS = [
+  "ENE", "FEB", "MAR", "ABR", "MAY", "JUN",
+  "JUL", "AGO", "SEP", "OCT", "NOV", "DIC",
 ];
-const DIAS_CORTOS = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"];
 
 export default function MiPlan({ usuario, onAbrirFormulario }) {
   const [datos, setDatos] = useState([]);
   const [diagnostico, setDiagnostico] = useState({ totalFormularios: 0, conAsignaciones: 0 });
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-
-  const hoy = new Date();
-  const [anio, setAnio] = useState(hoy.getFullYear());
-  const [mes, setMes] = useState(hoy.getMonth());
+  const [rango, setRango] = useState("6m"); // "6m" | "anio"
 
   useEffect(() => {
     let vivo = true;
@@ -37,80 +31,86 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
     return () => { vivo = false; };
   }, [usuario.uid, usuario.nombreUsuario]);
 
-  const dias = useMemo(() => diasDelMes(anio, mes), [anio, mes]);
+  // Columnas: los últimos 6 meses terminando en el actual, o los meses
+  // transcurridos del año en curso.
+  const columnas = useMemo(() => {
+    const hoy = new Date();
+    if (rango === "anio") {
+      return Array.from({ length: hoy.getMonth() + 1 }, (_, i) => ({
+        anio: hoy.getFullYear(),
+        mes: i,
+      }));
+    }
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - (5 - i), 1);
+      return { anio: d.getFullYear(), mes: d.getMonth() };
+    });
+  }, [rango]);
 
-  // Una fila por asignación, con el estado de cada día del mes.
   const filas = useMemo(() => {
-    const salida = [];
     const ahora = new Date();
-    // Un periodo que cierra hoy todavía está a tiempo: el ✗ solo se marca
-    // desde ayer hacia atrás.
-    const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    const periodoActual = (frec) => periodoVigente(frec, ahora);
+    const salida = [];
 
     for (const { formulario, asignaciones, respuestas } of datos) {
       for (const asig of asignaciones) {
         const cantidad = Number(asig.cantidad) || 1;
         const mias = respuestas.filter((r) => r.asignacionId === asig.id);
-        const periodos = periodosDelMes(asig.frecuencia, anio, mes);
 
-        // Cuántas ejecuciones hay en cada periodo del mes.
-        const hechasPorPeriodo = new Map();
-        for (const p of periodos) {
-          hechasPorPeriodo.set(p.clave, mias.filter((r) => r.periodo === p.clave).length);
-        }
+        const celdas = columnas.map(({ anio, mes }) => {
+          const periodos = periodosDelMes(asig.frecuencia, anio, mes);
 
-        const celdas = dias.map((dia) => {
-          const ejecuciones = mias.filter((r) => mismaFecha(r.fecha, dia)).length;
-          if (ejecuciones > 0) return { estado: "ok", ejecuciones };
-
-          // Un ✗ solo se marca el día en que cierra un periodo que quedó
-          // incompleto y que ya pasó. Los demás días quedan neutros: no
-          // haber respondido un martes no es una falta si la exigencia
-          // era semanal.
-          const cierra = periodos.find((p) => mismaFecha(p.cierra.toISOString(), dia));
-          if (cierra && dia < inicioHoy) {
-            const hechas = hechasPorPeriodo.get(cierra.clave) || 0;
-            if (hechas < cantidad) return { estado: "falta", ejecuciones: 0 };
+          // "Una sola vez" no tiene periodos: se cuenta lo ejecutado en el mes
+          // contra la cantidad pedida, una única vez en total.
+          if (periodos.length === 0) {
+            const hechas = mias.filter((r) => {
+              const f = new Date(r.fecha);
+              return f.getFullYear() === anio && f.getMonth() === mes;
+            }).length;
+            return { hechas: Math.min(hechas, cantidad), exigido: hechas > 0 ? cantidad : 0 };
           }
-          return { estado: "neutro", ejecuciones: 0 };
+
+          // Los periodos que todavía no empiezan no se exigen.
+          const actual = periodoActual(asig.frecuencia);
+          const considerados = periodos.filter((p) => p.cierra <= ahora || p.clave === actual);
+          const exigido = considerados.length * cantidad;
+          const hechas = considerados.reduce((s, p) => {
+            const n = mias.filter((r) => r.periodo === p.clave).length;
+            return s + Math.min(n, cantidad);
+          }, 0);
+          return { hechas, exigido };
         });
 
-        // % del mes: lo cumplido sobre lo exigido en los periodos ya cerrados
-        // más el que corre. Los periodos futuros no castigan el porcentaje.
-        const periodoActual = periodoVigente(asig.frecuencia, ahora);
-        const considerados = periodos.filter((p) => p.cierra <= ahora || p.clave === periodoActual);
-        const exigido = considerados.length * cantidad;
-        const cumplido = considerados.reduce(
-          (s, p) => s + Math.min(hechasPorPeriodo.get(p.clave) || 0, cantidad), 0
-        );
+        const totalExigido = celdas.reduce((s, c) => s + c.exigido, 0);
+        const totalHecho = celdas.reduce((s, c) => s + c.hechas, 0);
 
         salida.push({
           clave: `${formulario.id}__${asig.id}`,
           formulario,
           asignacion: asig,
           celdas,
-          exigido,
-          cumplido,
-          porcentaje: exigido > 0 ? Math.round((cumplido / exigido) * 100) : null,
+          totalExigido,
+          totalHecho,
+          porcentaje: totalExigido > 0 ? Math.round((totalHecho / totalExigido) * 100) : null,
         });
       }
     }
     return salida.sort((a, b) => (a.porcentaje ?? 999) - (b.porcentaje ?? 999));
-  }, [datos, dias, anio, mes]);
+  }, [datos, columnas]);
 
-  const totalExigido = filas.reduce((s, f) => s + f.exigido, 0);
-  const totalCumplido = filas.reduce((s, f) => s + f.cumplido, 0);
-  const porcentajeMes = totalExigido > 0 ? Math.round((totalCumplido / totalExigido) * 100) : null;
-
-  function cambiarMes(delta) {
-    const d = new Date(anio, mes + delta, 1);
-    setAnio(d.getFullYear());
-    setMes(d.getMonth());
-  }
+  // Totales por columna y generales.
+  const totalesColumna = columnas.map((_, i) => {
+    const hechas = filas.reduce((s, f) => s + f.celdas[i].hechas, 0);
+    const exigido = filas.reduce((s, f) => s + f.celdas[i].exigido, 0);
+    return { hechas, exigido };
+  });
+  const granExigido = filas.reduce((s, f) => s + f.totalExigido, 0);
+  const granHecho = filas.reduce((s, f) => s + f.totalHecho, 0);
+  const granPorcentaje = granExigido > 0 ? Math.round((granHecho / granExigido) * 100) : null;
 
   function exportarCSV() {
-    const cab = ["% Mes", "Formulario", "Reunión", "Cadencia", "Cumplido", "Exigido",
-      ...dias.map((d) => `${String(d.getDate()).padStart(2, "0")}-${String(mes + 1).padStart(2, "0")}`)];
+    const cab = ["% Periodo", "Formulario", "Reunión", "Cadencia",
+      ...columnas.map((c) => `${MESES_CORTOS[c.mes]}-${c.anio}`), "Total"];
     const lineas = [cab];
     for (const f of filas) {
       lineas.push([
@@ -118,9 +118,8 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
         f.formulario.titulo,
         f.asignacion.reunionNombre || "",
         etiquetaCadencia(f.asignacion.cantidad, f.asignacion.frecuencia),
-        f.cumplido,
-        f.exigido,
-        ...f.celdas.map((c) => (c.estado === "ok" ? (c.ejecuciones > 1 ? c.ejecuciones : "SI") : c.estado === "falta" ? "NO" : "")),
+        ...f.celdas.map((c) => (c.exigido === 0 ? "" : `${c.hechas}/${c.exigido}`)),
+        `${f.totalHecho}/${f.totalExigido}`,
       ]);
     }
     const csv = lineas
@@ -130,7 +129,7 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `cumplimiento-${usuario.nombreUsuario}-${anio}-${String(mes + 1).padStart(2, "0")}.csv`;
+    a.download = `cumplimiento-${usuario.nombreUsuario}-${rango}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -142,33 +141,34 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
     <div style={{ padding: "18px 28px 60px" }}>
       <h2 style={{ margin: "0 0 4px", fontSize: 20 }}>Cumplimiento de mi plan</h2>
       <p style={{ ...gris, margin: "0 0 16px" }}>
-        Cada fila es una asignación tuya. El ✓ marca el día en que la ejecutaste;
-        el ✗ aparece solo cuando se cerró un periodo sin cumplir la cantidad pedida.
+        Cada celda muestra cuántas ejecutaste sobre cuántas se te exigían ese mes,
+        según la cadencia de cada asignación.
       </p>
 
-      {/* Barra de mes */}
       <div style={barra}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button className="ca-btn ca-btn-secundario" style={btnMes} onClick={() => cambiarMes(-1)}>‹</button>
-          <strong style={{ fontSize: 15, minWidth: 150, textAlign: "center" }}>
-            {MESES[mes]} {anio}
-          </strong>
-          <button className="ca-btn ca-btn-secundario" style={btnMes} onClick={() => cambiarMes(1)}>›</button>
+        <div style={{ display: "flex", gap: 8 }}>
           <button
-            className="ca-btn-texto"
-            style={{ fontSize: 13 }}
-            onClick={() => { setAnio(hoy.getFullYear()); setMes(hoy.getMonth()); }}
+            className={rango === "6m" ? "ca-btn" : "ca-btn ca-btn-secundario"}
+            style={btnRango}
+            onClick={() => setRango("6m")}
           >
-            Hoy
+            Últimos 6 meses
+          </button>
+          <button
+            className={rango === "anio" ? "ca-btn" : "ca-btn ca-btn-secundario"}
+            style={btnRango}
+            onClick={() => setRango("anio")}
+          >
+            Año {new Date().getFullYear()}
           </button>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-          {porcentajeMes !== null && (
+          {granPorcentaje !== null && (
             <span style={{ fontSize: 14 }}>
-              Avance del mes{" "}
-              <strong style={{ fontSize: 20, color: color(porcentajeMes) }}>{porcentajeMes}%</strong>
-              <span style={{ ...gris, fontSize: 13 }}> · {totalCumplido} de {totalExigido}</span>
+              Cumplimiento{" "}
+              <strong style={{ fontSize: 20, color: color(granPorcentaje) }}>{granPorcentaje}%</strong>
+              <span style={{ ...gris, fontSize: 13 }}> · {granHecho} de {granExigido}</span>
             </span>
           )}
           {filas.length > 0 && (
@@ -182,15 +182,13 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
       {filas.length === 0 ? (
         <div className="ca-card" style={{ textAlign: "center", padding: "36px 24px" }}>
           <div style={{ fontSize: 38, marginBottom: 10 }}>🗓️</div>
-          <p style={{ fontWeight: 700, margin: "0 0 6px" }}>
-            Ningún formulario te tiene asignado.
-          </p>
-          <p style={{ ...gris, margin: "0 auto", maxWidth: 520, fontSize: 13 }}>
+          <p style={{ fontWeight: 700, margin: "0 0 6px" }}>Ningún formulario te tiene asignado.</p>
+          <p style={{ ...gris, margin: "0 auto", maxWidth: 540, fontSize: 13 }}>
             {diagnostico.totalFormularios === 0
               ? "Todavía no hay formularios creados."
               : diagnostico.conAsignaciones === 0
               ? `Hay ${diagnostico.totalFormularios} formulario(s), pero ninguno tiene asignaciones cargadas. Al editar un formulario, agrega una asignación con su reunión, las personas, la cantidad y la frecuencia.`
-              : `Hay ${diagnostico.conAsignaciones} formulario(s) con asignaciones, pero en ninguna apareces como ${usuario.nombreUsuario}. Revisa que te hayan marcado entre las personas de la asignación.`}
+              : `Hay ${diagnostico.conAsignaciones} formulario(s) con asignaciones, pero en ninguna apareces como ${usuario.nombreUsuario}. Esta pestaña muestra el plan de quien tiene la sesión abierta, así que revisa que te hayan marcado entre las personas de la asignación.`}
           </p>
         </div>
       ) : (
@@ -199,27 +197,26 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
             <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "var(--verde)" }}>
-                  <th style={{ ...th, width: 62 }}>% MES</th>
-                  <th style={{ ...th, textAlign: "left", minWidth: 190 }}>FORMULARIO</th>
-                  <th style={{ ...th, textAlign: "left", minWidth: 150 }}>REUNIÓN</th>
-                  <th style={{ ...th, minWidth: 110 }}>CADENCIA</th>
-                  {dias.map((d) => (
-                    <th key={d.getDate()} style={{ ...th, width: 34, padding: "6px 2px" }}>
-                      <div style={{ fontSize: 12 }}>{String(d.getDate()).padStart(2, "0")}</div>
-                      <div style={{ fontSize: 9, opacity: 0.85 }}>{DIAS_CORTOS[d.getDay()]}</div>
+                  <th style={{ ...th, width: 64 }}>%</th>
+                  <th style={{ ...th, textAlign: "left", minWidth: 200 }}>FORMULARIO</th>
+                  <th style={{ ...th, textAlign: "left", minWidth: 160 }}>REUNIÓN</th>
+                  <th style={{ ...th, minWidth: 120 }}>CADENCIA</th>
+                  {columnas.map((c) => (
+                    <th key={`${c.anio}-${c.mes}`} style={{ ...th, width: 62 }}>
+                      <div>{MESES_CORTOS[c.mes]}</div>
+                      <div style={{ fontSize: 9, opacity: 0.85 }}>{c.anio}</div>
                     </th>
                   ))}
+                  <th style={{ ...th, width: 70 }}>TOTAL</th>
                 </tr>
               </thead>
               <tbody>
                 {filas.map((f) => (
                   <tr key={f.clave} style={{ borderTop: "1px solid var(--borde)" }}>
                     <td style={{ ...td, textAlign: "center" }}>
-                      {f.porcentaje === null ? (
-                        <span style={{ ...gris, fontSize: 12 }}>—</span>
-                      ) : (
-                        <span style={badge(f.porcentaje)}>{f.porcentaje}%</span>
-                      )}
+                      {f.porcentaje === null
+                        ? <span style={{ ...gris, fontSize: 12 }}>—</span>
+                        : <span style={badge(f.porcentaje)}>{f.porcentaje}%</span>}
                     </td>
                     <td style={{ ...td, fontWeight: 600 }}>
                       {onAbrirFormulario ? (
@@ -233,29 +230,41 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
                       {etiquetaCadencia(f.asignacion.cantidad, f.asignacion.frecuencia)}
                     </td>
                     {f.celdas.map((c, i) => (
-                      <td key={i} style={{ ...td, textAlign: "center", padding: "6px 2px", ...fondoCelda(c.estado) }}>
-                        {c.estado === "ok" ? (
-                          <span style={{ color: "var(--verde-oscuro)", fontWeight: 700 }}>
-                            {c.ejecuciones > 1 ? c.ejecuciones : "✓"}
-                          </span>
-                        ) : c.estado === "falta" ? (
-                          <span style={{ color: "var(--rojo)", fontWeight: 700 }}>✕</span>
-                        ) : (
-                          <span style={{ color: "#d7e2e0" }}>·</span>
-                        )}
+                      <td key={i} style={{ ...td, textAlign: "center", ...fondo(c) }}>
+                        {c.exigido === 0
+                          ? <span style={{ color: "#d7e2e0" }}>·</span>
+                          : <strong style={{ color: colorRazon(c) }}>{c.hechas}/{c.exigido}</strong>}
                       </td>
                     ))}
+                    <td style={{ ...td, textAlign: "center", fontWeight: 700 }}>
+                      {f.totalHecho}/{f.totalExigido}
+                    </td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr style={{ borderTop: "2px solid var(--borde)", background: "var(--fondo)" }}>
+                  <td style={{ ...td, textAlign: "center" }}>
+                    {granPorcentaje !== null && <span style={badge(granPorcentaje)}>{granPorcentaje}%</span>}
+                  </td>
+                  <td style={{ ...td, fontWeight: 700 }} colSpan={3}>TOTAL DEL PERIODO</td>
+                  {totalesColumna.map((c, i) => (
+                    <td key={i} style={{ ...td, textAlign: "center", fontWeight: 700, ...fondo(c) }}>
+                      {c.exigido === 0 ? <span style={{ color: "#d7e2e0" }}>·</span> : `${c.hechas}/${c.exigido}`}
+                    </td>
+                  ))}
+                  <td style={{ ...td, textAlign: "center", fontWeight: 800 }}>
+                    {granHecho}/{granExigido}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
 
           <p style={{ ...gris, fontSize: 12, marginTop: 10 }}>
-            ✓ ejecutada ese día (un número indica cuántas veces) · ✕ cerró el periodo sin
-            completar la cantidad · · día sin exigencia pendiente. El % del mes compara lo
-            cumplido contra lo exigido en los periodos ya cerrados más el que corre: los
-            periodos que aún no empiezan no bajan la nota.
+            Cada celda es ejecutadas / exigidas en ese mes. El punto gris indica que
+            ese mes no tenía exigencia. Los periodos que aún no empiezan no se cuentan,
+            así el mes en curso no aparece castigado antes de tiempo.
           </p>
         </>
       )}
@@ -267,6 +276,20 @@ function color(p) {
   if (p >= 100) return "var(--verde-oscuro)";
   if (p >= 70) return "var(--ambar)";
   return "var(--rojo)";
+}
+
+function colorRazon(c) {
+  if (c.exigido === 0) return "var(--texto-suave)";
+  const p = (c.hechas / c.exigido) * 100;
+  return color(p);
+}
+
+function fondo(c) {
+  if (c.exigido === 0) return {};
+  const p = (c.hechas / c.exigido) * 100;
+  if (p >= 100) return { background: "#f0faf7" };
+  if (p >= 70) return { background: "#fffaf0" };
+  return { background: "#fdf3f3" };
 }
 
 function badge(p) {
@@ -283,15 +306,9 @@ function badge(p) {
   };
 }
 
-function fondoCelda(estado) {
-  if (estado === "ok") return { background: "#f0faf7" };
-  if (estado === "falta") return { background: "#fdf3f3" };
-  return {};
-}
-
 const gris = { color: "var(--texto-suave)", fontSize: 14 };
-const th = { color: "#fff", fontSize: 11, fontWeight: 700, padding: "8px 8px", textAlign: "center", whiteSpace: "nowrap", position: "sticky", top: 0 };
-const td = { padding: "8px 8px", verticalAlign: "middle" };
+const th = { color: "#fff", fontSize: 11, fontWeight: 700, padding: "8px", textAlign: "center", whiteSpace: "nowrap" };
+const td = { padding: "9px 8px", verticalAlign: "middle" };
 const barra = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 14 };
-const btnMes = { width: "auto", padding: "6px 14px", fontSize: 16, lineHeight: 1 };
+const btnRango = { width: "auto", padding: "8px 16px", fontSize: 13 };
 const enlace = { background: "none", border: "none", padding: 0, color: "var(--verde-oscuro)", fontWeight: 600, fontSize: 13, cursor: "pointer", textAlign: "left", fontFamily: "inherit" };

@@ -285,7 +285,7 @@ function Envoltorio({ children }) {
           Formularios
         </p>
         {children}
-        <p style={{ textAlign: "center", fontSize: 10, color: "#b8c4c2", marginTop: 16 }}>v1.5.1</p>
+        <p style={{ textAlign: "center", fontSize: 10, color: "#b8c4c2", marginTop: 16 }}>v1.6.0</p>
       </div>
     </div>
   );
