@@ -268,24 +268,13 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
                 </div>
               </div>
 
-              <label className="ca-label">Personas *</label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
-                {usuariosActivos.map((u) => {
-                  const sel = (a.personas || []).some((p) => p.uid === u.uid);
-                  return (
-                    <button
-                      key={u.uid}
-                      type="button"
-                      onClick={() => togglePersona(a.id, u)}
-                      style={chip(sel)}
-                    >
-                      {sel ? "✓ " : ""}{u.nombreUsuario}
-                    </button>
-                  );
-                })}
-              </div>
+              <SelectorPersonas
+                usuarios={usuariosActivos}
+                seleccionadas={a.personas || []}
+                onToggle={(u) => togglePersona(a.id, u)}
+              />
 
-              <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: "6px 0 0" }}>
+              <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: "8px 0 0" }}>
                 {(a.personas || []).length} persona{(a.personas || []).length === 1 ? "" : "s"} ·{" "}
                 {etiquetaCadencia(a.cantidad, a.frecuencia)}
               </p>
@@ -382,6 +371,65 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
         </div>
       </form>
     </div>
+  );
+}
+
+// Las personas seleccionadas se muestran siempre arriba, para no perderlas
+// de vista al filtrar. El buscador ignora mayúsculas y tildes, igual que el
+// de Administración.
+function SelectorPersonas({ usuarios, seleccionadas, onToggle }) {
+  const [busqueda, setBusqueda] = useState("");
+
+  const sinTildes = (t) =>
+    (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+  const elegidas = seleccionadas.map((p) => p.uid);
+  const texto = sinTildes(busqueda.trim());
+  const candidatas = usuarios.filter(
+    (u) => !elegidas.includes(u.uid) && (!texto || sinTildes(u.nombreUsuario).includes(texto) || sinTildes(u.area).includes(texto))
+  );
+
+  return (
+    <>
+      <label className="ca-label">Personas *</label>
+
+      {seleccionadas.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+          {seleccionadas.map((p) => (
+            <button
+              key={p.uid}
+              type="button"
+              onClick={() => onToggle({ uid: p.uid, nombreUsuario: p.nombre })}
+              style={chip(true)}
+              title="Quitar"
+            >
+              ✓ {p.nombre} ✕
+            </button>
+          ))}
+        </div>
+      )}
+
+      <input
+        className="ca-input"
+        style={{ marginBottom: 8 }}
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        placeholder="Buscar persona por nombre o área…"
+      />
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 190, overflowY: "auto" }}>
+        {candidatas.map((u) => (
+          <button key={u.uid} type="button" onClick={() => onToggle(u)} style={chip(false)}>
+            {u.nombreUsuario}
+          </button>
+        ))}
+        {candidatas.length === 0 && (
+          <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: 0 }}>
+            {texto ? "Nadie coincide con esa búsqueda." : "Ya están todas seleccionadas."}
+          </p>
+        )}
+      </div>
+    </>
   );
 }
 
