@@ -125,10 +125,31 @@ export async function crearFormulario(datos) {
     descripcion: (datos.descripcion || "").trim(),
     preguntas: datos.preguntas || [],
     asignaciones: datos.asignaciones || [],
+    destinatario: datos.destinatario || DESTINATARIO_POR_DEFECTO,
     activo: true,
     creado: new Date().toISOString(),
   });
   return ref.id;
+}
+
+// Campo "destinatario": a quién va dirigido el formulario que la persona
+// está ejecutando (el líder de la sesión, el supervisor de la actividad,
+// etc.). La etiqueta la define quien arma el formulario; al responder se
+// elige de los usuarios registrados, menos uno mismo.
+export const DESTINATARIO_POR_DEFECTO = {
+  activo: true,
+  etiqueta: "Destinatario",
+  obligatorio: true,
+};
+
+export function configDestinatario(formulario) {
+  const d = formulario?.destinatario;
+  if (!d) return { ...DESTINATARIO_POR_DEFECTO, activo: false };
+  return {
+    activo: d.activo !== false,
+    etiqueta: (d.etiqueta || "").trim() || "Destinatario",
+    obligatorio: d.obligatorio !== false,
+  };
 }
 
 export async function actualizarFormulario(id, datos) {
@@ -155,6 +176,7 @@ export async function guardarRespuesta({
   personaUid,
   nombreUsuario,
   area,
+  destinatario,
   respuestas,
 }) {
   await addDoc(collection(db, "formularios", formularioId, "respuestas"), {
@@ -165,6 +187,7 @@ export async function guardarRespuesta({
     personaUid: personaUid || "",
     nombreUsuario: nombreUsuario || "Anónimo",
     area: area || "",
+    destinatario: destinatario || null, // { uid, nombre, area }
     respuestas: respuestas || {},
     fecha: new Date().toISOString(),
   });

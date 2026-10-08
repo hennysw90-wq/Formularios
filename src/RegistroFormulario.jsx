@@ -8,9 +8,10 @@ import {
   agendaDePersona,
   etiquetaCadencia,
   necesitaOpciones,
+  configDestinatario,
 } from "./formularios.js";
 
-const VERSION = "v1.2.1";
+const VERSION = "v1.3.0";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -71,6 +72,7 @@ export default function RegistroFormulario({ formularioId }) {
           formulario={formulario}
           item={itemActivo}
           persona={persona}
+          usuarios={usuarios}
           onCancelar={() => { setItemActivo(null); setPaso("agenda"); }}
           onEnviado={alEnviar}
         />
@@ -240,10 +242,13 @@ function Encabezado({ persona, onCambiar }) {
 
 // ─── Cuestionario ─────────────────────────────────────────────────────────
 
-function Cuestionario({ formulario, item, persona, onCancelar, onEnviado }) {
+function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnviado }) {
   const [respuestas, setRespuestas] = useState({});
+  const [destinatario, setDestinatario] = useState(null);
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
+
+  const cfgDest = configDestinatario(formulario);
 
   function set(pid, valor) {
     setRespuestas((r) => ({ ...r, [pid]: valor }));
@@ -264,6 +269,9 @@ function Cuestionario({ formulario, item, persona, onCancelar, onEnviado }) {
 
   async function enviar(ev) {
     ev.preventDefault();
+    if (cfgDest.activo && cfgDest.obligatorio && !destinatario) {
+      return setError(`Falta elegir ${cfgDest.etiqueta.toLowerCase()}.`);
+    }
     for (const p of formulario.preguntas || []) {
       if (p.obligatoria && vacia(respuestas[p.id])) {
         return setError(`Falta responder: "${p.texto}"`);
@@ -281,6 +289,9 @@ function Cuestionario({ formulario, item, persona, onCancelar, onEnviado }) {
         personaUid: persona.uid,
         nombreUsuario: persona.nombreUsuario,
         area: persona.area || "",
+        destinatario: cfgDest.activo && destinatario
+          ? { uid: destinatario.uid, nombre: destinatario.nombreUsuario, area: destinatario.area || "" }
+          : null,
         respuestas,
       });
       onEnviado();
@@ -297,6 +308,20 @@ function Cuestionario({ formulario, item, persona, onCancelar, onEnviado }) {
           <p style={{ margin: 0, fontSize: 12, color: "var(--verde-oscuro)", fontWeight: 700 }}>
             {item.asignacion.reunionNombre}
           </p>
+        </div>
+      )}
+
+      {cfgDest.activo && (
+        <div style={{ marginBottom: 18 }}>
+          <label className="ca-label" style={{ fontSize: 14, marginBottom: 7 }}>
+            {cfgDest.etiqueta} {cfgDest.obligatorio && <span style={{ color: "var(--rojo)" }}>*</span>}
+          </label>
+          <SelectorDestinatario
+            usuarios={usuarios}
+            excluirUid={persona.uid}
+            elegido={destinatario}
+            onElegir={setDestinatario}
+          />
         </div>
       )}
 
@@ -325,6 +350,62 @@ function Cuestionario({ formulario, item, persona, onCancelar, onEnviado }) {
         </button>
       </div>
     </form>
+  );
+}
+
+// Elige a quién va dirigido el formulario. Se excluye a la propia persona
+// que lo está ejecutando: el destinatario siempre es alguien más.
+function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
+  const [busqueda, setBusqueda] = useState("");
+
+  const sinTildes = (t) =>
+    (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+  if (elegido) {
+    return (
+      <div style={elegidoCaja}>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{elegido.nombreUsuario}</p>
+          {elegido.area && <p style={{ ...gris, fontSize: 12, margin: 0 }}>{elegido.area}</p>}
+        </div>
+        <button type="button" className="ca-btn-texto" style={{ fontSize: 12, width: "auto" }} onClick={() => onElegir(null)}>
+          Cambiar
+        </button>
+      </div>
+    );
+  }
+
+  const texto = sinTildes(busqueda.trim());
+  const candidatos = usuarios
+    .filter((u) => u.uid !== excluirUid && u.rol !== "deshabilitado")
+    .filter((u) => !texto || sinTildes(u.nombreUsuario).includes(texto) || sinTildes(u.area).includes(texto))
+    .slice(0, 8);
+
+  return (
+    <>
+      <input
+        className="ca-input"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        placeholder="Buscar por nombre o área…"
+      />
+      <div style={{ marginTop: 8 }}>
+        {candidatos.map((u) => (
+          <button key={u.uid} type="button" onClick={() => onElegir(u)} style={filaPersona}>
+            <strong style={{ fontSize: 14 }}>{u.nombreUsuario}</strong>
+            {u.area && <span style={{ ...gris, fontSize: 12 }}>{u.area}</span>}
+          </button>
+        ))}
+        {texto && candidatos.length === 0 && (
+          <p style={{ ...gris, fontSize: 13, margin: 0 }}>Nadie coincide con esa búsqueda.</p>
+        )}
+        {!texto && (
+          <p style={{ ...gris, fontSize: 12, margin: 0 }}>
+            Escribe para buscar entre los usuarios registrados.
+          </p>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -560,3 +641,14 @@ function chipSel(sel) {
     fontSize: 14,
   };
 }
+
+const elegidoCaja = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 10,
+  border: "2px solid var(--verde)",
+  background: "var(--verde-claro)",
+  borderRadius: 10,
+  padding: "9px 12px",
+};

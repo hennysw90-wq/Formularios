@@ -5,6 +5,7 @@ import {
   etiquetaCadencia,
   etiquetaTipoPregunta,
   necesitaOpciones,
+  configDestinatario,
 } from "./formularios.js";
 
 export default function DetalleFormulario({ formulario, usuario, onEditar, onEliminar, onVolver }) {
@@ -24,6 +25,7 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
 
   const puedeEditar = usuario?.rol === "master" || usuario?.rol === "admin";
   const asignaciones = formulario.asignaciones || [];
+  const cfgDest = configDestinatario(formulario);
   const reunionesUnicas = [...new Set(respuestas.map((r) => r.reunionNombre).filter(Boolean))];
   const visibles = filtroReunion
     ? respuestas.filter((r) => r.reunionNombre === filtroReunion)
@@ -145,9 +147,16 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
                     {r.area && `${r.area} · `}{fecha(r.fecha)}
                   </span>
                 </div>
-                {r.reunionNombre && (
-                  <span className="ca-chip" style={{ fontSize: 11, marginBottom: 6 }}>{r.reunionNombre}</span>
-                )}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+                  {r.reunionNombre && (
+                    <span className="ca-chip" style={{ fontSize: 11 }}>{r.reunionNombre}</span>
+                  )}
+                  {r.destinatario?.nombre && (
+                    <span className="ca-chip ca-chip-ambar" style={{ fontSize: 11 }}>
+                      {cfgDest.etiqueta}: {r.destinatario.nombre}
+                    </span>
+                  )}
+                </div>
                 {(formulario.preguntas || []).map((p) => {
                   const v = r.respuestas?.[p.id];
                   if (v === undefined || v === null || v === "") return null;

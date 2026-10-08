@@ -4,6 +4,7 @@ import {
   FRECUENCIAS,
   necesitaOpciones,
   etiquetaCadencia,
+  configDestinatario,
   crearFormulario,
   actualizarFormulario,
 } from "./formularios.js";
@@ -25,6 +26,9 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
       : [{ id: nuevoId("p"), tipo: "texto", texto: "", obligatoria: true, opciones: [] }]
   );
   const [asignaciones, setAsignaciones] = useState(formulario?.asignaciones || []);
+  const [destinatario, setDestinatario] = useState(
+    formulario ? configDestinatario(formulario) : { activo: true, etiqueta: "Destinatario", obligatorio: true }
+  );
   const [reuniones, setReuniones] = useState([]);
   const [errorReuniones, setErrorReuniones] = useState("");
   const [error, setError] = useState("");
@@ -127,6 +131,9 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
   async function guardar(ev) {
     ev.preventDefault();
     if (!titulo.trim()) return setError("Ponle un título al formulario.");
+    if (destinatario.activo && !destinatario.etiqueta.trim()) {
+      return setError("Ponle un nombre al campo de destinatario (ej: Líder de la Sesión).");
+    }
     if (preguntas.length === 0) return setError("Agrega al menos una pregunta.");
     for (const p of preguntas) {
       if (!p.texto.trim()) return setError("Todas las preguntas deben tener texto.");
@@ -155,6 +162,11 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
           opciones: necesitaOpciones(p.tipo) ? (p.opciones || []).filter((o) => o.trim()) : [],
         })),
         asignaciones: asignaciones.map((a) => ({ ...a, cantidad: Number(a.cantidad) || 1 })),
+        destinatario: {
+          activo: !!destinatario.activo,
+          etiqueta: destinatario.etiqueta.trim() || "Destinatario",
+          obligatorio: !!destinatario.obligatorio,
+        },
       };
       if (editando) await actualizarFormulario(formulario.id, datos);
       else await crearFormulario(datos);
@@ -200,6 +212,45 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Instrucciones o contexto (opcional)"
           />
+        </div>
+
+        {/* ── Destinatario ── */}
+        <div className="ca-card" style={{ marginBottom: 16 }}>
+          <h3 style={sub}>Destinatario</h3>
+          <p style={ayuda}>
+            A quién va dirigido el formulario. Al responder, la persona lo elige de
+            los usuarios registrados; a sí misma no se puede elegir.
+          </p>
+
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", marginBottom: destinatario.activo ? 12 : 0 }}>
+            <input
+              type="checkbox"
+              checked={destinatario.activo}
+              onChange={(e) => setDestinatario((d) => ({ ...d, activo: e.target.checked }))}
+            />
+            Pedir destinatario en este formulario
+          </label>
+
+          {destinatario.activo && (
+            <>
+              <label className="ca-label">Cómo se llama el campo *</label>
+              <input
+                className="ca-input"
+                style={{ marginBottom: 10 }}
+                value={destinatario.etiqueta}
+                onChange={(e) => setDestinatario((d) => ({ ...d, etiqueta: e.target.value }))}
+                placeholder="Ej: Líder de la Sesión, Supervisor de la Actividad…"
+              />
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--texto-suave)", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={destinatario.obligatorio}
+                  onChange={(e) => setDestinatario((d) => ({ ...d, obligatorio: e.target.checked }))}
+                />
+                Obligatorio
+              </label>
+            </>
+          )}
         </div>
 
         {/* ── Asignaciones ── */}
