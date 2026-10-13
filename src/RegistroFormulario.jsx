@@ -16,7 +16,7 @@ import {
   recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.9.0";
+const VERSION = "v1.9.1";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -642,10 +642,11 @@ function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
   }
 
   const texto = sinTildes(busqueda.trim());
+  // La lista se muestra completa de entrada; el buscador solo la acota.
   const candidatos = usuarios
     .filter((u) => u.uid !== excluirUid && u.rol !== "deshabilitado")
     .filter((u) => !texto || sinTildes(u.nombreUsuario).includes(texto) || sinTildes(u.area).includes(texto))
-    .slice(0, 8);
+    .sort((a, b) => (a.nombreUsuario || "").localeCompare(b.nombreUsuario || ""));
 
   return (
     <>
@@ -655,22 +656,22 @@ function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
         onChange={(e) => setBusqueda(e.target.value)}
         placeholder="Buscar por nombre o área…"
       />
-      <div style={{ marginTop: 8 }}>
+      <div style={listaUsuarios}>
         {candidatos.map((u) => (
           <button key={u.uid} type="button" onClick={() => onElegir(u)} style={filaPersona}>
             <strong style={{ fontSize: 14 }}>{u.nombreUsuario}</strong>
             {u.area && <span style={{ ...gris, fontSize: 12 }}>{u.area}</span>}
           </button>
         ))}
-        {texto && candidatos.length === 0 && (
-          <p style={{ ...gris, fontSize: 13, margin: 0 }}>Nadie coincide con esa búsqueda.</p>
-        )}
-        {!texto && (
-          <p style={{ ...gris, fontSize: 12, margin: 0 }}>
-            Escribe para buscar entre los usuarios registrados.
+        {candidatos.length === 0 && (
+          <p style={{ ...gris, fontSize: 13, margin: 0 }}>
+            {texto ? "Nadie coincide con esa búsqueda." : "No hay usuarios disponibles."}
           </p>
         )}
       </div>
+      <p style={{ ...gris, fontSize: 11, margin: "6px 0 0" }}>
+        {candidatos.length} usuario{candidatos.length === 1 ? "" : "s"} · no apareces tú mismo
+      </p>
     </>
   );
 }
@@ -987,4 +988,14 @@ const tarjetaDim = {
   padding: 12,
   marginBottom: 10,
   background: "#fff",
+};
+
+const listaUsuarios = {
+  marginTop: 8,
+  maxHeight: 230,
+  overflowY: "auto",
+  border: "1px solid var(--borde)",
+  borderRadius: 10,
+  padding: 6,
+  background: "var(--fondo)",
 };
