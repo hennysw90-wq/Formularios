@@ -16,7 +16,7 @@ import {
   recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.9.1";
+const VERSION = "v1.9.2";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -142,18 +142,25 @@ export default function RegistroFormulario({ formularioId }) {
 
 function Identificarse({ usuarios, onElegir }) {
   const [texto, setTexto] = useState("");
-  const disponibles = usuarios.filter((u) => u.rol !== "deshabilitado");
-  const filtrados = texto.trim()
-    ? disponibles
-        .filter((u) => (u.nombreUsuario || "").toLowerCase().includes(texto.trim().toLowerCase()))
-        .slice(0, 8)
-    : [];
+  const sinTildes = (t) =>
+    (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const buscado = sinTildes(texto.trim());
+  // La lista aparece completa de entrada; escribir solo la acota.
+  const filtrados = usuarios
+    .filter((u) => u.rol !== "deshabilitado")
+    .filter(
+      (u) =>
+        !buscado ||
+        sinTildes(u.nombreUsuario).includes(buscado) ||
+        sinTildes(u.area).includes(buscado)
+    )
+    .sort((a, b) => (a.nombreUsuario || "").localeCompare(b.nombreUsuario || ""));
 
   return (
     <>
       <p style={{ fontWeight: 700, fontSize: 15, margin: "0 0 4px" }}>¿Quién eres?</p>
       <p style={{ ...gris, fontSize: 13, margin: "0 0 12px" }}>
-        Escribe tu nombre para ver lo que tienes agendado.
+        Elígete de la lista para ver lo que tienes agendado.
       </p>
       <input
         className="ca-input"
@@ -162,7 +169,7 @@ function Identificarse({ usuarios, onElegir }) {
         placeholder="Tu nombre"
         autoFocus
       />
-      <div style={{ marginTop: 10 }}>
+      <div style={listaUsuarios}>
         {filtrados.map((u) => (
           <button
             key={u.uid}
@@ -174,12 +181,17 @@ function Identificarse({ usuarios, onElegir }) {
             {u.area && <span style={{ ...gris, fontSize: 12 }}>{u.area}</span>}
           </button>
         ))}
-        {texto.trim() && filtrados.length === 0 && (
-          <p style={{ ...gris, fontSize: 13 }}>
-            No encontramos ese nombre. Revisa cómo está escrito o pide a un administrador que te cree el usuario.
+        {filtrados.length === 0 && (
+          <p style={{ ...gris, fontSize: 13, margin: 0 }}>
+            {buscado
+              ? "No encontramos ese nombre. Revisa cómo está escrito o pide a un administrador que te cree el usuario."
+              : "Todavía no hay usuarios registrados."}
           </p>
         )}
       </div>
+      <p style={{ ...gris, fontSize: 11, margin: "6px 0 0" }}>
+        {filtrados.length} usuario{filtrados.length === 1 ? "" : "s"}
+      </p>
     </>
   );
 }
