@@ -91,7 +91,12 @@ function FilaValidacion({ u, areas, usuarios, esMaster, onValidar, onRechazar })
   const [password, setPassword] = useState("RdPTracker");
   const [rol, setRol] = useState("usuario");
   const [area, setArea] = useState(u.area || "");
-  const [apps, setApps] = useState(Array.isArray(u.apps) && u.apps.length ? u.apps : [APP_ACTUAL_ID]);
+  // Sin campo "apps" el usuario entra a todas por herencia; al validarlo se
+  // parte de esa misma realidad, para no quitarle en silencio el acceso a
+  // las otras apps.
+  const [apps, setApps] = useState(
+    Array.isArray(u.apps) && u.apps.length ? u.apps : APPS_DISPONIBLES.map((a) => a.id)
+  );
   const [validando, setValidando] = useState(false);
   const [error, setError] = useState("");
 
