@@ -12,6 +12,32 @@ import {
 import { listarReunionesAsistencia } from "./reuniones.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
 
+// Los formularios creados antes de que el destinatario fuera una pregunta
+// guardaban su etiqueta en la configuración. Al abrirlos para editar, esa
+// configuración se convierte en una pregunta de tipo usuario, que es donde
+// vive ahora.
+function preguntasIniciales(formulario) {
+  if (!formulario) {
+    return [{ id: nuevoId("p"), tipo: "texto", texto: "", obligatoria: true, opciones: [] }];
+  }
+  const preguntas = [...(formulario.preguntas || [])];
+  const cfg = configDestinatario(formulario);
+  const yaTiene = preguntas.some((p) => p.tipo === "usuario");
+  if (cfg.activo && !yaTiene) {
+    preguntas.unshift({
+      id: nuevoId("p"),
+      tipo: "usuario",
+      texto: cfg.etiqueta,
+      obligatoria: cfg.obligatorio,
+      opciones: [],
+    });
+  }
+  if (preguntas.length === 0) {
+    return [{ id: nuevoId("p"), tipo: "texto", texto: "", obligatoria: true, opciones: [] }];
+  }
+  return preguntas;
+}
+
 let contador = 1;
 function nuevoId(pre) {
   return `${pre}${Date.now().toString(36)}${contador++}`;
@@ -22,15 +48,8 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
 
   const [titulo, setTitulo] = useState(formulario?.titulo || "");
   const [descripcion, setDescripcion] = useState(formulario?.descripcion || "");
-  const [preguntas, setPreguntas] = useState(
-    formulario?.preguntas?.length
-      ? formulario.preguntas
-      : [{ id: nuevoId("p"), tipo: "texto", texto: "", obligatoria: true, opciones: [] }]
-  );
+  const [preguntas, setPreguntas] = useState(() => preguntasIniciales(formulario));
   const [asignaciones, setAsignaciones] = useState(formulario?.asignaciones || []);
-  const [destinatario, setDestinatario] = useState(
-    formulario ? configDestinatario(formulario) : { activo: true, etiqueta: "Destinatario", obligatorio: true }
-  );
   const [reuniones, setReuniones] = useState([]);
   const [errorReuniones, setErrorReuniones] = useState("");
   const [error, setError] = useState("");
@@ -152,9 +171,6 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
   async function guardar(ev) {
     ev.preventDefault();
     if (!titulo.trim()) return setError("Ponle un título al formulario.");
-    if (destinatario.activo && !destinatario.etiqueta.trim()) {
-      return setError("Ponle un nombre al campo de destinatario (ej: Líder de la Sesión).");
-    }
     if (preguntas.length === 0) return setError("Agrega al menos una pregunta.");
     for (const p of preguntas) {
       if (!p.texto.trim()) return setError("Todas las preguntas deben tener texto.");
@@ -184,11 +200,9 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
           opciones: necesitaOpciones(p.tipo) ? (p.opciones || []).filter((o) => o.trim()) : [],
         })),
         asignaciones: asignaciones.map((a) => ({ ...a, cantidad: Number(a.cantidad) || 1 })),
-        destinatario: {
-          activo: !!destinatario.activo,
-          etiqueta: destinatario.etiqueta.trim() || "Destinatario",
-          obligatorio: !!destinatario.obligatorio,
-        },
+        // El destinatario vive ahora como pregunta de tipo usuario; se
+        // apaga la configuración antigua para que no se pida dos veces.
+        destinatario: { activo: false, etiqueta: "", obligatorio: false },
       };
       if (editando) await actualizarFormulario(formulario.id, datos);
       else await crearFormulario(datos);
@@ -234,45 +248,6 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Instrucciones o contexto (opcional)"
           />
-        </div>
-
-        {/* ── Destinatario ── */}
-        <div className="ca-card" style={{ marginBottom: 16 }}>
-          <h3 style={sub}>Destinatario</h3>
-          <p style={ayuda}>
-            A quién va dirigido el formulario. Al responder, la persona lo elige de
-            los usuarios registrados; a sí misma no se puede elegir.
-          </p>
-
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", marginBottom: destinatario.activo ? 12 : 0 }}>
-            <input
-              type="checkbox"
-              checked={destinatario.activo}
-              onChange={(e) => setDestinatario((d) => ({ ...d, activo: e.target.checked }))}
-            />
-            Pedir destinatario en este formulario
-          </label>
-
-          {destinatario.activo && (
-            <>
-              <label className="ca-label">Cómo se llama el campo *</label>
-              <input
-                className="ca-input"
-                style={{ marginBottom: 10 }}
-                value={destinatario.etiqueta}
-                onChange={(e) => setDestinatario((d) => ({ ...d, etiqueta: e.target.value }))}
-                placeholder="Ej: Líder de la Sesión, Supervisor de la Actividad…"
-              />
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--texto-suave)", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={destinatario.obligatorio}
-                  onChange={(e) => setDestinatario((d) => ({ ...d, obligatorio: e.target.checked }))}
-                />
-                Obligatorio
-              </label>
-            </>
-          )}
         </div>
 
         {/* ── Asignaciones ── */}
@@ -413,6 +388,13 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
                   onChange={(e) => cambiarPregunta(p.id, "dimension", e.target.value)}
                   placeholder="Ej: Seguridad, Orden y aseo, Liderazgo…"
                 />
+                {p.tipo === "usuario" && (
+                  <p style={{ fontSize: 11, color: "var(--texto-suave)", margin: "5px 0 0" }}>
+                    Al responder se elige una persona del directorio. Quien contesta no
+                    puede elegirse a sí mismo. Si hay varias preguntas de este tipo, la
+                    primera es la que queda como destinatario de la evaluación.
+                  </p>
+                )}
                 {tieneDimension(p) && (
                   <p style={{ fontSize: 11, color: "var(--texto-suave)", margin: "5px 0 0" }}>
                     Al tener dimensión, esta pregunta se responde Cumple / No cumple y entra

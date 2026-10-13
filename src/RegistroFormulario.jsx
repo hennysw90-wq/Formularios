@@ -10,6 +10,9 @@ import {
   etiquetaCadencia,
   necesitaOpciones,
   configDestinatario,
+  esPreguntaUsuario,
+  preguntaDestinatario,
+  textoRespuesta,
   CUMPLE,
   NO_CUMPLE,
   resumenPorDimension,
@@ -17,7 +20,7 @@ import {
   recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.10.0";
+const VERSION = "v1.11.0";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -319,7 +322,7 @@ function Entregadas({ persona, formulario }) {
                         </a>
                       ) : (
                         <strong style={{ fontSize: 13, color: colorValor(v) }}>
-                          {Array.isArray(v) ? v.join(", ") : String(v)}
+                          {textoRespuesta(v)}
                         </strong>
                       )}
                     </div>
@@ -530,9 +533,21 @@ function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnvia
     return v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
   }
 
+  // A quién va dirigida la evaluación: la respuesta de la primera pregunta
+  // de tipo usuario. Se guarda también en la raíz para poder buscar después
+  // "lo que recibí" sin tener que recorrer las preguntas.
+  function destinatarioElegido() {
+    const pregunta = preguntaDestinatario(formulario);
+    if (pregunta) return respuestas[pregunta.id] || null;
+    // Formularios antiguos, todavía con el destinatario como configuración.
+    return destinatario
+      ? { uid: destinatario.uid, nombre: destinatario.nombre || destinatario.nombreUsuario, area: destinatario.area || "" }
+      : null;
+  }
+
   async function enviar(ev) {
     ev.preventDefault();
-    if (cfgDest.activo && cfgDest.obligatorio && !destinatario) {
+    if (!preguntaDestinatario(formulario) && cfgDest.activo && cfgDest.obligatorio && !destinatario) {
       return setError(`Falta elegir ${cfgDest.etiqueta.toLowerCase()}.`);
     }
     for (const p of formulario.preguntas || []) {
@@ -552,9 +567,7 @@ function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnvia
         personaUid: persona.uid,
         nombreUsuario: persona.nombreUsuario,
         area: persona.area || "",
-        destinatario: cfgDest.activo && destinatario
-          ? { uid: destinatario.uid, nombre: destinatario.nombreUsuario, area: destinatario.area || "" }
-          : null,
+        destinatario: destinatarioElegido(),
         respuestas,
       });
       onEnviado();
@@ -574,7 +587,7 @@ function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnvia
         </div>
       )}
 
-      {cfgDest.activo && (
+      {!preguntaDestinatario(formulario) && cfgDest.activo && (
         <div style={{ marginBottom: 18 }}>
           <label className="ca-label" style={{ fontSize: 14, marginBottom: 7 }}>
             {cfgDest.etiqueta} {cfgDest.obligatorio && <span style={{ color: "var(--rojo)" }}>*</span>}
@@ -601,6 +614,8 @@ function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnvia
             valor={respuestas[p.id]}
             onChange={(v) => set(p.id, v)}
             onToggle={(o) => toggle(p.id, o)}
+            usuarios={usuarios}
+            excluirUid={persona.uid}
           />
         </div>
       ))}
@@ -622,6 +637,9 @@ function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnvia
 // Elige a quién va dirigido el formulario. Se excluye a la propia persona
 // que lo está ejecutando: el destinatario siempre es alguien más.
 function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
+  // Guarda solo lo necesario para mostrar y para buscar después.
+  const elegirPersona = (u) =>
+    onElegir(u ? { uid: u.uid, nombre: u.nombreUsuario, area: u.area || "" } : null);
   const [busqueda, setBusqueda] = useState("");
 
   const sinTildes = (t) =>
@@ -631,10 +649,12 @@ function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
     return (
       <div style={elegidoCaja}>
         <div style={{ minWidth: 0 }}>
-          <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{elegido.nombreUsuario}</p>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>
+            {elegido.nombre || elegido.nombreUsuario}
+          </p>
           {elegido.area && <p style={{ ...gris, fontSize: 12, margin: 0 }}>{elegido.area}</p>}
         </div>
-        <button type="button" className="ca-btn-texto" style={{ fontSize: 12, width: "auto" }} onClick={() => onElegir(null)}>
+        <button type="button" className="ca-btn-texto" style={{ fontSize: 12, width: "auto" }} onClick={() => elegirPersona(null)}>
           Cambiar
         </button>
       </div>
@@ -654,7 +674,7 @@ function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
       />
       <div style={{ marginTop: 8 }}>
         {candidatos.map((u) => (
-          <button key={u.uid} type="button" onClick={() => onElegir(u)} style={filaPersona}>
+          <button key={u.uid} type="button" onClick={() => elegirPersona(u)} style={filaPersona}>
             <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <strong style={{ fontSize: 14 }}>{u.nombreUsuario}</strong>
               {u.parecido && <span style={etiquetaParecido}>parecido</span>}
@@ -677,7 +697,7 @@ function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
 
 // ─── Campos según el tipo de pregunta ─────────────────────────────────────
 
-function Campo({ pregunta, valor, onChange, onToggle }) {
+function Campo({ pregunta, valor, onChange, onToggle, usuarios, excluirUid }) {
   const t = pregunta.tipo;
 
   if (t === "cumple") {
@@ -794,6 +814,17 @@ function Campo({ pregunta, valor, onChange, onToggle }) {
 
   if (t === "imagen") {
     return <CampoImagen valor={valor} onChange={onChange} />;
+  }
+
+  if (t === "usuario") {
+    return (
+      <SelectorDestinatario
+        usuarios={usuarios}
+        excluirUid={excluirUid}
+        elegido={valor || null}
+        onElegir={onChange}
+      />
+    );
   }
 
   if (t === "parrafo") {

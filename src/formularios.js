@@ -77,7 +77,31 @@ export const TIPOS_PREGUNTA = [
   { valor: "fecha", etiqueta: "Fecha" },
   { valor: "hora", etiqueta: "Hora" },
   { valor: "imagen", etiqueta: "Foto / imagen" },
+  { valor: "usuario", etiqueta: "Usuario (destinatario)" },
 ];
+
+// Pregunta cuya respuesta es una persona del directorio. Se usa para el
+// destinatario: a quién va dirigida la evaluación. Quien responde no puede
+// elegirse a sí mismo.
+export function esPreguntaUsuario(pregunta) {
+  return pregunta?.tipo === "usuario";
+}
+
+// La primera pregunta de tipo usuario es la que manda: su respuesta queda
+// también en la raíz de la respuesta, como destinatario, para poder buscar
+// después "lo que recibí" sin recorrer las preguntas.
+export function preguntaDestinatario(formulario) {
+  return (formulario?.preguntas || []).find(esPreguntaUsuario) || null;
+}
+
+// Texto legible de cualquier respuesta, incluidas las de tipo usuario, que
+// se guardan como objeto { uid, nombre, area }.
+export function textoRespuesta(valor) {
+  if (valor === undefined || valor === null || valor === "") return "";
+  if (Array.isArray(valor)) return valor.join(", ");
+  if (typeof valor === "object") return valor.nombre || "";
+  return String(valor);
+}
 
 export function necesitaOpciones(tipo) {
   return tipo === "seleccion" || tipo === "multiple";

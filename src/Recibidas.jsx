@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { recibidasDePersona, configDestinatario } from "./formularios.js";
+import { recibidasDePersona, configDestinatario, textoRespuesta } from "./formularios.js";
 
 export default function Recibidas({ usuario }) {
   const [items, setItems] = useState([]);
@@ -100,7 +100,7 @@ export default function Recibidas({ usuario }) {
                               <img src={v} alt="Adjunto" style={{ display: "block", maxWidth: 240, borderRadius: 8, marginTop: 4 }} />
                             </a>
                           ) : (
-                            <strong>{Array.isArray(v) ? v.join(", ") : String(v)}</strong>
+                            <strong>{textoRespuesta(v)}</strong>
                           )}
                         </div>
                       );

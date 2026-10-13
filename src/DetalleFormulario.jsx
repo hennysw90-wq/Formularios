@@ -6,6 +6,7 @@ import {
   etiquetaTipoPregunta,
   necesitaOpciones,
   configDestinatario,
+  textoRespuesta,
 } from "./formularios.js";
 
 export default function DetalleFormulario({ formulario, usuario, onEditar, onEliminar, onVolver }) {
@@ -174,7 +175,7 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
                           <img src={v} alt="Adjunto" style={{ display: "block", maxWidth: 220, borderRadius: 8, marginTop: 4 }} />
                         </a>
                       ) : (
-                        <span>{Array.isArray(v) ? v.join(", ") : String(v)}</span>
+                        <span>{textoRespuesta(v)}</span>
                       )}
                     </div>
                   );
