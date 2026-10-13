@@ -94,6 +94,19 @@ export function preguntaDestinatario(formulario) {
   return (formulario?.preguntas || []).find(esPreguntaUsuario) || null;
 }
 
+// Quiénes pueden ser elegidos como destinatario en este formulario. Si la
+// lista está vacía, no hay restricción y vale cualquier usuario. Nunca se
+// incluye a quien está respondiendo: el destinatario es siempre otra
+// persona.
+export function destinatariosPermitidos(formulario, excluirUid) {
+  const lista = formulario?.destinatariosPermitidos || [];
+  return lista.filter((p) => p.uid !== excluirUid);
+}
+
+export function hayRestriccionDeDestinatarios(formulario) {
+  return (formulario?.destinatariosPermitidos || []).length > 0;
+}
+
 // Texto legible de cualquier respuesta, incluidas las de tipo usuario, que
 // se guardan como objeto { uid, nombre, area }.
 export function textoRespuesta(valor) {
@@ -175,6 +188,7 @@ export async function crearFormulario(datos) {
     descripcion: (datos.descripcion || "").trim(),
     preguntas: datos.preguntas || [],
     asignaciones: datos.asignaciones || [],
+    destinatariosPermitidos: datos.destinatariosPermitidos || [],
     destinatario: datos.destinatario || DESTINATARIO_POR_DEFECTO,
     activo: true,
     creado: new Date().toISOString(),

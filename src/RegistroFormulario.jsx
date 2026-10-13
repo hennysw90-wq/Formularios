@@ -13,6 +13,8 @@ import {
   esPreguntaUsuario,
   preguntaDestinatario,
   textoRespuesta,
+  destinatariosPermitidos,
+  hayRestriccionDeDestinatarios,
   CUMPLE,
   NO_CUMPLE,
   resumenPorDimension,
@@ -20,7 +22,7 @@ import {
   recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.11.0";
+const VERSION = "v1.12.0";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -515,6 +517,11 @@ function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnvia
   const [enviando, setEnviando] = useState(false);
 
   const cfgDest = configDestinatario(formulario);
+  // Si el formulario restringe a quién se le puede dirigir, la pregunta de
+  // destinatario ofrece solo esa lista.
+  const permitidos = hayRestriccionDeDestinatarios(formulario)
+    ? destinatariosPermitidos(formulario, persona.uid)
+    : null;
 
   function set(pid, valor) {
     setRespuestas((r) => ({ ...r, [pid]: valor }));
@@ -616,6 +623,7 @@ function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnvia
             onToggle={(o) => toggle(p.id, o)}
             usuarios={usuarios}
             excluirUid={persona.uid}
+            permitidos={permitidos}
           />
         </div>
       ))}
@@ -636,10 +644,10 @@ function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnvia
 
 // Elige a quién va dirigido el formulario. Se excluye a la propia persona
 // que lo está ejecutando: el destinatario siempre es alguien más.
-function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
+function SelectorDestinatario({ usuarios, excluirUid, permitidos, elegido, onElegir }) {
   // Guarda solo lo necesario para mostrar y para buscar después.
   const elegirPersona = (u) =>
-    onElegir(u ? { uid: u.uid, nombre: u.nombreUsuario, area: u.area || "" } : null);
+    onElegir(u ? { uid: u.uid, nombre: u.nombreUsuario || u.nombre, area: u.area || "" } : null);
   const [busqueda, setBusqueda] = useState("");
 
   const sinTildes = (t) =>
@@ -657,6 +665,27 @@ function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
         <button type="button" className="ca-btn-texto" style={{ fontSize: 12, width: "auto" }} onClick={() => elegirPersona(null)}>
           Cambiar
         </button>
+      </div>
+    );
+  }
+
+  // Lista cerrada: se muestran directamente las personas habilitadas.
+  if (permitidos) {
+    if (permitidos.length === 0) {
+      return (
+        <p style={{ ...gris, fontSize: 13, margin: 0 }}>
+          Este formulario no tiene destinatarios habilitados, aparte de ti.
+        </p>
+      );
+    }
+    return (
+      <div>
+        {permitidos.map((p) => (
+          <button key={p.uid} type="button" onClick={() => elegirPersona(p)} style={filaPersona}>
+            <strong style={{ fontSize: 14 }}>{p.nombre}</strong>
+            {p.area && <span style={{ ...gris, fontSize: 12 }}>{p.area}</span>}
+          </button>
+        ))}
       </div>
     );
   }
@@ -697,7 +726,7 @@ function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
 
 // ─── Campos según el tipo de pregunta ─────────────────────────────────────
 
-function Campo({ pregunta, valor, onChange, onToggle, usuarios, excluirUid }) {
+function Campo({ pregunta, valor, onChange, onToggle, usuarios, excluirUid, permitidos }) {
   const t = pregunta.tipo;
 
   if (t === "cumple") {
@@ -821,6 +850,7 @@ function Campo({ pregunta, valor, onChange, onToggle, usuarios, excluirUid }) {
       <SelectorDestinatario
         usuarios={usuarios}
         excluirUid={excluirUid}
+        permitidos={permitidos}
         elegido={valor || null}
         onElegir={onChange}
       />

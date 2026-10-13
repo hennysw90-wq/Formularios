@@ -50,6 +50,7 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
   const [descripcion, setDescripcion] = useState(formulario?.descripcion || "");
   const [preguntas, setPreguntas] = useState(() => preguntasIniciales(formulario));
   const [asignaciones, setAsignaciones] = useState(formulario?.asignaciones || []);
+  const [permitidos, setPermitidos] = useState(formulario?.destinatariosPermitidos || []);
   const [reuniones, setReuniones] = useState([]);
   const [errorReuniones, setErrorReuniones] = useState("");
   const [error, setError] = useState("");
@@ -122,6 +123,14 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
   }
 
   // ─── Asignaciones ─────────────────────────────────────────────────────────
+
+  function togglePermitido(u) {
+    setPermitidos((prev) =>
+      prev.some((p) => p.uid === u.uid)
+        ? prev.filter((p) => p.uid !== u.uid)
+        : [...prev, { uid: u.uid, nombre: u.nombreUsuario, area: u.area || "" }]
+    );
+  }
 
   function agregarAsignacion() {
     setAsignaciones((a) => [
@@ -202,6 +211,7 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
         asignaciones: asignaciones.map((a) => ({ ...a, cantidad: Number(a.cantidad) || 1 })),
         // El destinatario vive ahora como pregunta de tipo usuario; se
         // apaga la configuración antigua para que no se pida dos veces.
+        destinatariosPermitidos: permitidos,
         destinatario: { activo: false, etiqueta: "", obligatorio: false },
       };
       if (editando) await actualizarFormulario(formulario.id, datos);
@@ -247,6 +257,21 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Instrucciones o contexto (opcional)"
+          />
+        </div>
+
+        {/* ── Destinatarios permitidos ── */}
+        <div className="ca-card" style={{ marginBottom: 16 }}>
+          <h3 style={sub}>Destinatarios permitidos</h3>
+          <p style={ayuda}>
+            Quiénes pueden recibir esta evaluación. En la pregunta «a quién va dirigido»
+            solo aparecerán estas personas. Si no eliges a nadie, se podrá elegir a
+            cualquier usuario del directorio.
+          </p>
+          <SelectorMultiple
+            usuarios={usuariosActivos}
+            seleccionados={permitidos}
+            onToggle={togglePermitido}
           />
         </div>
 
@@ -454,6 +479,64 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
 // Las personas seleccionadas se muestran siempre arriba, para no perderlas
 // de vista al filtrar. El buscador ignora mayúsculas y tildes, igual que el
 // de Administración.
+// Lista de personas con sugerencias, para elegir varias (sin fecha de
+// control, a diferencia del selector de las asignaciones).
+function SelectorMultiple({ usuarios, seleccionados, onToggle }) {
+  const [busqueda, setBusqueda] = useState("");
+  const elegidos = seleccionados.map((p) => p.uid);
+  const escrito = busqueda.trim();
+  const candidatos = sugerirUsuarios(escrito, usuarios).filter((u) => !elegidos.includes(u.uid));
+
+  return (
+    <>
+      {seleccionados.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          {seleccionados.map((p) => (
+            <button
+              key={p.uid}
+              type="button"
+              onClick={() => onToggle({ uid: p.uid, nombreUsuario: p.nombre, area: p.area })}
+              style={chip(true)}
+              title="Quitar"
+            >
+              ✓ {p.nombre} ✕
+            </button>
+          ))}
+        </div>
+      )}
+
+      <input
+        className="ca-input"
+        style={{ marginBottom: 8 }}
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        placeholder="Buscar persona por nombre o área…"
+      />
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {candidatos.map((u) => (
+          <button key={u.uid} type="button" onClick={() => onToggle(u)} style={chip(false)} title={u.area || ""}>
+            {u.nombreUsuario}
+            {u.parecido && <span style={{ marginLeft: 5, fontSize: 10, color: "#8a5a00" }}>parecido</span>}
+          </button>
+        ))}
+        {escrito.length >= 2 && candidatos.length === 0 && (
+          <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: 0 }}>
+            Nadie coincide con esa búsqueda.
+          </p>
+        )}
+        {escrito.length < 2 && (
+          <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: 0 }}>
+            {seleccionados.length === 0
+              ? "Sin restricción: se podrá elegir a cualquier usuario."
+              : "Escribe al menos 2 letras para agregar a alguien más."}
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
 function SelectorPersonas({ usuarios, seleccionadas, onToggle, onCambiarDesde }) {
   const [busqueda, setBusqueda] = useState("");
 

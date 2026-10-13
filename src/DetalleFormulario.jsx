@@ -101,6 +101,20 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
         )}
       </div>
 
+      {/* ── Destinatarios permitidos ── */}
+      {(formulario.destinatariosPermitidos || []).length > 0 && (
+        <div className="ca-card" style={{ marginBottom: 16 }}>
+          <h3 style={sub}>Destinatarios permitidos</h3>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {formulario.destinatariosPermitidos.map((p) => (
+              <span key={p.uid} className="ca-chip" style={{ fontSize: 11 }}>
+                {p.nombre}{p.area ? ` · ${p.area}` : ""}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Preguntas ── */}
       <div className="ca-card" style={{ marginBottom: 16 }}>
         <h3 style={sub}>Preguntas</h3>
