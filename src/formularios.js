@@ -257,6 +257,10 @@ export async function guardarRespuesta({
   });
 }
 
+export async function eliminarRespuesta(formularioId, respuestaId) {
+  await deleteDoc(doc(db, "formularios", formularioId, "respuestas", respuestaId));
+}
+
 export function listarRespuestas(formularioId, callback, onError) {
   return onSnapshot(
     collection(db, "formularios", formularioId, "respuestas"),

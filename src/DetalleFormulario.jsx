@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   listarRespuestas,
   eliminarFormulario,
+  eliminarRespuesta,
   etiquetaCadencia,
   etiquetaTipoPregunta,
   necesitaOpciones,
@@ -13,6 +14,7 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
   const [respuestas, setRespuestas] = useState([]);
   const [confirmando, setConfirmando] = useState(false);
   const [filtroReunion, setFiltroReunion] = useState("");
+  const [abierta, setAbierta] = useState(null);
 
   useEffect(() => {
     const cancelar = listarRespuestas(formulario.id, setRespuestas);
@@ -159,47 +161,117 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
         {visibles.length === 0 ? (
           <p style={gris}>Aún no hay respuestas. Comparte el QR para empezar.</p>
         ) : (
-          visibles.map((r) => (
-            <div key={r.id} style={fila}>
-              <div style={{ width: "100%" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-                  <strong style={{ fontSize: 14 }}>{r.nombreUsuario}</strong>
-                  <span style={{ ...gris, fontSize: 12 }}>
-                    {r.area && `${r.area} · `}{fecha(r.fecha)}
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-                  {r.reunionNombre && (
-                    <span className="ca-chip" style={{ fontSize: 11 }}>{r.reunionNombre}</span>
-                  )}
-                  {r.destinatario?.nombre && (
-                    <span className="ca-chip ca-chip-ambar" style={{ fontSize: 11 }}>
-                      {cfgDest.etiqueta}: {r.destinatario.nombre}
-                    </span>
-                  )}
-                </div>
-                {(formulario.preguntas || []).map((p) => {
-                  const v = r.respuestas?.[p.id];
-                  if (v === undefined || v === null || v === "") return null;
-                  return (
-                    <div key={p.id} style={{ fontSize: 13, marginTop: 5 }}>
-                      <span style={gris}>{p.texto}: </span>
-                      {p.tipo === "imagen" ? (
-                        <a href={v} target="_blank" rel="noreferrer">
-                          <img src={v} alt="Adjunto" style={{ display: "block", maxWidth: 220, borderRadius: 8, marginTop: 4 }} />
-                        </a>
-                      ) : (
-                        <span>{textoRespuesta(v)}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid var(--borde)" }}>
+                  <th style={thL}>QUIÉN LO HIZO</th>
+                  <th style={thL}>A QUIÉN</th>
+                  <th style={thL}>REUNIÓN</th>
+                  <th style={thL}>FECHA Y HORA</th>
+                  <th style={{ ...thL, width: 110, textAlign: "right" }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibles.map((r) => (
+                  <FilaRespuesta
+                    key={r.id}
+                    respuesta={r}
+                    formulario={formulario}
+                    etiquetaDest={cfgDest.etiqueta}
+                    puedeBorrar={puedeEditar}
+                    abierta={abierta === r.id}
+                    onAbrir={() => setAbierta(abierta === r.id ? null : r.id)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+// Una respuesta por fila: quién la hizo, a quién, la reunión y cuándo. El
+// contenido completo solo se despliega si se pide, para que el listado se
+// pueda leer de un vistazo.
+function FilaRespuesta({ respuesta: r, formulario, etiquetaDest, puedeBorrar, abierta, onAbrir }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [borrando, setBorrando] = useState(false);
+
+  async function borrar() {
+    setBorrando(true);
+    try {
+      await eliminarRespuesta(formulario.id, r.id);
+    } catch {
+      setBorrando(false);
+      setConfirmando(false);
+    }
+  }
+
+  return (
+    <>
+      <tr style={{ borderBottom: "1px solid var(--borde)" }}>
+        <td style={tdL}>
+          <strong>{r.nombreUsuario}</strong>
+          {r.area && <div style={{ ...gris, fontSize: 11 }}>{r.area}</div>}
+        </td>
+        <td style={tdL}>{r.destinatario?.nombre || "—"}</td>
+        <td style={tdL}>{r.reunionNombre || "—"}</td>
+        <td style={{ ...tdL, whiteSpace: "nowrap" }}>{fecha(r.fecha)}</td>
+        <td style={{ ...tdL, textAlign: "right", whiteSpace: "nowrap" }}>
+          <button onClick={onAbrir} style={btnFila} title="Ver respuestas">
+            {abierta ? "Ocultar" : "Ver"}
+          </button>
+          {puedeBorrar && (
+            confirmando ? (
+              <>
+                <button
+                  onClick={borrar}
+                  disabled={borrando}
+                  style={{ ...btnFila, color: "#fff", background: "var(--rojo)", borderColor: "var(--rojo)" }}
+                >
+                  {borrando ? "…" : "Borrar"}
+                </button>
+                <button onClick={() => setConfirmando(false)} style={btnFila}>No</button>
+              </>
+            ) : (
+              <button
+                onClick={() => setConfirmando(true)}
+                style={{ ...btnFila, color: "var(--rojo)" }}
+                title="Eliminar esta respuesta"
+              >
+                ✕
+              </button>
+            )
+          )}
+        </td>
+      </tr>
+
+      {abierta && (
+        <tr>
+          <td colSpan={5} style={{ padding: "4px 8px 14px", background: "var(--fondo)" }}>
+            {(formulario.preguntas || []).map((p) => {
+              const v = r.respuestas?.[p.id];
+              if (v === undefined || v === null || v === "") return null;
+              return (
+                <div key={p.id} style={{ fontSize: 13, marginTop: 6 }}>
+                  <span style={gris}>{p.texto}: </span>
+                  {p.tipo === "imagen" ? (
+                    <a href={v} target="_blank" rel="noreferrer">
+                      <img src={v} alt="Adjunto" style={{ display: "block", maxWidth: 220, borderRadius: 8, marginTop: 4 }} />
+                    </a>
+                  ) : (
+                    <strong>{textoRespuesta(v)}</strong>
+                  )}
+                </div>
+              );
+            })}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -220,3 +292,18 @@ function fecha(iso) {
 const sub = { margin: "0 0 12px", fontSize: 15, fontWeight: 700 };
 const gris = { color: "var(--texto-suave)", fontSize: 13, margin: 0 };
 const fila = { display: "flex", gap: 10, borderBottom: "1px solid var(--borde)", paddingBottom: 11, marginBottom: 11 };
+
+const thL = { textAlign: "left", fontSize: 11, fontWeight: 700, color: "var(--texto-suave)", padding: "8px 8px", textTransform: "uppercase", letterSpacing: 0.4 };
+const tdL = { padding: "9px 8px", verticalAlign: "top" };
+const btnFila = {
+  background: "#fff",
+  border: "1px solid var(--borde)",
+  borderRadius: 7,
+  padding: "4px 10px",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  marginLeft: 5,
+  color: "var(--texto)",
+  fontFamily: "inherit",
+};
