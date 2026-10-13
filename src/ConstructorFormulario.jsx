@@ -10,6 +10,7 @@ import {
   actualizarFormulario,
 } from "./formularios.js";
 import { listarReunionesAsistencia } from "./reuniones.js";
+import { sugerirUsuarios } from "./buscarUsuarios.js";
 
 let contador = 1;
 function nuevoId(pre) {
@@ -474,13 +475,12 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
 function SelectorPersonas({ usuarios, seleccionadas, onToggle, onCambiarDesde }) {
   const [busqueda, setBusqueda] = useState("");
 
-  const sinTildes = (t) =>
-    (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
   const elegidas = seleccionadas.map((p) => p.uid);
-  const texto = sinTildes(busqueda.trim());
-  const candidatas = usuarios.filter(
-    (u) => !elegidas.includes(u.uid) && (!texto || sinTildes(u.nombreUsuario).includes(texto) || sinTildes(u.area).includes(texto))
+  const escrito = busqueda.trim();
+  // Sugerencias por coincidencia y por parecido, igual que en
+  // Administración: no se vuelca la lista completa.
+  const candidatas = sugerirUsuarios(escrito, usuarios).filter(
+    (u) => !elegidas.includes(u.uid)
   );
 
   return (
@@ -524,15 +524,27 @@ function SelectorPersonas({ usuarios, seleccionadas, onToggle, onCambiarDesde })
         placeholder="Buscar persona por nombre o área…"
       />
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 190, overflowY: "auto" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {candidatas.map((u) => (
-          <button key={u.uid} type="button" onClick={() => onToggle(u)} style={chip(false)}>
+          <button
+            key={u.uid}
+            type="button"
+            onClick={() => onToggle(u)}
+            style={chip(false)}
+            title={u.area || ""}
+          >
             {u.nombreUsuario}
+            {u.parecido && <span style={{ marginLeft: 5, fontSize: 10, color: "#8a5a00" }}>parecido</span>}
           </button>
         ))}
-        {candidatas.length === 0 && (
+        {escrito.length >= 2 && candidatas.length === 0 && (
           <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: 0 }}>
-            {texto ? "Nadie coincide con esa búsqueda." : "Ya están todas seleccionadas."}
+            Nadie coincide con esa búsqueda.
+          </p>
+        )}
+        {escrito.length < 2 && (
+          <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: 0 }}>
+            Escribe al menos 2 letras para ver sugerencias.
           </p>
         )}
       </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { listarUsuarios } from "./auth.js";
+import { sugerirUsuarios } from "./buscarUsuarios.js";
 import {
   obtenerFormulario,
   guardarRespuesta,
@@ -16,7 +17,7 @@ import {
   recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.9.2";
+const VERSION = "v1.10.0";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -142,25 +143,14 @@ export default function RegistroFormulario({ formularioId }) {
 
 function Identificarse({ usuarios, onElegir }) {
   const [texto, setTexto] = useState("");
-  const sinTildes = (t) =>
-    (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  const buscado = sinTildes(texto.trim());
-  // La lista aparece completa de entrada; escribir solo la acota.
-  const filtrados = usuarios
-    .filter((u) => u.rol !== "deshabilitado")
-    .filter(
-      (u) =>
-        !buscado ||
-        sinTildes(u.nombreUsuario).includes(buscado) ||
-        sinTildes(u.area).includes(buscado)
-    )
-    .sort((a, b) => (a.nombreUsuario || "").localeCompare(b.nombreUsuario || ""));
+  const escrito = texto.trim();
+  const filtrados = sugerirUsuarios(escrito, usuarios);
 
   return (
     <>
       <p style={{ fontWeight: 700, fontSize: 15, margin: "0 0 4px" }}>¿Quién eres?</p>
       <p style={{ ...gris, fontSize: 13, margin: "0 0 12px" }}>
-        Elígete de la lista para ver lo que tienes agendado.
+        Escribe tu nombre y elígete de las sugerencias.
       </p>
       <input
         className="ca-input"
@@ -169,29 +159,27 @@ function Identificarse({ usuarios, onElegir }) {
         placeholder="Tu nombre"
         autoFocus
       />
-      <div style={listaUsuarios}>
+      <div style={{ marginTop: 10 }}>
         {filtrados.map((u) => (
-          <button
-            key={u.uid}
-            type="button"
-            onClick={() => onElegir(u)}
-            style={filaPersona}
-          >
-            <strong style={{ fontSize: 14 }}>{u.nombreUsuario}</strong>
+          <button key={u.uid} type="button" onClick={() => onElegir(u)} style={filaPersona}>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <strong style={{ fontSize: 14 }}>{u.nombreUsuario}</strong>
+              {u.parecido && <span style={etiquetaParecido}>parecido</span>}
+            </span>
             {u.area && <span style={{ ...gris, fontSize: 12 }}>{u.area}</span>}
           </button>
         ))}
-        {filtrados.length === 0 && (
+        {escrito.length >= 2 && filtrados.length === 0 && (
           <p style={{ ...gris, fontSize: 13, margin: 0 }}>
-            {buscado
-              ? "No encontramos ese nombre. Revisa cómo está escrito o pide a un administrador que te cree el usuario."
-              : "Todavía no hay usuarios registrados."}
+            No encontramos ese nombre. Revisa cómo está escrito o pide a un administrador que te cree el usuario.
+          </p>
+        )}
+        {escrito.length < 2 && (
+          <p style={{ ...gris, fontSize: 12, margin: 0 }}>
+            Escribe al menos 2 letras para ver sugerencias.
           </p>
         )}
       </div>
-      <p style={{ ...gris, fontSize: 11, margin: "6px 0 0" }}>
-        {filtrados.length} usuario{filtrados.length === 1 ? "" : "s"}
-      </p>
     </>
   );
 }
@@ -653,12 +641,8 @@ function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
     );
   }
 
-  const texto = sinTildes(busqueda.trim());
-  // La lista se muestra completa de entrada; el buscador solo la acota.
-  const candidatos = usuarios
-    .filter((u) => u.uid !== excluirUid && u.rol !== "deshabilitado")
-    .filter((u) => !texto || sinTildes(u.nombreUsuario).includes(texto) || sinTildes(u.area).includes(texto))
-    .sort((a, b) => (a.nombreUsuario || "").localeCompare(b.nombreUsuario || ""));
+  const escrito = busqueda.trim();
+  const candidatos = sugerirUsuarios(escrito, usuarios, { excluirUid });
 
   return (
     <>
@@ -668,22 +652,25 @@ function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
         onChange={(e) => setBusqueda(e.target.value)}
         placeholder="Buscar por nombre o área…"
       />
-      <div style={listaUsuarios}>
+      <div style={{ marginTop: 8 }}>
         {candidatos.map((u) => (
           <button key={u.uid} type="button" onClick={() => onElegir(u)} style={filaPersona}>
-            <strong style={{ fontSize: 14 }}>{u.nombreUsuario}</strong>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <strong style={{ fontSize: 14 }}>{u.nombreUsuario}</strong>
+              {u.parecido && <span style={etiquetaParecido}>parecido</span>}
+            </span>
             {u.area && <span style={{ ...gris, fontSize: 12 }}>{u.area}</span>}
           </button>
         ))}
-        {candidatos.length === 0 && (
-          <p style={{ ...gris, fontSize: 13, margin: 0 }}>
-            {texto ? "Nadie coincide con esa búsqueda." : "No hay usuarios disponibles."}
+        {escrito.length >= 2 && candidatos.length === 0 && (
+          <p style={{ ...gris, fontSize: 13, margin: 0 }}>Nadie coincide con esa búsqueda.</p>
+        )}
+        {escrito.length < 2 && (
+          <p style={{ ...gris, fontSize: 12, margin: 0 }}>
+            Escribe al menos 2 letras. Tú mismo no apareces.
           </p>
         )}
       </div>
-      <p style={{ ...gris, fontSize: 11, margin: "6px 0 0" }}>
-        {candidatos.length} usuario{candidatos.length === 1 ? "" : "s"} · no apareces tú mismo
-      </p>
     </>
   );
 }
@@ -1010,4 +997,13 @@ const listaUsuarios = {
   borderRadius: 10,
   padding: 6,
   background: "var(--fondo)",
+};
+
+const etiquetaParecido = {
+  fontSize: 10,
+  fontWeight: 700,
+  padding: "1px 7px",
+  borderRadius: 100,
+  background: "#fbe8c8",
+  color: "#8a5a00",
 };
