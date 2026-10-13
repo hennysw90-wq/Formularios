@@ -40,24 +40,18 @@ export default function ResumenTextos({ formulario, respuestas, embebido = false
             {ideas.length > 0 ? (
               <ul style={lista}>
                 {ideas.map((idea, i) => (
-                  <li key={i} style={{ marginBottom: 8 }}>
+                  <li key={i} style={{ marginBottom: 10 }}>
                     <span>{idea.frase}</span>
-                    <span style={{ ...gris, fontSize: 12 }}>
-                      {idea.enRespuestas > 1
-                        ? ` — en ${idea.enRespuestas} de ${entradas.length} respuestas`
-                        : idea.menciones > 1
-                        ? ` — repetido ${idea.menciones} veces · ${idea.autor}`
-                        : ` — ${idea.autor}`}
-                    </span>
-                    {idea.variantes.length > 0 && (
-                      <ul style={{ margin: "4px 0 0", paddingLeft: 16, listStyle: "none" }}>
-                        {idea.variantes.slice(0, 2).map((v, j) => (
-                          <li key={j} style={{ ...gris, fontSize: 12, marginBottom: 2 }}>
-                            «{v.texto}» — {v.autor}
-                          </li>
-                        ))}
-                      </ul>
+                    {idea.textual && idea.textual !== idea.frase && (
+                      <div style={{ ...gris, fontSize: 12, marginTop: 2 }}>
+                        «{idea.textual}» — {idea.autor}
+                      </div>
                     )}
+                    {idea.variantes.slice(0, 2).map((v, j) => (
+                      <div key={j} style={{ ...gris, fontSize: 12, marginTop: 2 }}>
+                        «{v.texto}» — {v.autor}
+                      </div>
+                    ))}
                   </li>
                 ))}
               </ul>
