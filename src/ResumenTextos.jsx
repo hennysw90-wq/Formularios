@@ -44,7 +44,9 @@ export default function ResumenTextos({ formulario, respuestas, embebido = false
                     <span>{idea.frase}</span>
                     <span style={{ ...gris, fontSize: 12 }}>
                       {idea.enRespuestas > 1
-                        ? ` — lo mencionan ${idea.enRespuestas} de ${entradas.length} respuestas`
+                        ? ` — en ${idea.enRespuestas} de ${entradas.length} respuestas`
+                        : idea.menciones > 1
+                        ? ` — repetido ${idea.menciones} veces · ${idea.autor}`
                         : ` — ${idea.autor}`}
                     </span>
                     {idea.variantes.length > 0 && (

@@ -23,7 +23,7 @@ import {
   recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.18.0";
+const VERSION = "v1.18.1";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);

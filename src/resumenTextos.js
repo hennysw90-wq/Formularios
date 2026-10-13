@@ -43,10 +43,15 @@ function enFrases(texto) {
     .filter((f) => f.split(" ").length >= 3);
 }
 
+// Cuánto se solapan dos frases. Se mide contra la más corta de las dos y
+// no contra la unión: así "Mala gestión de compromisos" se reconoce como la
+// misma idea que "La gestión de compromisos es deficiente, hay personas que
+// los desconocen", que al ser más larga diluiría el parecido.
 function parecido(a, b) {
   const comunes = [...a].filter((t) => b.has(t)).length;
-  const union = new Set([...a, ...b]).size;
-  return union === 0 ? 0 : comunes / union;
+  if (comunes < 2) return 0; // una sola palabra en común no hace un tema
+  const menor = Math.min(a.size, b.size);
+  return menor === 0 ? 0 : comunes / menor;
 }
 
 function primeraMayuscula(t) {
@@ -89,17 +94,18 @@ export function ideasPrincipales(entradas, { max = 6, minRespuestas = 1 } = {}) 
   // 4. Agrupar las que dicen lo mismo; la de mayor puntaje representa.
   const grupos = [];
   for (const f of frases) {
-    const grupo = grupos.find((g) => parecido(g.terminos, f.terminos) >= 0.34);
+    // Se compara contra la frase que representa al grupo, no contra la
+    // bolsa acumulada de términos, que se va ensuciando a medida que el
+    // grupo crece y terminaría tragándose frases de otros temas.
+    const grupo = grupos.find((g) => parecido(g.representante.terminos, f.terminos) >= 0.5);
     if (grupo) {
       grupo.miembros.push(f);
       grupo.respuestas.add(f.respuesta);
-      f.terminos.forEach((t) => grupo.terminos.add(t));
     } else {
       grupos.push({
         representante: f,
         miembros: [f],
         respuestas: new Set([f.respuesta]),
-        terminos: new Set(f.terminos),
       });
     }
   }
@@ -109,6 +115,7 @@ export function ideasPrincipales(entradas, { max = 6, minRespuestas = 1 } = {}) 
       frase: primeraMayuscula(g.representante.texto),
       autor: g.representante.autor,
       enRespuestas: g.respuestas.size,
+      menciones: g.miembros.length,
       variantes: g.miembros
         .filter((m) => m !== g.representante)
         .map((m) => ({ texto: primeraMayuscula(m.texto), autor: m.autor, reunion: m.reunion })),
