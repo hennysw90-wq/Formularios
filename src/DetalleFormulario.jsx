@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ResumenTextos from "./ResumenTextos.jsx";
 import {
   listarRespuestas,
   eliminarFormulario,
@@ -139,6 +140,9 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
           </div>
         ))}
       </div>
+
+      {/* ── Resumen de textos ── */}
+      <ResumenTextos formulario={formulario} respuestas={respuestas} />
 
       {/* ── Respuestas ── */}
       <div className="ca-card">
