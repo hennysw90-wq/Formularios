@@ -54,6 +54,47 @@ function parecido(a, b) {
   return menor === 0 ? 0 : comunes / menor;
 }
 
+// Coseno entre dos frases, tomando sus términos como vector binario.
+function coseno(a, b) {
+  const comunes = [...a].filter((t) => b.has(t)).length;
+  if (comunes === 0) return 0;
+  return comunes / (Math.sqrt(a.size) * Math.sqrt(b.size));
+}
+
+// PageRank sobre el grafo de frases. Devuelve un puntaje por frase.
+function textRank(frases, { amortiguacion = 0.85, iteraciones = 40 } = {}) {
+  const n = frases.length;
+  if (n === 0) return [];
+  if (n === 1) return [1];
+
+  const sim = Array.from({ length: n }, () => new Float64Array(n));
+  const salida = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const s = coseno(frases[i].terminos, frases[j].terminos);
+      sim[i][j] = s;
+      sim[j][i] = s;
+      salida[i] += s;
+      salida[j] += s;
+    }
+  }
+
+  let r = new Float64Array(n).fill(1 / n);
+  for (let paso = 0; paso < iteraciones; paso++) {
+    const nuevo = new Float64Array(n).fill((1 - amortiguacion) / n);
+    for (let j = 0; j < n; j++) {
+      if (salida[j] === 0) continue;
+      for (let i = 0; i < n; i++) {
+        if (i === j || sim[j][i] === 0) continue;
+        nuevo[i] += amortiguacion * r[j] * (sim[j][i] / salida[j]);
+      }
+    }
+    r = nuevo;
+  }
+  const max = Math.max(...r) || 1;
+  return [...r].map((x) => x / max);
+}
+
 function primeraMayuscula(t) {
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 }
@@ -83,12 +124,24 @@ export function ideasPrincipales(entradas, { max = 6, minRespuestas = 1 } = {}) 
     peso.set(t, enRespuestas);
   }
 
-  // 3. Puntaje de cada frase: lo que pesan sus términos, moderado por el
-  //    largo para que una frase kilométrica no gane solo por extensa.
-  for (const f of frases) {
+  // 3. TextRank: se arma un grafo donde cada frase es un nodo y el peso de
+  //    la arista es cuánto se parecen. Después se corre PageRank sobre ese
+  //    grafo. Una frase es central si se parece a muchas otras que a su vez
+  //    son centrales — es decir, si dice lo que el conjunto está diciendo.
+  //    Es el mismo principio con el que Google ordenaba páginas, aplicado a
+  //    oraciones, y da resultados bastante mejores que contar palabras.
+  const rank = textRank(frases);
+
+  //    El rank se corrige por dos cosas: cuánta información trae la frase
+  //    (una nota telegráfica de dos palabras no resume nada) y cuánto pesan
+  //    sus términos dentro del conjunto.
+  frases.forEach((f, i) => {
     const suma = [...f.terminos].reduce((s, t) => s + peso.get(t), 0);
-    f.puntaje = suma / Math.sqrt(f.terminos.size);
-  }
+    const densidad = suma / Math.sqrt(f.terminos.size);
+    // Satura alrededor de las 6 palabras con contenido: más allá no suma.
+    const informacion = Math.min(f.terminos.size, 6) / 6;
+    f.puntaje = rank[i] * (0.45 + 0.55 * informacion) * (0.5 + 0.5 * densidad / (1 + densidad));
+  });
   frases.sort((a, b) => b.puntaje - a.puntaje);
 
   // 4. Agrupar las que dicen lo mismo; la de mayor puntaje representa.
@@ -110,7 +163,35 @@ export function ideasPrincipales(entradas, { max = 6, minRespuestas = 1 } = {}) 
     }
   }
 
-  return grupos
+  // 5. Selección con diversidad (MMR): se elige primero el grupo más fuerte
+  //    y, para los siguientes, se penaliza parecerse a lo ya elegido. Así
+  //    los bullets cubren temas distintos en vez de repetir el mismo con
+  //    otras palabras.
+  const porFuerza = grupos
+    .map((g) => ({
+      g,
+      fuerza: g.respuestas.size * 2 + g.miembros.length + g.representante.puntaje,
+    }))
+    .sort((a, b) => b.fuerza - a.fuerza);
+
+  const elegidos = [];
+  while (elegidos.length < max && porFuerza.length > 0) {
+    let mejorIdx = 0;
+    let mejorValor = -Infinity;
+    porFuerza.forEach((c, i) => {
+      const redundancia = elegidos.length
+        ? Math.max(...elegidos.map((e) => coseno(e.representante.terminos, c.g.representante.terminos)))
+        : 0;
+      const valor = c.fuerza * (1 - 0.6 * redundancia);
+      if (valor > mejorValor) {
+        mejorValor = valor;
+        mejorIdx = i;
+      }
+    });
+    elegidos.push(porFuerza.splice(mejorIdx, 1)[0].g);
+  }
+
+  return elegidos
     .map((g) => ({
       frase: primeraMayuscula(g.representante.texto),
       autor: g.representante.autor,
@@ -121,8 +202,7 @@ export function ideasPrincipales(entradas, { max = 6, minRespuestas = 1 } = {}) 
         .map((m) => ({ texto: primeraMayuscula(m.texto), autor: m.autor, reunion: m.reunion })),
     }))
     .filter((g) => g.enRespuestas >= minRespuestas)
-    .sort((a, b) => b.enRespuestas - a.enRespuestas || b.variantes.length - a.variantes.length)
-    .slice(0, max);
+    .sort((a, b) => b.enRespuestas - a.enRespuestas || b.variantes.length - a.variantes.length);
 }
 
 export function porReunion(entradas) {
