@@ -9,9 +9,14 @@ import {
   etiquetaCadencia,
   necesitaOpciones,
   configDestinatario,
+  CUMPLE,
+  NO_CUMPLE,
+  respuestasDeLaPersonaEnTodos,
+  resumenPorDimension,
+  haceMeses,
 } from "./formularios.js";
 
-const VERSION = "v1.7.0";
+const VERSION = "v1.8.0";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -101,16 +106,37 @@ export default function RegistroFormulario({ formularioId }) {
     );
   }
 
-  // paso === "agenda"
+  // paso === "agenda" | "resumen"
   return (
     <Envoltorio titulo={formulario.titulo} descripcion={formulario.descripcion}>
-      <Agenda
-        agenda={agenda}
-        persona={persona}
-        hayAsignaciones={(formulario.asignaciones || []).length > 0}
-        onElegir={(item) => { setItemActivo(item); setPaso("responder"); }}
-        onCambiarPersona={() => { setPersona(null); setPaso("identificar"); }}
-      />
+      <Encabezado persona={persona} onCambiar={() => { setPersona(null); setPaso("identificar"); }} />
+
+      <div style={pestanas}>
+        <button
+          type="button"
+          onClick={() => setPaso("agenda")}
+          style={pestana(paso === "agenda")}
+        >
+          Mis pendientes
+        </button>
+        <button
+          type="button"
+          onClick={() => setPaso("resumen")}
+          style={pestana(paso === "resumen")}
+        >
+          Mi cumplimiento
+        </button>
+      </div>
+
+      {paso === "resumen" ? (
+        <Resumen persona={persona} />
+      ) : (
+        <Agenda
+          agenda={agenda}
+          hayAsignaciones={(formulario.asignaciones || []).length > 0}
+          onElegir={(item) => { setItemActivo(item); setPaso("responder"); }}
+        />
+      )}
     </Envoltorio>
   );
 }
@@ -163,37 +189,29 @@ function Identificarse({ usuarios, onElegir }) {
 
 // ─── Agenda de la persona ─────────────────────────────────────────────────
 
-function Agenda({ agenda, persona, hayAsignaciones, onElegir, onCambiarPersona }) {
+function Agenda({ agenda, hayAsignaciones, onElegir }) {
   // Formulario sin asignaciones: queda abierto, se responde directo.
   if (!hayAsignaciones) {
     return (
-      <>
-        <Encabezado persona={persona} onCambiar={onCambiarPersona} />
-        <button
-          className="ca-btn"
-          onClick={() => onElegir({ asignacion: null, periodo: "", reunionNombre: "" })}
-        >
-          Responder formulario
-        </button>
-      </>
+      <button
+        className="ca-btn"
+        onClick={() => onElegir({ asignacion: null, periodo: "", reunionNombre: "" })}
+      >
+        Responder formulario
+      </button>
     );
   }
 
   if (agenda.length === 0) {
     return (
-      <>
-        <Encabezado persona={persona} onCambiar={onCambiarPersona} />
-        <p style={{ ...gris, fontSize: 14, textAlign: "center", padding: "14px 0" }}>
-          No tienes este formulario asignado. Si crees que es un error, avísale a quien lo creó.
-        </p>
-      </>
+      <p style={{ ...gris, fontSize: 14, textAlign: "center", padding: "14px 0" }}>
+        No tienes este formulario asignado. Si crees que es un error, avísale a quien lo creó.
+      </p>
     );
   }
 
   return (
     <>
-      <Encabezado persona={persona} onCambiar={onCambiarPersona} />
-      <p style={{ fontWeight: 700, fontSize: 14, margin: "0 0 10px" }}>Tus pendientes</p>
       {agenda.map((item) => (
         <div key={item.asignacion.id} style={tarjeta(item.completa)}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
@@ -224,6 +242,143 @@ function Agenda({ agenda, persona, hayAsignaciones, onElegir, onCambiarPersona }
       ))}
     </>
   );
+}
+
+// ─── Mi cumplimiento (dimensiones + textos) ───────────────────────────────
+
+function Resumen({ persona }) {
+  const [respuestas, setRespuestas] = useState(null);
+  const [meses, setMeses] = useState(2);
+  const [error, setError] = useState("");
+  const [abierta, setAbierta] = useState(null);
+
+  useEffect(() => {
+    let vivo = true;
+    respuestasDeLaPersonaEnTodos(persona.uid)
+      .then((r) => vivo && setRespuestas(r))
+      .catch(() => vivo && setError("No se pudo cargar tu cumplimiento."));
+    return () => { vivo = false; };
+  }, [persona.uid]);
+
+  if (error) return <p style={{ color: "var(--rojo)", fontSize: 14 }}>{error}</p>;
+  if (respuestas === null) return <p style={{ ...gris, fontSize: 14 }}>Cargando…</p>;
+
+  const resumen = resumenPorDimension(respuestas, haceMeses(meses));
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {[2, 6, 12].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => setMeses(n)}
+            style={{ ...chipSel(meses === n), flex: 1, justifyContent: "center", fontSize: 13, padding: "7px 0" }}
+          >
+            {n} meses
+          </button>
+        ))}
+      </div>
+
+      {resumen.porcentajeGeneral === null ? (
+        <p style={{ ...gris, fontSize: 14, textAlign: "center", padding: "14px 0" }}>
+          No hay respuestas con dimensión en este periodo.
+        </p>
+      ) : (
+        <>
+          <div style={cajaTotal}>
+            <span style={{ fontSize: 13, color: "var(--texto-suave)" }}>Cumplimiento general</span>
+            <div style={{ fontSize: 34, fontWeight: 800, color: tono(resumen.porcentajeGeneral), lineHeight: 1.1 }}>
+              {resumen.porcentajeGeneral}%
+            </div>
+            <span style={{ fontSize: 12, color: "var(--texto-suave)" }}>
+              {resumen.totalCumple} de {resumen.totalPreguntas} preguntas cumplen
+            </span>
+          </div>
+
+          {resumen.dimensiones.map((d) => {
+            const abiertaEsta = abierta === d.dimension;
+            return (
+              <div key={d.dimension} style={tarjetaDim}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                  onClick={() => setAbierta(abiertaEsta ? null : d.dimension)}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: "0 0 5px", fontWeight: 700, fontSize: 14 }}>{d.dimension}</p>
+                    <div style={{ background: "var(--borde)", borderRadius: 100, height: 7, overflow: "hidden" }}>
+                      <div style={{ width: `${d.porcentaje}%`, height: "100%", background: tono(d.porcentaje), borderRadius: 100 }} />
+                    </div>
+                    <p style={{ ...gris, fontSize: 11, margin: "5px 0 0" }}>
+                      {d.cumple} de {d.total} cumplen
+                    </p>
+                  </div>
+                  <strong style={{ fontSize: 19, color: tono(d.porcentaje), minWidth: 52, textAlign: "right" }}>
+                    {d.porcentaje}%
+                  </strong>
+                </div>
+
+                {abiertaEsta && (
+                  <div style={{ marginTop: 10, borderTop: "1px solid var(--borde)", paddingTop: 10 }}>
+                    {d.preguntas.map((q, i) => {
+                      const pct = q.total > 0 ? Math.round((q.cumple / q.total) * 100) : 0;
+                      return (
+                        <div key={i} style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 7 }}>
+                          <span style={{ flex: 1, fontSize: 12 }}>{q.texto}</span>
+                          <strong style={{ fontSize: 12, color: tono(pct), whiteSpace: "nowrap" }}>
+                            {q.cumple}/{q.total} · {pct}%
+                          </strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {resumen.textos.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <p style={{ fontWeight: 700, fontSize: 14, margin: "0 0 8px" }}>Lo que escribiste</p>
+          {resumen.textos.map((t, i) => (
+            <div key={i} style={tarjetaDim}>
+              <p style={{ margin: "0 0 7px", fontWeight: 600, fontSize: 13 }}>{t.texto}</p>
+              {t.entradas.slice(0, 6).map((e, j) => (
+                <div key={j} style={{ borderLeft: "3px solid var(--verde-claro)", paddingLeft: 9, marginBottom: 8 }}>
+                  <p style={{ margin: 0, fontSize: 13 }}>{e.valor}</p>
+                  <p style={{ ...gris, fontSize: 11, margin: "2px 0 0" }}>
+                    {e.reunionNombre ? `${e.reunionNombre} · ` : ""}{fechaCorta(e.fecha)}
+                  </p>
+                </div>
+              ))}
+              {t.entradas.length > 6 && (
+                <p style={{ ...gris, fontSize: 11, margin: 0 }}>
+                  y {t.entradas.length - 6} más en este periodo
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function tono(p) {
+  if (p >= 90) return "#1b7a46";
+  if (p >= 70) return "#8a5a00";
+  return "#b02a26";
+}
+
+function fechaCorta(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch {
+    return iso;
+  }
 }
 
 function Encabezado({ persona, onCambiar }) {
@@ -327,6 +482,9 @@ function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnvia
 
       {(formulario.preguntas || []).map((p, i) => (
         <div key={p.id} style={{ marginBottom: 18 }}>
+          {p.dimension && (
+            <span className="ca-chip" style={{ fontSize: 10, marginBottom: 5 }}>{p.dimension}</span>
+          )}
           <label className="ca-label" style={{ fontSize: 14, marginBottom: 7 }}>
             {i + 1}. {p.texto} {p.obligatoria && <span style={{ color: "var(--rojo)" }}>*</span>}
           </label>
@@ -413,6 +571,37 @@ function SelectorDestinatario({ usuarios, excluirUid, elegido, onElegir }) {
 
 function Campo({ pregunta, valor, onChange, onToggle }) {
   const t = pregunta.tipo;
+
+  if (t === "cumple") {
+    return (
+      <div style={{ display: "flex", gap: 10 }}>
+        {[CUMPLE, NO_CUMPLE].map((op) => {
+          const sel = valor === op;
+          const bueno = op === CUMPLE;
+          return (
+            <button
+              key={op}
+              type="button"
+              onClick={() => onChange(op)}
+              style={{
+                flex: 1,
+                padding: "12px 10px",
+                borderRadius: 10,
+                fontSize: 15,
+                fontWeight: sel ? 800 : 600,
+                cursor: "pointer",
+                border: `2px solid ${sel ? (bueno ? "#1b7a46" : "#b02a26") : "var(--borde)"}`,
+                background: sel ? (bueno ? "#e3f3ea" : "#fdeaea") : "#fff",
+                color: sel ? (bueno ? "#1b7a46" : "#b02a26") : "var(--texto-suave)",
+              }}
+            >
+              {sel ? (bueno ? "✓ " : "✕ ") : ""}{op}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   if (t === "si_no") {
     return (
@@ -651,4 +840,43 @@ const elegidoCaja = {
   background: "var(--verde-claro)",
   borderRadius: 10,
   padding: "9px 12px",
+};
+
+const pestanas = {
+  display: "flex",
+  gap: 6,
+  marginBottom: 14,
+  borderBottom: "1px solid var(--borde)",
+};
+
+function pestana(activa) {
+  return {
+    flex: 1,
+    background: "none",
+    border: "none",
+    borderBottom: `2px solid ${activa ? "var(--verde)" : "transparent"}`,
+    color: activa ? "var(--verde-oscuro)" : "var(--texto-suave)",
+    fontWeight: activa ? 700 : 600,
+    fontSize: 13,
+    padding: "8px 4px",
+    cursor: "pointer",
+    fontFamily: "inherit",
+  };
+}
+
+const cajaTotal = {
+  textAlign: "center",
+  background: "var(--fondo)",
+  border: "1px solid var(--borde)",
+  borderRadius: 12,
+  padding: "14px 12px",
+  marginBottom: 12,
+};
+
+const tarjetaDim = {
+  border: "1px solid var(--borde)",
+  borderRadius: 12,
+  padding: 12,
+  marginBottom: 10,
+  background: "#fff",
 };

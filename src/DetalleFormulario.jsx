@@ -109,6 +109,9 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
               <p style={{ margin: "0 0 3px", fontWeight: 600, fontSize: 14 }}>
                 {i + 1}. {p.texto}
                 {p.obligatoria && <span style={{ color: "var(--rojo)", marginLeft: 4 }}>*</span>}
+                {p.dimension && (
+                  <span className="ca-chip" style={{ fontSize: 10, marginLeft: 6 }}>{p.dimension}</span>
+                )}
               </p>
               <p style={{ ...gris, fontSize: 12, margin: 0 }}>
                 {etiquetaTipoPregunta(p.tipo)}

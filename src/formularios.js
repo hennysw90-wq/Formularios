@@ -66,6 +66,7 @@ export function periodoVigente(frecuencia, ahora = new Date()) {
 
 // ─── Tipos de pregunta ──────────────────────────────────────────────────────
 export const TIPOS_PREGUNTA = [
+  { valor: "cumple", etiqueta: "Cumple / No cumple" },
   { valor: "texto", etiqueta: "Texto corto" },
   { valor: "parrafo", etiqueta: "Texto largo" },
   { valor: "numero", etiqueta: "Número" },
@@ -80,6 +81,31 @@ export const TIPOS_PREGUNTA = [
 
 export function necesitaOpciones(tipo) {
   return tipo === "seleccion" || tipo === "multiple";
+}
+
+// Las dos únicas respuestas posibles de una pregunta Cumple / No cumple.
+export const CUMPLE = "Cumple";
+export const NO_CUMPLE = "No cumple";
+
+// Una pregunta con dimensión siempre es Cumple / No cumple: es lo que
+// permite sumarla dentro del porcentaje de su dimensión.
+export function tieneDimension(pregunta) {
+  return !!(pregunta?.dimension || "").trim();
+}
+
+export function esPreguntaTexto(pregunta) {
+  return pregunta?.tipo === "texto" || pregunta?.tipo === "parrafo";
+}
+
+// Todas las dimensiones distintas que usa un formulario, en el orden en que
+// aparecen sus preguntas.
+export function dimensionesDe(formulario) {
+  const vistas = [];
+  for (const p of formulario?.preguntas || []) {
+    const d = (p.dimension || "").trim();
+    if (d && !vistas.includes(d)) vistas.push(d);
+  }
+  return vistas;
 }
 
 export function etiquetaTipoPregunta(tipo) {
@@ -322,6 +348,102 @@ export function mismaFecha(iso, dia) {
     d.getMonth() === dia.getMonth() &&
     d.getDate() === dia.getDate()
   );
+}
+
+// Todo lo que una persona ha respondido, en cualquier formulario, con el
+// formulario al lado para poder leer sus preguntas. Lo usa el resumen que
+// se abre desde el QR en el teléfono.
+export async function respuestasDeLaPersonaEnTodos(personaUid) {
+  const formularios = await getDocs(collection(db, "formularios"));
+  const salida = [];
+  for (const doc_ of formularios.docs) {
+    const formulario = { id: doc_.id, ...doc_.data() };
+    const respuestas = await respuestasDePersona(doc_.id, personaUid);
+    respuestas.forEach((r) => salida.push({ formulario, ...r }));
+  }
+  return salida.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+}
+
+// Agrupa por dimensión las respuestas Cumple / No cumple dentro de un rango
+// de fechas, y junta aparte lo escrito en las preguntas de texto.
+export function resumenPorDimension(respuestas, desdeFecha) {
+  const dims = new Map();
+  const textos = new Map();
+
+  for (const r of respuestas) {
+    if (desdeFecha && new Date(r.fecha) < desdeFecha) continue;
+    for (const p of r.formulario?.preguntas || []) {
+      const valor = r.respuestas?.[p.id];
+      if (valor === undefined || valor === null || valor === "") continue;
+
+      const dim = (p.dimension || "").trim();
+      if (dim) {
+        if (!dims.has(dim)) dims.set(dim, { dimension: dim, cumple: 0, total: 0, preguntas: new Map() });
+        const d = dims.get(dim);
+        const esCumple = valor === CUMPLE;
+        d.total++;
+        if (esCumple) d.cumple++;
+        if (!d.preguntas.has(p.id)) d.preguntas.set(p.id, { texto: p.texto, cumple: 0, total: 0 });
+        const q = d.preguntas.get(p.id);
+        q.total++;
+        if (esCumple) q.cumple++;
+        continue;
+      }
+
+      if (esPreguntaTexto(p)) {
+        if (!textos.has(p.id)) textos.set(p.id, { texto: p.texto, entradas: [] });
+        textos.get(p.id).entradas.push({
+          valor: String(valor),
+          fecha: r.fecha,
+          reunionNombre: r.reunionNombre || "",
+          formulario: r.formulario?.titulo || "",
+        });
+      }
+    }
+  }
+
+  const dimensiones = [...dims.values()]
+    .map((d) => ({
+      ...d,
+      porcentaje: d.total > 0 ? Math.round((d.cumple / d.total) * 100) : null,
+      preguntas: [...d.preguntas.values()].sort((a, b) => a.cumple / a.total - b.cumple / b.total),
+    }))
+    .sort((a, b) => (a.porcentaje ?? 101) - (b.porcentaje ?? 101));
+
+  const totalCumple = dimensiones.reduce((s, d) => s + d.cumple, 0);
+  const totalPreguntas = dimensiones.reduce((s, d) => s + d.total, 0);
+
+  return {
+    dimensiones,
+    totalCumple,
+    totalPreguntas,
+    porcentajeGeneral: totalPreguntas > 0 ? Math.round((totalCumple / totalPreguntas) * 100) : null,
+    textos: [...textos.values()].map((t) => ({
+      ...t,
+      entradas: t.entradas.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")),
+    })),
+  };
+}
+
+// Fecha de corte: hace N meses desde hoy.
+export function haceMeses(n) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - n);
+  return d;
+}
+
+// Todas las respuestas de todos los formularios, con su formulario al lado.
+// Lo usa el reporte de dimensiones, que necesita cruzar preguntas con
+// respuestas; el filtro por persona y por fecha se hace después en pantalla.
+export async function todasLasRespuestas() {
+  const formularios = await getDocs(collection(db, "formularios"));
+  const salida = [];
+  for (const doc_ of formularios.docs) {
+    const formulario = { id: doc_.id, ...doc_.data() };
+    const respuestas = await getDocs(collection(db, "formularios", doc_.id, "respuestas"));
+    respuestas.docs.forEach((r) => salida.push({ id: r.id, formulario, ...r.data() }));
+  }
+  return salida.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
 }
 
 // "Feedbacks y confirmaciones recibidas": respuestas de cualquier formulario

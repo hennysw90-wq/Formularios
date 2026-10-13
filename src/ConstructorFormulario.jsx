@@ -3,6 +3,7 @@ import {
   TIPOS_PREGUNTA,
   FRECUENCIAS,
   necesitaOpciones,
+  tieneDimension,
   etiquetaCadencia,
   configDestinatario,
   crearFormulario,
@@ -53,7 +54,16 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
     setPreguntas((p) => p.filter((x) => x.id !== id));
   }
   function cambiarPregunta(id, campo, valor) {
-    setPreguntas((p) => p.map((x) => (x.id === id ? { ...x, [campo]: valor } : x)));
+    setPreguntas((p) =>
+      p.map((x) => {
+        if (x.id !== id) return x;
+        const actualizada = { ...x, [campo]: valor };
+        // Una pregunta con dimensión solo tiene sentido como Cumple / No
+        // cumple: es lo que permite sumarla en el porcentaje.
+        if (campo === "dimension" && valor.trim()) actualizada.tipo = "cumple";
+        return actualizada;
+      })
+    );
   }
   function moverPregunta(id, dir) {
     setPreguntas((p) => {
@@ -169,6 +179,7 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
         preguntas: preguntas.map((p) => ({
           ...p,
           texto: p.texto.trim(),
+          dimension: (p.dimension || "").trim(),
           opciones: necesitaOpciones(p.tipo) ? (p.opciones || []).filter((o) => o.trim()) : [],
         })),
         asignaciones: asignaciones.map((a) => ({ ...a, cantidad: Number(a.cantidad) || 1 })),
@@ -372,6 +383,8 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
                   className="ca-input"
                   style={{ flex: 1, minWidth: 180 }}
                   value={p.tipo}
+                  disabled={tieneDimension(p)}
+                  title={tieneDimension(p) ? "Las preguntas con dimensión son siempre Cumple / No cumple" : ""}
                   onChange={(e) => cambiarPregunta(p.id, "tipo", e.target.value)}
                 >
                   {TIPOS_PREGUNTA.map((t) => (
@@ -386,6 +399,25 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
                   />
                   Obligatoria
                 </label>
+              </div>
+
+              <div style={{ marginBottom: 10 }}>
+                <label className="ca-label" style={{ fontSize: 12 }}>
+                  Dimensión (opcional)
+                </label>
+                <input
+                  className="ca-input"
+                  list="dimensiones-usadas"
+                  value={p.dimension || ""}
+                  onChange={(e) => cambiarPregunta(p.id, "dimension", e.target.value)}
+                  placeholder="Ej: Seguridad, Orden y aseo, Liderazgo…"
+                />
+                {tieneDimension(p) && (
+                  <p style={{ fontSize: 11, color: "var(--texto-suave)", margin: "5px 0 0" }}>
+                    Al tener dimensión, esta pregunta se responde Cumple / No cumple y entra
+                    en el porcentaje de «{p.dimension.trim()}».
+                  </p>
+                )}
               </div>
 
               {necesitaOpciones(p.tipo) && (
