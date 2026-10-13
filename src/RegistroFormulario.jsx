@@ -13,9 +13,10 @@ import {
   NO_CUMPLE,
   resumenPorDimension,
   haceMeses,
+  recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.8.1";
+const VERSION = "v1.9.0";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -111,24 +112,21 @@ export default function RegistroFormulario({ formularioId }) {
       <Encabezado persona={persona} onCambiar={() => { setPersona(null); setPaso("identificar"); }} />
 
       <div style={pestanas}>
-        <button
-          type="button"
-          onClick={() => setPaso("agenda")}
-          style={pestana(paso === "agenda")}
-        >
-          Mis pendientes
+        <button type="button" onClick={() => setPaso("agenda")} style={pestana(paso === "agenda")}>
+          Pendientes
         </button>
-        <button
-          type="button"
-          onClick={() => setPaso("resumen")}
-          style={pestana(paso === "resumen")}
-        >
+        <button type="button" onClick={() => setPaso("resumen")} style={pestana(paso === "resumen")}>
           Mi cumplimiento
+        </button>
+        <button type="button" onClick={() => setPaso("entregadas")} style={pestana(paso === "entregadas")}>
+          Lo que entregué
         </button>
       </div>
 
       {paso === "resumen" ? (
         <Resumen persona={persona} formulario={formulario} />
+      ) : paso === "entregadas" ? (
+        <Entregadas persona={persona} formulario={formulario} />
       ) : (
         <Agenda
           agenda={agenda}
@@ -243,6 +241,114 @@ function Agenda({ agenda, hayAsignaciones, onElegir }) {
   );
 }
 
+// ─── Lo que entregué ──────────────────────────────────────────────────────
+// Los formularios que esta persona completó, para poder releerlos enteros.
+
+function Entregadas({ persona, formulario }) {
+  const [entregas, setEntregas] = useState(null);
+  const [error, setError] = useState("");
+  const [abierta, setAbierta] = useState(null);
+
+  useEffect(() => {
+    let vivo = true;
+    respuestasDePersona(formulario.id, persona.uid)
+      .then((r) => vivo && setEntregas(r.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""))))
+      .catch(() => vivo && setError("No se pudo cargar lo que entregaste."));
+    return () => { vivo = false; };
+  }, [persona.uid, formulario.id]);
+
+  if (error) return <p style={{ color: "var(--rojo)", fontSize: 14 }}>{error}</p>;
+  if (entregas === null) return <p style={{ ...gris, fontSize: 14 }}>Cargando…</p>;
+
+  if (entregas.length === 0) {
+    return (
+      <p style={{ ...gris, fontSize: 14, textAlign: "center", padding: "14px 0" }}>
+        Todavía no has entregado este formulario.
+      </p>
+    );
+  }
+
+  const cfg = configDestinatario(formulario);
+
+  return (
+    <>
+      <p style={{ ...gris, fontSize: 12, margin: "0 0 10px" }}>
+        {entregas.length} entrega{entregas.length === 1 ? "" : "s"}. Toca una para revisarla completa.
+      </p>
+
+      {entregas.map((e) => {
+        const abiertaEsta = abierta === e.id;
+        return (
+          <div key={e.id} style={tarjetaDim}>
+            <div
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, cursor: "pointer" }}
+              onClick={() => setAbierta(abiertaEsta ? null : e.id)}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 13 }}>
+                  {fechaHora(e.fecha)}
+                </p>
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                  {e.reunionNombre && (
+                    <span className="ca-chip" style={{ fontSize: 10 }}>{e.reunionNombre}</span>
+                  )}
+                  {e.destinatario?.nombre && (
+                    <span className="ca-chip ca-chip-ambar" style={{ fontSize: 10 }}>
+                      {cfg.etiqueta}: {e.destinatario.nombre}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span style={{ ...gris, fontSize: 17 }}>{abiertaEsta ? "▴" : "▾"}</span>
+            </div>
+
+            {abiertaEsta && (
+              <div style={{ marginTop: 10, borderTop: "1px solid var(--borde)", paddingTop: 10 }}>
+                {(formulario.preguntas || []).map((p) => {
+                  const v = e.respuestas?.[p.id];
+                  if (v === undefined || v === null || v === "") return null;
+                  return (
+                    <div key={p.id} style={{ marginBottom: 10 }}>
+                      {p.dimension && (
+                        <span className="ca-chip" style={{ fontSize: 9, marginBottom: 3 }}>{p.dimension}</span>
+                      )}
+                      <p style={{ ...gris, fontSize: 12, margin: "0 0 2px" }}>{p.texto}</p>
+                      {p.tipo === "imagen" ? (
+                        <a href={v} target="_blank" rel="noreferrer">
+                          <img src={v} alt="Adjunto" style={{ width: "100%", borderRadius: 8, marginTop: 3 }} />
+                        </a>
+                      ) : (
+                        <strong style={{ fontSize: 13, color: colorValor(v) }}>
+                          {Array.isArray(v) ? v.join(", ") : String(v)}
+                        </strong>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function colorValor(v) {
+  if (v === CUMPLE) return "#1b7a46";
+  if (v === NO_CUMPLE) return "#b02a26";
+  return "var(--texto)";
+}
+
+function fechaHora(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleString("es-CL", { dateStyle: "medium", timeStyle: "short" });
+  } catch {
+    return iso;
+  }
+}
+
 // ─── Mi cumplimiento (dimensiones + textos) ───────────────────────────────
 
 function Resumen({ persona, formulario }) {
@@ -251,11 +357,11 @@ function Resumen({ persona, formulario }) {
   const [error, setError] = useState("");
   const [abierta, setAbierta] = useState(null);
 
-  // Solo las respuestas de esta persona en ESTE formulario: el resumen no
-  // se mezcla con lo que haya contestado en otros.
+  // El cumplimiento es el de las evaluaciones que le HICIERON a esta
+  // persona en este formulario, no el de las que ella entregó.
   useEffect(() => {
     let vivo = true;
-    respuestasDePersona(formulario.id, persona.uid)
+    recibidasEnFormulario(formulario.id, persona.uid)
       .then((r) => vivo && setRespuestas(r.map((x) => ({ ...x, formulario }))))
       .catch(() => vivo && setError("No se pudo cargar tu cumplimiento."));
     return () => { vivo = false; };
@@ -283,7 +389,7 @@ function Resumen({ persona, formulario }) {
 
       {resumen.porcentajeGeneral === null ? (
         <p style={{ ...gris, fontSize: 14, textAlign: "center", padding: "14px 0" }}>
-          Aún no has respondido preguntas con dimensión de este formulario en el periodo elegido.
+          Nadie te ha evaluado con este formulario en el periodo elegido.
         </p>
       ) : (
         <>
@@ -293,7 +399,8 @@ function Resumen({ persona, formulario }) {
               {resumen.porcentajeGeneral}%
             </div>
             <span style={{ fontSize: 12, color: "var(--texto-suave)" }}>
-              {resumen.totalCumple} de {resumen.totalPreguntas} preguntas cumplen
+              {resumen.totalCumple} de {resumen.totalPreguntas} preguntas cumplen ·{" "}
+              {respuestas.length} evaluación{respuestas.length === 1 ? "" : "es"} recibida{respuestas.length === 1 ? "" : "s"}
             </span>
           </div>
 
@@ -342,7 +449,7 @@ function Resumen({ persona, formulario }) {
 
       {resumen.textos.length > 0 && (
         <div style={{ marginTop: 18 }}>
-          <p style={{ fontWeight: 700, fontSize: 14, margin: "0 0 8px" }}>Lo que escribiste</p>
+          <p style={{ fontWeight: 700, fontSize: 14, margin: "0 0 8px" }}>Comentarios que recibiste</p>
           {resumen.textos.map((t, i) => (
             <div key={i} style={tarjetaDim}>
               <p style={{ margin: "0 0 7px", fontWeight: 600, fontSize: 13 }}>{t.texto}</p>

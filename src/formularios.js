@@ -350,6 +350,17 @@ export function mismaFecha(iso, dia) {
   );
 }
 
+// Las evaluaciones de este formulario dirigidas a una persona, es decir
+// donde quedó como destinatario. Se leen todas las del formulario y se
+// filtran acá para no depender de un índice nuevo en Firestore.
+export async function recibidasEnFormulario(formularioId, personaUid) {
+  const snap = await getDocs(collection(db, "formularios", formularioId, "respuestas"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((r) => r.destinatario?.uid === personaUid)
+    .sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+}
+
 // Todo lo que una persona ha respondido, en cualquier formulario, con el
 // formulario al lado para poder leer sus preguntas. Lo usa el resumen que
 // se abre desde el QR en el teléfono.
