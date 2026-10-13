@@ -17,6 +17,73 @@ sus tal tambien tan tanto te tiene tienen toda todas todo todos tras tu un
 una uno unos ya yo vez veces ademas sigue siguen debe deben
 `.trim().split(/\s+/));
 
+// Familias de palabras del dominio. Todo lo que cae en una familia se trata
+// como el mismo concepto, aunque se escriba distinto: así "mejorar la
+// participación" y "falta que participen" quedan juntas. Es lo más parecido
+// a entender sinónimos que se puede hacer sin un modelo de lenguaje.
+const FAMILIAS = {
+  reunion: ["reunion", "rutina", "sesion", "junta", "instancia"],
+  compromiso: ["compromiso", "acuerdo", "accion", "tarea", "comprometer"],
+  participacion: ["participacion", "participante", "participar", "involucrar", "asistencia", "asistente", "presencia"],
+  liderazgo: ["lider", "liderazgo", "moderacion", "moderar", "conduccion", "conducir", "facilitador"],
+  indicador: ["kpi", "indicador", "tablero", "metrica", "meta", "objetivo"],
+  seguridad: ["seguridad", "riesgo", "incidente", "peligro"],
+  disciplina: ["disciplina", "puntualidad", "orden", "formalidad", "rigor"],
+  desempeno: ["desempeno", "resultado", "rendimiento", "cumplimiento"],
+  seguimiento: ["seguimiento", "control", "revision", "revisar", "monitoreo"],
+  comunicacion: ["comunicacion", "comunicar", "informacion", "informar", "claridad"],
+};
+
+// Nombre legible de cada familia, para que el bullet quede siempre bien
+// escrito en vez de depender de qué palabras usó quien respondió.
+const NOMBRE_FAMILIA = {
+  reunion: "Desarrollo de la reunión",
+  compromiso: "Gestión de compromisos",
+  participacion: "Participación de los asistentes",
+  liderazgo: "Liderazgo y moderación",
+  indicador: "KPIs e indicadores",
+  seguridad: "Seguridad",
+  disciplina: "Disciplina y puntualidad",
+  desempeno: "Desempeño y resultados",
+  seguimiento: "Seguimiento y control",
+  comunicacion: "Comunicación y claridad",
+};
+
+// Índice raíz -> familia, armado una sola vez.
+const DE_FAMILIA = new Map();
+for (const [familia, palabras] of Object.entries(FAMILIAS)) {
+  for (const palabra of palabras) DE_FAMILIA.set(raizSimple(palabra), familia);
+}
+
+// Reducción a raíz para el español. No es un lematizador completo: quita
+// plurales y las terminaciones más comunes, y después recorta, que es lo
+// que hace que "participacion", "participantes" y "participen" terminen en
+// la misma raíz.
+function raizSimple(palabra) {
+  let p = palabra;
+  // Plural, cuidando las formas en -ciones / -mientos / -dades.
+  p = p
+    .replace(/ciones$/, "cion")
+    .replace(/siones$/, "sion")
+    .replace(/mientos$/, "miento")
+    .replace(/(dad|tad)es$/, "$1")
+    .replace(/([^aeiou])es$/, "$1")
+    .replace(/([aeiou])s$/, "$1");
+  // Terminaciones derivativas y verbales más frecuentes.
+  p = p.replace(
+    /(acion|icion|amiento|imiento|ante|ente|ando|iendo|ado|ido|aron|aban|aba|amos|emos|imos|aran|eran|iran|ar|er|ir|an|en|on)$/,
+    ""
+  );
+  // Se recorta para que las variantes de una misma familia coincidan.
+  return p.length >= 4 ? p.slice(0, 6) : palabra.slice(0, 6);
+}
+
+// Concepto de una palabra: su familia si pertenece a una, si no su raíz.
+function concepto(palabra) {
+  const raiz = raizSimple(palabra);
+  return DE_FAMILIA.get(raiz) || raiz;
+}
+
 function normalizar(texto) {
   return (texto || "")
     .normalize("NFD")
@@ -31,6 +98,7 @@ function terminos(frase) {
       .replace(/[^a-z0-9ñ\s]/g, " ")
       .split(/\s+/)
       .filter((p) => p.length > 3 && !VACIAS.has(p))
+      .map(concepto)
   );
 }
 
@@ -133,7 +201,7 @@ function temaDe(fraseOriginal, peso, vetadas = new Set()) {
       let cuantas = 0;
       for (let j = i; j <= fin; j++) {
         if (!esContenido(j)) continue;
-        suma += peso.get(limpias[j]) || 0;
+        suma += peso.get(concepto(limpias[j])) || 0;
         cuantas++;
       }
       if (cuantas < 2) continue;
@@ -178,6 +246,20 @@ export function redactarIdea({ tema, tono, enRespuestas, totalRespuestas, mencio
   if (tono === "fortaleza") return `${sujeto}: se destaca como fortaleza ${respaldo}.`;
   if (tono === "mejora") return `${sujeto}: aparece como oportunidad de mejora ${respaldo}.`;
   return `${sujeto}: se menciona ${respaldo}.`;
+}
+
+// Familia temática que domina un grupo de frases: la que más peso suma
+// entre los términos de sus miembros.
+function familiaDominante(grupo, peso) {
+  const puntajes = new Map();
+  for (const m of grupo.miembros) {
+    for (const t of m.terminos) {
+      if (!NOMBRE_FAMILIA[t]) continue;
+      puntajes.set(t, (puntajes.get(t) || 0) + (peso.get(t) || 1));
+    }
+  }
+  if (puntajes.size === 0) return null;
+  return [...puntajes.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
 function primeraMayuscula(t) {
@@ -240,7 +322,7 @@ export function ideasPrincipales(
   frases.sort((a, b) => b.puntaje - a.puntaje);
 
   // 4. Agrupar las que dicen lo mismo; la de mayor puntaje representa.
-  const grupos = [];
+  let grupos = [];
   for (const f of frases) {
     // Se compara contra la frase que representa al grupo, no contra la
     // bolsa acumulada de términos, que se va ensuciando a medida que el
@@ -258,7 +340,31 @@ export function ideasPrincipales(
     }
   }
 
-  // 5. Selección con diversidad (MMR): se elige primero el grupo más fuerte
+  // 5. Los grupos que hablan de la misma familia temática se unen: da lo
+  //    mismo que uno diga "compromisos" y otro "acuerdos", es un solo tema.
+  //    Las familias del dominio están arriba, con su nombre ya redactado.
+  const porFamilia = new Map();
+  const sueltos = [];
+  for (const g of grupos) {
+    const familia = familiaDominante(g, peso);
+    if (!familia) {
+      sueltos.push(g);
+      continue;
+    }
+    if (!porFamilia.has(familia)) {
+      porFamilia.set(familia, { ...g, familia });
+    } else {
+      const base = porFamilia.get(familia);
+      base.miembros = base.miembros.concat(g.miembros);
+      g.respuestas.forEach((r) => base.respuestas.add(r));
+      if (g.representante.puntaje > base.representante.puntaje) {
+        base.representante = g.representante;
+      }
+    }
+  }
+  grupos = [...porFamilia.values(), ...sueltos];
+
+  // 6. Selección con diversidad (MMR): se elige primero el grupo más fuerte
   //    y, para los siguientes, se penaliza parecerse a lo ya elegido. Así
   //    los bullets cubren temas distintos en vez de repetir el mismo con
   //    otras palabras.
@@ -288,7 +394,11 @@ export function ideasPrincipales(
 
   return elegidos
     .map((g) => {
-      const tema = temaDe(g.representante.texto, peso, vetadas);
+      // Si el grupo cae en una familia conocida, el tema es su nombre ya
+      // redactado; si no, se extrae del texto como antes.
+      const tema = g.familia
+        ? NOMBRE_FAMILIA[g.familia]
+        : temaDe(g.representante.texto, peso, vetadas);
       return {
       tema,
       tono,
