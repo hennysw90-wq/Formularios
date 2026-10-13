@@ -11,12 +11,11 @@ import {
   configDestinatario,
   CUMPLE,
   NO_CUMPLE,
-  respuestasDeLaPersonaEnTodos,
   resumenPorDimension,
   haceMeses,
 } from "./formularios.js";
 
-const VERSION = "v1.8.0";
+const VERSION = "v1.8.1";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -129,7 +128,7 @@ export default function RegistroFormulario({ formularioId }) {
       </div>
 
       {paso === "resumen" ? (
-        <Resumen persona={persona} />
+        <Resumen persona={persona} formulario={formulario} />
       ) : (
         <Agenda
           agenda={agenda}
@@ -246,19 +245,21 @@ function Agenda({ agenda, hayAsignaciones, onElegir }) {
 
 // ─── Mi cumplimiento (dimensiones + textos) ───────────────────────────────
 
-function Resumen({ persona }) {
+function Resumen({ persona, formulario }) {
   const [respuestas, setRespuestas] = useState(null);
   const [meses, setMeses] = useState(2);
   const [error, setError] = useState("");
   const [abierta, setAbierta] = useState(null);
 
+  // Solo las respuestas de esta persona en ESTE formulario: el resumen no
+  // se mezcla con lo que haya contestado en otros.
   useEffect(() => {
     let vivo = true;
-    respuestasDeLaPersonaEnTodos(persona.uid)
-      .then((r) => vivo && setRespuestas(r))
+    respuestasDePersona(formulario.id, persona.uid)
+      .then((r) => vivo && setRespuestas(r.map((x) => ({ ...x, formulario }))))
       .catch(() => vivo && setError("No se pudo cargar tu cumplimiento."));
     return () => { vivo = false; };
-  }, [persona.uid]);
+  }, [persona.uid, formulario.id]);
 
   if (error) return <p style={{ color: "var(--rojo)", fontSize: 14 }}>{error}</p>;
   if (respuestas === null) return <p style={{ ...gris, fontSize: 14 }}>Cargando…</p>;
@@ -282,7 +283,7 @@ function Resumen({ persona }) {
 
       {resumen.porcentajeGeneral === null ? (
         <p style={{ ...gris, fontSize: 14, textAlign: "center", padding: "14px 0" }}>
-          No hay respuestas con dimensión en este periodo.
+          Aún no has respondido preguntas con dimensión de este formulario en el periodo elegido.
         </p>
       ) : (
         <>
