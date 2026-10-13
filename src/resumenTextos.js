@@ -1,10 +1,9 @@
-// Resumen de las respuestas escritas, calculado en el navegador: no usa
-// ningún servicio de IA. Busca qué se repite — palabras y frases de dos o
-// tres palabras — y lo ordena por cuántas veces aparece y en cuántas
-// respuestas distintas. Sirve para responder "qué se está diciendo una y
-// otra vez" sin tener que leerlo todo.
+// Resumen de las respuestas escritas, calculado en el navegador y sin
+// ningún servicio de IA. En vez de contar palabras sueltas, parte los
+// textos en frases, agrupa las que hablan de lo mismo y muestra la frase
+// que mejor representa cada grupo, tal como la escribió una persona. Así
+// los bullets se leen como ideas y no como fragmentos.
 
-// Palabras que no aportan tema. Se sacan antes de contar.
 const VACIAS = new Set(`
 a al algo algun alguna algunas alguno algunos ante antes aqui aquel aquella
 aquello asi aun aunque cada casi como con contra cual cuales cuando cuanto
@@ -15,83 +14,110 @@ le les lo los mas me mi mientras mucha muchas mucho muchos muy nada ni no
 nos nosotros o otra otras otro otros para pero poco por porque pude puede
 pueden q que quien quienes se sea segun ser si sido sin sobre solo son su
 sus tal tambien tan tanto te tiene tienen toda todas todo todos tras tu un
-una uno unos ya yo del lo les nuestro nuestra nuestros nuestras vez veces
-ademas sigue siguen debe deben falta faltan
+una uno unos ya yo vez veces ademas sigue siguen debe deben
 `.trim().split(/\s+/));
 
 function normalizar(texto) {
   return (texto || "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9ñ\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .toLowerCase();
 }
 
-function palabrasDe(texto) {
-  return normalizar(texto)
-    .split(" ")
-    .filter((p) => p.length > 2 && !VACIAS.has(p));
+// Términos con contenido de una frase, sin repetir.
+function terminos(frase) {
+  return new Set(
+    normalizar(frase)
+      .replace(/[^a-z0-9ñ\s]/g, " ")
+      .split(/\s+/)
+      .filter((p) => p.length > 3 && !VACIAS.has(p))
+  );
 }
 
-// Cuenta una frase: cuántas veces aparece en total y en cuántas respuestas
-// distintas. Lo segundo importa más: algo dicho por cinco personas pesa más
-// que algo repetido cinco veces por una sola.
-function sumar(mapa, clave, indiceRespuesta, muestra) {
-  if (!mapa.has(clave)) {
-    mapa.set(clave, { frase: clave, veces: 0, respuestas: new Set(), muestra });
-  }
-  const e = mapa.get(clave);
-  e.veces++;
-  e.respuestas.add(indiceRespuesta);
+// Parte un texto en frases. Corta en punto, punto y coma, salto de línea y
+// viñetas, que es como suele escribir la gente en estos formularios.
+function enFrases(texto) {
+  return (texto || "")
+    .split(/(?:[.;!?]+|\n+|\s-\s|•)/)
+    .map((f) => f.trim().replace(/\s+/g, " "))
+    .filter((f) => f.split(" ").length >= 3);
+}
+
+function parecido(a, b) {
+  const comunes = [...a].filter((t) => b.has(t)).length;
+  const union = new Set([...a, ...b]).size;
+  return union === 0 ? 0 : comunes / union;
+}
+
+function primeraMayuscula(t) {
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 }
 
 // entradas: [{ texto, reunionNombre, nombreUsuario, fecha }]
-export function temasRecurrentes(entradas, { max = 6 } = {}) {
-  const mapa = new Map();
-
+// Devuelve ideas: la frase representativa, en cuántas respuestas aparece
+// algo equivalente, y las variantes de otras personas.
+export function ideasPrincipales(entradas, { max = 6, minRespuestas = 1 } = {}) {
+  // 1. Todas las frases, sabiendo de qué respuesta viene cada una.
+  const frases = [];
   entradas.forEach((e, i) => {
-    const palabras = palabrasDe(e.texto);
-    const vistasEnEsta = new Set();
-
-    // Frases de 3, de 2 y palabras sueltas.
-    for (let n = 3; n >= 1; n--) {
-      for (let j = 0; j + n <= palabras.length; j++) {
-        const frase = palabras.slice(j, j + n).join(" ");
-        if (vistasEnEsta.has(frase)) continue;
-        vistasEnEsta.add(frase);
-        sumar(mapa, frase, i, e.texto);
-      }
+    for (const f of enFrases(e.texto)) {
+      const t = terminos(f);
+      if (t.size === 0) continue;
+      frases.push({ texto: f, terminos: t, respuesta: i, autor: e.nombreUsuario, reunion: e.reunionNombre });
     }
   });
+  if (frases.length === 0) return [];
 
-  const candidatos = [...mapa.values()]
-    .map((x) => ({ ...x, enRespuestas: x.respuestas.size, palabras: x.frase.split(" ").length }))
-    // Un tema tiene que aparecer en al menos dos respuestas distintas.
-    .filter((x) => x.enRespuestas >= 2)
-    .sort(
-      (a, b) =>
-        b.enRespuestas - a.enRespuestas ||
-        b.palabras - a.palabras ||
-        b.veces - a.veces
-    );
-
-  // Si una frase larga ya quedó, se descartan sus trozos para no repetir
-  // "compromisos previos" debajo de "revisar compromisos previos".
-  const elegidos = [];
-  for (const c of candidatos) {
-    const contenida = elegidos.some(
-      (e) => e.frase.includes(c.frase) || c.frase.includes(e.frase)
-    );
-    if (!contenida) elegidos.push(c);
-    if (elegidos.length >= max) break;
+  // 2. Peso de cada término: cuántas respuestas distintas lo mencionan. Un
+  //    término que aparece en varias respuestas marca un tema compartido.
+  const peso = new Map();
+  for (const t of new Set(frases.flatMap((f) => [...f.terminos]))) {
+    const enRespuestas = new Set(
+      frases.filter((f) => f.terminos.has(t)).map((f) => f.respuesta)
+    ).size;
+    peso.set(t, enRespuestas);
   }
-  return elegidos;
+
+  // 3. Puntaje de cada frase: lo que pesan sus términos, moderado por el
+  //    largo para que una frase kilométrica no gane solo por extensa.
+  for (const f of frases) {
+    const suma = [...f.terminos].reduce((s, t) => s + peso.get(t), 0);
+    f.puntaje = suma / Math.sqrt(f.terminos.size);
+  }
+  frases.sort((a, b) => b.puntaje - a.puntaje);
+
+  // 4. Agrupar las que dicen lo mismo; la de mayor puntaje representa.
+  const grupos = [];
+  for (const f of frases) {
+    const grupo = grupos.find((g) => parecido(g.terminos, f.terminos) >= 0.34);
+    if (grupo) {
+      grupo.miembros.push(f);
+      grupo.respuestas.add(f.respuesta);
+      f.terminos.forEach((t) => grupo.terminos.add(t));
+    } else {
+      grupos.push({
+        representante: f,
+        miembros: [f],
+        respuestas: new Set([f.respuesta]),
+        terminos: new Set(f.terminos),
+      });
+    }
+  }
+
+  return grupos
+    .map((g) => ({
+      frase: primeraMayuscula(g.representante.texto),
+      autor: g.representante.autor,
+      enRespuestas: g.respuestas.size,
+      variantes: g.miembros
+        .filter((m) => m !== g.representante)
+        .map((m) => ({ texto: primeraMayuscula(m.texto), autor: m.autor, reunion: m.reunion })),
+    }))
+    .filter((g) => g.enRespuestas >= minRespuestas)
+    .sort((a, b) => b.enRespuestas - a.enRespuestas || b.variantes.length - a.variantes.length)
+    .slice(0, max);
 }
 
-// Agrupa las entradas por reunión, de la que más respuestas tiene a la que
-// menos.
 export function porReunion(entradas) {
   const mapa = new Map();
   for (const e of entradas) {
@@ -103,13 +129,11 @@ export function porReunion(entradas) {
     .map((g) => ({
       ...g,
       entradas: g.entradas.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")),
-      temas: temasRecurrentes(g.entradas, { max: 4 }),
+      ideas: ideasPrincipales(g.entradas, { max: 4 }),
     }))
     .sort((a, b) => b.entradas.length - a.entradas.length);
 }
 
-// Junta, para cada pregunta de texto largo del formulario, todo lo escrito
-// en las respuestas recibidas.
 export function textosPorPregunta(formulario, respuestas) {
   const preguntas = (formulario?.preguntas || []).filter(
     (p) => p.tipo === "parrafo" || p.tipo === "texto"
@@ -132,7 +156,7 @@ export function textosPorPregunta(formulario, respuestas) {
       return {
         pregunta: p,
         entradas,
-        temas: temasRecurrentes(entradas),
+        ideas: ideasPrincipales(entradas),
         grupos: porReunion(entradas),
       };
     })

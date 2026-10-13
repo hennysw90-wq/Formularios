@@ -15,11 +15,11 @@ export default function ResumenTextos({ formulario, respuestas, embebido = false
     <Envoltura className={embebido ? undefined : "ca-card"} style={{ marginBottom: embebido ? 0 : 16 }}>
       <h3 style={sub}>{embebido ? "Lo que te escribieron" : "Resumen de las respuestas escritas"}</h3>
       <p style={{ ...gris, margin: "0 0 14px" }}>
-        Lo que más se repite en cada pregunta de texto. Toca una pregunta para
-        ver el desglose por reunión.
+        Las ideas principales de cada pregunta de texto, tomadas textuales de lo
+        que escribieron. Toca una pregunta para ver el desglose por reunión.
       </p>
 
-      {bloques.map(({ pregunta, entradas, temas, grupos }) => {
+      {bloques.map(({ pregunta, entradas, ideas, grupos }) => {
         const estaAbierta = abierta === pregunta.id;
         return (
           <div key={pregunta.id} style={caja}>
@@ -37,21 +37,31 @@ export default function ResumenTextos({ formulario, respuestas, embebido = false
               <span style={{ ...gris, fontSize: 17 }}>{estaAbierta ? "▴" : "▾"}</span>
             </div>
 
-            {temas.length > 0 ? (
+            {ideas.length > 0 ? (
               <ul style={lista}>
-                {temas.map((t) => (
-                  <li key={t.frase} style={{ marginBottom: 5 }}>
-                    <strong style={{ textTransform: "capitalize" }}>{t.frase}</strong>
+                {ideas.map((idea, i) => (
+                  <li key={i} style={{ marginBottom: 8 }}>
+                    <span>{idea.frase}</span>
                     <span style={{ ...gris, fontSize: 12 }}>
-                      {" "}— en {t.enRespuestas} de {entradas.length} respuestas
+                      {idea.enRespuestas > 1
+                        ? ` — lo mencionan ${idea.enRespuestas} de ${entradas.length} respuestas`
+                        : ` — ${idea.autor}`}
                     </span>
+                    {idea.variantes.length > 0 && (
+                      <ul style={{ margin: "4px 0 0", paddingLeft: 16, listStyle: "none" }}>
+                        {idea.variantes.slice(0, 2).map((v, j) => (
+                          <li key={j} style={{ ...gris, fontSize: 12, marginBottom: 2 }}>
+                            «{v.texto}» — {v.autor}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </li>
                 ))}
               </ul>
             ) : (
               <p style={{ ...gris, fontSize: 12, margin: "10px 0 0" }}>
-                Todavía no hay nada que se repita entre respuestas distintas.
-                {entradas.length < 2 && " Con una sola respuesta no hay con qué comparar."}
+                Todavía no hay texto suficiente para sacar ideas.
               </p>
             )}
 
@@ -66,16 +76,17 @@ export default function ResumenTextos({ formulario, respuestas, embebido = false
                       </span>
                     </div>
 
-                    {g.temas.length > 0 && (
-                      <p style={{ ...gris, fontSize: 12, margin: "0 0 7px" }}>
-                        Se repite:{" "}
-                        {g.temas.map((t, i) => (
-                          <span key={t.frase}>
-                            {i > 0 && " · "}
-                            <strong style={{ color: "var(--texto)" }}>{t.frase}</strong>
-                          </span>
+                    {g.ideas.length > 0 && (
+                      <ul style={{ ...lista, marginTop: 0, marginBottom: 8 }}>
+                        {g.ideas.map((idea, i) => (
+                          <li key={i} style={{ marginBottom: 3, fontSize: 12 }}>
+                            {idea.frase}
+                            {idea.enRespuestas > 1 && (
+                              <span style={gris}> — en {idea.enRespuestas} respuestas</span>
+                            )}
+                          </li>
                         ))}
-                      </p>
+                      </ul>
                     )}
 
                     {g.entradas.map((e, i) => (
