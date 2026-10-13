@@ -117,15 +117,21 @@ function dibujarNombre(qrDataUrl, titulo) {
       const texto = (titulo || "").trim();
       if (!texto) return resolve(lienzo.toDataURL("image/png"));
 
-      // Se parte el título en hasta tres líneas que quepan en la caja.
-      const anchoCaja = LADO * 0.3;
+      // El título se muestra completo: se van probando tamaños de letra y,
+      // si hace falta, más líneas, hasta que entra entero. La caja sigue
+      // ocupando poca superficie del código, bien dentro de lo que la
+      // corrección de errores alta puede reponer.
+      const anchoCaja = LADO * 0.36;
+      const anchoUtil = anchoCaja - 28;
       let tam = 34;
       let lineas = [];
-      for (; tam >= 20; tam -= 2) {
+      for (; tam >= 14; tam -= 2) {
         ctx.font = `700 ${tam}px "Segoe UI", system-ui, Arial, sans-serif`;
-        lineas = repartir(ctx, texto, anchoCaja - 26, 3);
-        const cabe = lineas.every((l) => ctx.measureText(l).width <= anchoCaja - 26);
-        if (cabe) break;
+        const maxLineas = tam >= 26 ? 4 : tam >= 20 ? 5 : 6;
+        lineas = repartir(ctx, texto, anchoUtil, maxLineas);
+        const completo = lineas.join(" ").replace(/…$/, "").length >= texto.length;
+        const cabe = lineas.every((l) => ctx.measureText(l).width <= anchoUtil);
+        if (completo && cabe) break;
       }
 
       const altoLinea = tam * 1.22;

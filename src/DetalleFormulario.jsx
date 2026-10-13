@@ -14,6 +14,9 @@ import {
 export default function DetalleFormulario({ formulario, usuario, onEditar, onEliminar, onVolver }) {
   const [respuestas, setRespuestas] = useState([]);
   const [confirmando, setConfirmando] = useState(false);
+  const [clave, setClave] = useState("");
+  const [errorClave, setErrorClave] = useState("");
+  const [borrando, setBorrando] = useState(false);
   const [filtroReunion, setFiltroReunion] = useState("");
   const [abierta, setAbierta] = useState(null);
 
@@ -22,9 +25,28 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
     return () => cancelar();
   }, [formulario.id]);
 
-  async function eliminar() {
-    await eliminarFormulario(formulario.id);
-    onEliminar();
+  // Eliminar un formulario borra también todas sus respuestas y no se puede
+  // deshacer, así que además de confirmar se pide la contraseña de quien lo
+  // está haciendo.
+  async function eliminar(ev) {
+    ev.preventDefault();
+    if (!clave) return setErrorClave("Escribe tu contraseña.");
+    if (clave !== usuario?.password) return setErrorClave("Contraseña incorrecta.");
+    setErrorClave("");
+    setBorrando(true);
+    try {
+      await eliminarFormulario(formulario.id);
+      onEliminar();
+    } catch {
+      setBorrando(false);
+      setErrorClave("No se pudo eliminar. Intenta de nuevo.");
+    }
+  }
+
+  function cancelarBorrado() {
+    setConfirmando(false);
+    setClave("");
+    setErrorClave("");
   }
 
   // Solo Master crea, edita, elimina formularios y borra respuestas.
@@ -45,23 +67,53 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
             <button className="ca-btn ca-btn-secundario" style={{ width: "auto", padding: "8px 16px" }} onClick={onEditar}>
               Editar
             </button>
-            {!confirmando ? (
-              <button className="ca-btn" style={{ background: "var(--rojo)", width: "auto", padding: "8px 16px" }} onClick={() => setConfirmando(true)}>
-                Eliminar
-              </button>
-            ) : (
-              <>
-                <button className="ca-btn" style={{ background: "var(--rojo)", width: "auto", padding: "8px 14px" }} onClick={eliminar}>
-                  Confirmar
-                </button>
-                <button className="ca-btn ca-btn-secundario" style={{ width: "auto", padding: "8px 14px" }} onClick={() => setConfirmando(false)}>
-                  No
-                </button>
-              </>
-            )}
+            <button className="ca-btn" style={{ background: "var(--rojo)", width: "auto", padding: "8px 16px" }} onClick={() => setConfirmando(true)}>
+              Eliminar
+            </button>
           </div>
         )}
       </div>
+
+      {confirmando && (
+        <form onSubmit={eliminar} style={panelBorrado}>
+          <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#b02a26" }}>
+            Eliminar «{formulario.titulo}»
+          </p>
+          <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--texto-suave)" }}>
+            Se borrarán también todas sus respuestas. Esto no se puede deshacer.
+            Escribe tu contraseña para confirmar.
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
+            <input
+              className="ca-input"
+              type="password"
+              autoFocus
+              style={{ flex: 1, minWidth: 180 }}
+              value={clave}
+              onChange={(e) => { setClave(e.target.value); setErrorClave(""); }}
+              placeholder={`Contraseña de ${usuario?.nombreUsuario || "tu usuario"}`}
+            />
+            <button
+              className="ca-btn"
+              disabled={borrando}
+              style={{ background: "var(--rojo)", width: "auto", padding: "12px 18px" }}
+            >
+              {borrando ? "Eliminando…" : "Eliminar definitivamente"}
+            </button>
+            <button
+              type="button"
+              className="ca-btn ca-btn-secundario"
+              style={{ width: "auto", padding: "12px 18px" }}
+              onClick={cancelarBorrado}
+            >
+              Cancelar
+            </button>
+          </div>
+          {errorClave && (
+            <p style={{ color: "var(--rojo)", fontSize: 13, margin: "10px 0 0" }}>{errorClave}</p>
+          )}
+        </form>
+      )}
 
       <h2 style={{ margin: "6px 0 4px", fontSize: 22 }}>{formulario.titulo}</h2>
       {formulario.descripcion && (
@@ -311,4 +363,12 @@ const btnFila = {
   marginLeft: 5,
   color: "var(--texto)",
   fontFamily: "inherit",
+};
+
+const panelBorrado = {
+  border: "2px solid var(--rojo)",
+  background: "#fdf3f3",
+  borderRadius: 12,
+  padding: "14px 16px",
+  marginBottom: 14,
 };
