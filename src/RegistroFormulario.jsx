@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { listarUsuarios } from "./auth.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
+import ResumenTextos from "./ResumenTextos.jsx";
 import {
   obtenerFormulario,
   guardarRespuesta,
@@ -22,7 +23,7 @@ import {
   recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.15.0";
+const VERSION = "v1.15.1";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -375,7 +376,9 @@ function Resumen({ persona, formulario }) {
   if (error) return <p style={{ color: "var(--rojo)", fontSize: 14 }}>{error}</p>;
   if (respuestas === null) return <p style={{ ...gris, fontSize: 14 }}>Cargando…</p>;
 
-  const resumen = resumenPorDimension(respuestas, haceMeses(meses));
+  const corte = haceMeses(meses);
+  const enRango = respuestas.filter((r) => new Date(r.fecha) >= corte);
+  const resumen = resumenPorDimension(respuestas, corte);
 
   return (
     <>
@@ -452,29 +455,12 @@ function Resumen({ persona, formulario }) {
         </>
       )}
 
-      {resumen.textos.length > 0 && (
+      {enRango.length > 0 && (
         <div style={{ marginTop: 18 }}>
-          <p style={{ fontWeight: 700, fontSize: 14, margin: "0 0 8px" }}>Comentarios que recibiste</p>
-          {resumen.textos.map((t, i) => (
-            <div key={i} style={tarjetaDim}>
-              <p style={{ margin: "0 0 7px", fontWeight: 600, fontSize: 13 }}>{t.texto}</p>
-              {t.entradas.slice(0, 6).map((e, j) => (
-                <div key={j} style={{ borderLeft: "3px solid var(--verde-claro)", paddingLeft: 9, marginBottom: 8 }}>
-                  <p style={{ margin: 0, fontSize: 13 }}>{e.valor}</p>
-                  <p style={{ ...gris, fontSize: 11, margin: "2px 0 0" }}>
-                    {e.reunionNombre ? `${e.reunionNombre} · ` : ""}{fechaCorta(e.fecha)}
-                  </p>
-                </div>
-              ))}
-              {t.entradas.length > 6 && (
-                <p style={{ ...gris, fontSize: 11, margin: 0 }}>
-                  y {t.entradas.length - 6} más en este periodo
-                </p>
-              )}
-            </div>
-          ))}
+          <ResumenTextos formulario={formulario} respuestas={enRango} embebido />
         </div>
       )}
+
     </>
   );
 }

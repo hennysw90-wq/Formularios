@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { textosPorPregunta } from "./resumenTextos.js";
 
-export default function ResumenTextos({ formulario, respuestas }) {
+export default function ResumenTextos({ formulario, respuestas, embebido = false }) {
   const bloques = useMemo(
     () => textosPorPregunta(formulario, respuestas),
     [formulario, respuestas]
@@ -10,9 +10,10 @@ export default function ResumenTextos({ formulario, respuestas }) {
 
   if (bloques.length === 0) return null;
 
+  const Envoltura = embebido ? "div" : "div";
   return (
-    <div className="ca-card" style={{ marginBottom: 16 }}>
-      <h3 style={sub}>Resumen de las respuestas escritas</h3>
+    <Envoltura className={embebido ? undefined : "ca-card"} style={{ marginBottom: embebido ? 0 : 16 }}>
+      <h3 style={sub}>{embebido ? "Lo que te escribieron" : "Resumen de las respuestas escritas"}</h3>
       <p style={{ ...gris, margin: "0 0 14px" }}>
         Lo que más se repite en cada pregunta de texto. Toca una pregunta para
         ver el desglose por reunión.
@@ -94,7 +95,7 @@ export default function ResumenTextos({ formulario, respuestas }) {
           </div>
         );
       })}
-    </div>
+    </Envoltura>
   );
 }
 
