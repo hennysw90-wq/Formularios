@@ -26,7 +26,8 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
     onEliminar();
   }
 
-  const puedeEditar = usuario?.rol === "master" || usuario?.rol === "admin";
+  // Solo Master crea, edita, elimina formularios y borra respuestas.
+  const puedeEditar = usuario?.rol === "master";
   const asignaciones = formulario.asignaciones || [];
   const cfgDest = configDestinatario(formulario);
   const reunionesUnicas = [...new Set(respuestas.map((r) => r.reunionNombre).filter(Boolean))];

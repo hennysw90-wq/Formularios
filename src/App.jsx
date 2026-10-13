@@ -61,9 +61,12 @@ function PanelPrincipal() {
   }
 
   const esMasterOAdmin = usuario.rol === "master" || usuario.rol === "admin";
+  // Crear, editar y eliminar formularios queda reservado al rol Master.
+  // Un Administrador sigue viendo todo y administrando usuarios.
+  const esMaster = usuario.rol === "master";
 
   // ── Constructor (crear / editar) ──
-  if (vista === "constructor") {
+  if (vista === "constructor" && esMaster) {
     return (
       <>
         <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
@@ -162,7 +165,7 @@ function PanelPrincipal() {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />
-          {esMasterOAdmin && (
+          {esMaster && (
             <button
               className="ca-btn"
               style={{ width: "auto", padding: "12px 20px" }}
@@ -185,7 +188,7 @@ function PanelPrincipal() {
             <TarjetaFormulario
               key={f.id}
               formulario={f}
-              esMasterOAdmin={esMasterOAdmin}
+              esMasterOAdmin={esMaster}
               onAbrir={() => { setFormularioActivo(f); setVista("detalle"); }}
               onQR={() => { setFormularioActivo(f); setFormularioQR(f); setVista("detalle"); }}
             />
