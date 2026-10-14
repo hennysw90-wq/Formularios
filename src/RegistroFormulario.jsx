@@ -23,7 +23,7 @@ import {
   recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.21.0";
+const VERSION = "v1.21.1";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -465,9 +465,12 @@ function Resumen({ persona, formulario }) {
   );
 }
 
+// Semáforo del cumplimiento: verde desde 95%, amarillo desde 80% y rojo
+// bajo 80%. El amarillo va oscurecido porque sobre fondo blanco un amarillo
+// puro no se alcanza a leer.
 function tono(p) {
-  if (p >= 90) return "#1b7a46";
-  if (p >= 70) return "#8a5a00";
+  if (p >= 95) return "#1b7a46";
+  if (p >= 80) return "#B5820A";
   return "#b02a26";
 }
 
