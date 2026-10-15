@@ -173,6 +173,21 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
       )
     );
   }
+  function cambiarCampoPersona(asigId, uid, campo, valor) {
+    setAsignaciones((a) =>
+      a.map((x) =>
+        x.id !== asigId
+          ? x
+          : {
+              ...x,
+              personas: (x.personas || []).map((p) =>
+                p.uid === uid ? { ...p, [campo]: valor } : p
+              ),
+            }
+      )
+    );
+  }
+
   function cambiarDesde(asigId, uid, desde) {
     setAsignaciones((a) =>
       a.map((x) =>
@@ -190,7 +205,16 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
         const existe = (x.personas || []).some((p) => p.uid === usuario.uid);
         const personas = existe
           ? x.personas.filter((p) => p.uid !== usuario.uid)
-          : [...(x.personas || []), { uid: usuario.uid, nombre: usuario.nombreUsuario, desde: "" }];
+          : [
+              ...(x.personas || []),
+              {
+                uid: usuario.uid,
+                nombre: usuario.nombreUsuario,
+                desde: "",
+                cantidad: Number(x.cantidad) || 1,
+                frecuencia: x.frecuencia || "semanal",
+              },
+            ];
         return { ...x, personas };
       })
     );
@@ -213,8 +237,10 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
       if ((a.personas || []).length === 0) {
         return setError(`La asignación de "${a.reunionNombre}" no tiene personas.`);
       }
-      if (!Number(a.cantidad) || Number(a.cantidad) < 1) {
-        return setError(`Pon una cantidad válida en "${a.reunionNombre}".`);
+      for (const p of a.personas || []) {
+        if (!Number(p.cantidad) || Number(p.cantidad) < 1) {
+          return setError(`Pon una cantidad válida para ${p.nombre} en "${a.reunionNombre}".`);
+        }
       }
     }
     setError("");
@@ -229,7 +255,14 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
           dimension: (p.dimension || "").trim(),
           opciones: necesitaOpciones(p.tipo) ? (p.opciones || []).filter((o) => o.trim()) : [],
         })),
-        asignaciones: asignaciones.map((a) => ({ ...a, cantidad: Number(a.cantidad) || 1 })),
+        asignaciones: asignaciones.map((a) => ({
+          ...a,
+          personas: (a.personas || []).map((p) => ({
+            ...p,
+            cantidad: Number(p.cantidad) || 1,
+            frecuencia: p.frecuencia || "semanal",
+          })),
+        })),
         // El destinatario vive ahora como pregunta de tipo usuario; se
         // apaga la configuración antigua para que no se pida dos veces.
         destinatario: { activo: false, etiqueta: "", obligatorio: false },
@@ -321,41 +354,17 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
                 ))}
               </select>
 
-              <div style={{ display: "flex", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-                <div style={{ flex: "0 0 110px" }}>
-                  <label className="ca-label">Cantidad *</label>
-                  <input
-                    className="ca-input"
-                    type="number"
-                    min="1"
-                    value={a.cantidad}
-                    onChange={(e) => cambiarAsignacion(a.id, "cantidad", e.target.value)}
-                  />
-                </div>
-                <div style={{ flex: 1, minWidth: 170 }}>
-                  <label className="ca-label">Frecuencia *</label>
-                  <select
-                    className="ca-input"
-                    value={a.frecuencia}
-                    onChange={(e) => cambiarAsignacion(a.id, "frecuencia", e.target.value)}
-                  >
-                    {FRECUENCIAS.map((f) => (
-                      <option key={f.valor} value={f.valor}>{f.etiqueta}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
               <SelectorPersonas
                 usuarios={usuariosActivos}
                 seleccionadas={a.personas || []}
                 onToggle={(u) => togglePersona(a.id, u)}
                 onCambiarDesde={(uid, desde) => cambiarDesde(a.id, uid, desde)}
+                onCambiarCampo={(uid, campo, valor) => cambiarCampoPersona(a.id, uid, campo, valor)}
               />
 
               <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: "8px 0 12px" }}>
-                {(a.personas || []).length} persona{(a.personas || []).length === 1 ? "" : "s"} ·{" "}
-                {etiquetaCadencia(a.cantidad, a.frecuencia)}
+                {(a.personas || []).length} persona{(a.personas || []).length === 1 ? "" : "s"}, cada
+                una con su propia cadencia.
               </p>
 
               <div style={{ borderTop: "1px solid var(--borde)", paddingTop: 10 }}>
@@ -555,7 +564,7 @@ function SelectorMultiple({ usuarios, seleccionados, onToggle }) {
   );
 }
 
-function SelectorPersonas({ usuarios, seleccionadas, onToggle, onCambiarDesde }) {
+function SelectorPersonas({ usuarios, seleccionadas, onToggle, onCambiarDesde, onCambiarCampo }) {
   const [busqueda, setBusqueda] = useState("");
 
   const elegidas = seleccionadas.map((p) => p.uid);
@@ -574,26 +583,59 @@ function SelectorPersonas({ usuarios, seleccionadas, onToggle, onCambiarDesde })
         <div style={{ marginBottom: 10 }}>
           {seleccionadas.map((p) => (
             <div key={p.uid} style={filaPersonaSel}>
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600 }}>{p.nombre}</span>
-              <label style={{ fontSize: 11, color: "var(--texto-suave)", whiteSpace: "nowrap" }}>
-                Controlar desde
-              </label>
-              <input
-                type="date"
-                className="ca-input"
-                style={{ width: 150, padding: "6px 8px", fontSize: 13 }}
-                value={p.desde || ""}
-                onChange={(e) => onCambiarDesde(p.uid, e.target.value)}
-                title="Vacío = se controla desde siempre"
-              />
-              <button
-                type="button"
-                onClick={() => onToggle({ uid: p.uid, nombreUsuario: p.nombre })}
-                style={{ background: "none", border: "none", color: "var(--rojo)", cursor: "pointer", fontSize: 16 }}
-                title="Quitar"
-              >
-                ✕
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700 }}>{p.nombre}</span>
+                <button
+                  type="button"
+                  onClick={() => onToggle({ uid: p.uid, nombreUsuario: p.nombre })}
+                  style={{ background: "none", border: "none", color: "var(--rojo)", cursor: "pointer", fontSize: 16 }}
+                  title="Quitar"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", width: "100%", alignItems: "flex-end" }}>
+                <div style={{ flex: "0 0 86px" }}>
+                  <label style={etiquetaMini}>Cantidad</label>
+                  <input
+                    className="ca-input"
+                    type="number"
+                    min="1"
+                    style={campoMini}
+                    value={p.cantidad ?? 1}
+                    onChange={(e) => onCambiarCampo(p.uid, "cantidad", e.target.value)}
+                  />
+                </div>
+                <div style={{ flex: "1 1 150px" }}>
+                  <label style={etiquetaMini}>Frecuencia</label>
+                  <select
+                    className="ca-input"
+                    style={campoMini}
+                    value={p.frecuencia || "semanal"}
+                    onChange={(e) => onCambiarCampo(p.uid, "frecuencia", e.target.value)}
+                  >
+                    {FRECUENCIAS.map((f) => (
+                      <option key={f.valor} value={f.valor}>{f.etiqueta}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ flex: "0 0 148px" }}>
+                  <label style={etiquetaMini}>Controlar desde</label>
+                  <input
+                    type="date"
+                    className="ca-input"
+                    style={campoMini}
+                    value={p.desde || ""}
+                    onChange={(e) => onCambiarDesde(p.uid, e.target.value)}
+                    title="Vacío = se controla desde siempre"
+                  />
+                </div>
+              </div>
+
+              <p style={{ fontSize: 11, color: "var(--verde-oscuro)", margin: "2px 0 0", fontWeight: 600 }}>
+                {etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal")}
+              </p>
             </div>
           ))}
         </div>
@@ -635,10 +677,21 @@ function SelectorPersonas({ usuarios, seleccionadas, onToggle, onCambiarDesde })
   );
 }
 
+const etiquetaMini = {
+  display: "block",
+  fontSize: 10,
+  fontWeight: 600,
+  color: "var(--texto-suave)",
+  marginBottom: 2,
+};
+
+const campoMini = { padding: "6px 8px", fontSize: 13 };
+
 const filaPersonaSel = {
   display: "flex",
-  alignItems: "center",
-  gap: 8,
+  flexDirection: "column",
+  alignItems: "flex-start",
+  gap: 6,
   flexWrap: "wrap",
   background: "#fff",
   border: "1px solid var(--borde)",

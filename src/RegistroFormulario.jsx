@@ -23,7 +23,7 @@ import {
   recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.22.0";
+const VERSION = "v1.23.0";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -223,7 +223,7 @@ function Agenda({ agenda, hayAsignaciones, onElegir }) {
                 {item.asignacion.reunionNombre || "Sin reunión"}
               </p>
               <p style={{ ...gris, fontSize: 12, margin: 0 }}>
-                {etiquetaCadencia(item.asignacion.cantidad, item.asignacion.frecuencia)}
+                {etiquetaCadencia(item.cantidad, item.frecuencia)}
                 {" · "}
                 {item.hechas} de {item.total} en este periodo
               </p>

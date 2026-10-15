@@ -323,6 +323,17 @@ export async function cumplimientoDePersona(personaUid) {
 // usara el id, o casos donde la ficha del directorio se volvió a crear.
 // Fecha desde la que se le controla el formulario a esta persona dentro de
 // una asignación. Vacío significa que se controla desde siempre.
+// Cantidad y frecuencia de una persona dentro de una asignación. Cada una
+// tiene la suya; si no la tiene guardada (asignaciones de antes de que
+// fuera por persona), se usa la de la asignación.
+export function cadenciaDePersona(asignacion, usuario) {
+  const p = (asignacion?.personas || []).find((x) => esLaMismaPersona(x, usuario));
+  return {
+    cantidad: Number(p?.cantidad) || Number(asignacion?.cantidad) || 1,
+    frecuencia: p?.frecuencia || asignacion?.frecuencia || "semanal",
+  };
+}
+
 export function desdeDePersona(asignacion, usuario) {
   const p = (asignacion?.personas || []).find((x) => esLaMismaPersona(x, usuario));
   return p?.desde || "";
@@ -543,13 +554,17 @@ export function agendaDePersona(formulario, personaUid, respuestas, usuario = nu
       return !y || new Date(y, m - 1, d) <= hoy;
     })
     .map((a) => {
-      const periodo = periodoVigente(a.frecuencia);
+      // La cadencia es la de esta persona dentro de la asignación.
+      const { cantidad, frecuencia } = cadenciaDePersona(a, quien);
+      const periodo = periodoVigente(frecuencia);
       const yaHechas = hechas.filter(
         (r) => r.asignacionId === a.id && r.periodo === periodo
       ).length;
-      const total = Number(a.cantidad) || 1;
+      const total = cantidad;
       return {
         asignacion: a,
+        cantidad,
+        frecuencia,
         periodo,
         hechas: yaHechas,
         total,

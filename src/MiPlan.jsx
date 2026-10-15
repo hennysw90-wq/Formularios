@@ -5,6 +5,7 @@ import {
   periodoVigente,
   etiquetaCadencia,
   desdeDePersona,
+  cadenciaDePersona,
   periodoDentroDelControl,
 } from "./formularios.js";
 
@@ -56,12 +57,14 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
 
     for (const { formulario, asignaciones, respuestas } of datos) {
       for (const asig of asignaciones) {
-        const cantidad = Number(asig.cantidad) || 1;
+        // Cada persona tiene su propia cantidad y frecuencia dentro de la
+        // asignación.
+        const { cantidad, frecuencia } = cadenciaDePersona(asig, usuario);
         const mias = respuestas.filter((r) => r.asignacionId === asig.id);
         const desde = desdeDePersona(asig, usuario);
 
         const celdas = columnas.map(({ anio, mes }) => {
-          const periodos = periodosDelMes(asig.frecuencia, anio, mes);
+          const periodos = periodosDelMes(frecuencia, anio, mes);
 
           // "Una sola vez" no tiene periodos: se cuenta lo ejecutado en el mes
           // contra la cantidad pedida, una única vez en total.
@@ -74,7 +77,7 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
           }
 
           // Los periodos que todavía no empiezan no se exigen.
-          const actual = periodoActual(asig.frecuencia);
+          const actual = periodoActual(frecuencia);
           const considerados = periodos.filter(
             (p) =>
               (p.cierra <= ahora || p.clave === actual) &&
@@ -95,6 +98,8 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
           clave: `${formulario.id}__${asig.id}`,
           formulario,
           asignacion: asig,
+          cantidad,
+          frecuencia,
           desde,
           celdas,
           totalExigido,
@@ -125,7 +130,7 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
         f.porcentaje === null ? "" : `${f.porcentaje}%`,
         f.formulario.titulo,
         f.asignacion.reunionNombre || "",
-        etiquetaCadencia(f.asignacion.cantidad, f.asignacion.frecuencia),
+        etiquetaCadencia(f.cantidad, f.frecuencia),
         ...f.celdas.map((c) => (c.exigido === 0 ? "" : `${c.hechas}/${c.exigido}`)),
         `${f.totalHecho}/${f.totalExigido}`,
       ]);
@@ -235,7 +240,7 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
                     </td>
                     <td style={td}>{f.asignacion.reunionNombre || "—"}</td>
                     <td style={{ ...td, textAlign: "center", color: "var(--texto-suave)", fontSize: 12 }}>
-                      {etiquetaCadencia(f.asignacion.cantidad, f.asignacion.frecuencia)}
+                      {etiquetaCadencia(f.cantidad, f.frecuencia)}
                       {f.desde && (
                         <div style={{ fontSize: 10, marginTop: 2 }}>desde {fechaCorta(f.desde)}</div>
                       )}

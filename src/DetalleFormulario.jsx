@@ -141,12 +141,13 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
                   {a.reunionNombre || "Sin reunión"}
                 </p>
                 <p style={{ ...gris, fontSize: 12, margin: "0 0 5px" }}>
-                  {etiquetaCadencia(a.cantidad, a.frecuencia)}
+                  {(a.personas || []).length} persona{(a.personas || []).length === 1 ? "" : "s"},
+                  cada una con su cadencia
                 </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
                   {(a.personas || []).map((p) => (
                     <span key={p.uid} className="ca-chip" style={{ fontSize: 11 }}>
-                      {p.nombre}
+                      {p.nombre} · {etiquetaCadencia(p.cantidad ?? a.cantidad, p.frecuencia || a.frecuencia)}
                       {p.desde && ` · desde ${fechaCorta(p.desde)}`}
                     </span>
                   ))}
