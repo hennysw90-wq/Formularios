@@ -49,8 +49,16 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
   const [titulo, setTitulo] = useState(formulario?.titulo || "");
   const [descripcion, setDescripcion] = useState(formulario?.descripcion || "");
   const [preguntas, setPreguntas] = useState(() => preguntasIniciales(formulario));
-  const [asignaciones, setAsignaciones] = useState(formulario?.asignaciones || []);
-  const [permitidos, setPermitidos] = useState(formulario?.destinatariosPermitidos || []);
+  // Los formularios antiguos guardaban la lista a nivel de formulario; al
+  // abrirlos para editar, se copia dentro de cada asignación, que es donde
+  // vive ahora.
+  const [asignacionesIniciales] = useState(() => {
+    const heredados = formulario?.destinatariosPermitidos || [];
+    return (formulario?.asignaciones || []).map((a) =>
+      a.destinatarios ? a : { ...a, destinatarios: heredados }
+    );
+  });
+  const [asignaciones, setAsignaciones] = useState(() => asignacionesIniciales);
   const [reuniones, setReuniones] = useState([]);
   const [errorReuniones, setErrorReuniones] = useState("");
   const [error, setError] = useState("");
@@ -124,18 +132,31 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
 
   // ─── Asignaciones ─────────────────────────────────────────────────────────
 
-  function togglePermitido(u) {
-    setPermitidos((prev) =>
-      prev.some((p) => p.uid === u.uid)
-        ? prev.filter((p) => p.uid !== u.uid)
-        : [...prev, { uid: u.uid, nombre: u.nombreUsuario, area: u.area || "" }]
+  function toggleDestinatario(asigId, u) {
+    setAsignaciones((prev) =>
+      prev.map((x) => {
+        if (x.id !== asigId) return x;
+        const actuales = x.destinatarios || [];
+        const destinatarios = actuales.some((p) => p.uid === u.uid)
+          ? actuales.filter((p) => p.uid !== u.uid)
+          : [...actuales, { uid: u.uid, nombre: u.nombreUsuario, area: u.area || "" }];
+        return { ...x, destinatarios };
+      })
     );
   }
 
   function agregarAsignacion() {
     setAsignaciones((a) => [
       ...a,
-      { id: nuevoId("a"), reunionId: "", reunionNombre: "", personas: [], cantidad: 1, frecuencia: "semanal" },
+      {
+        id: nuevoId("a"),
+        reunionId: "",
+        reunionNombre: "",
+        personas: [],
+        destinatarios: [],
+        cantidad: 1,
+        frecuencia: "semanal",
+      },
     ]);
   }
   function quitarAsignacion(id) {
@@ -211,7 +232,6 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
         asignaciones: asignaciones.map((a) => ({ ...a, cantidad: Number(a.cantidad) || 1 })),
         // El destinatario vive ahora como pregunta de tipo usuario; se
         // apaga la configuración antigua para que no se pida dos veces.
-        destinatariosPermitidos: permitidos,
         destinatario: { activo: false, etiqueta: "", obligatorio: false },
       };
       if (editando) await actualizarFormulario(formulario.id, datos);
@@ -257,21 +277,6 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
             value={descripcion}
             onChange={(e) => setDescripcion(e.target.value)}
             placeholder="Instrucciones o contexto (opcional)"
-          />
-        </div>
-
-        {/* ── Destinatarios permitidos ── */}
-        <div className="ca-card" style={{ marginBottom: 16 }}>
-          <h3 style={sub}>Destinatarios permitidos</h3>
-          <p style={ayuda}>
-            Quiénes pueden recibir esta evaluación. En la pregunta «a quién va dirigido»
-            solo aparecerán estas personas. Si no eliges a nadie, se podrá elegir a
-            cualquier usuario del directorio.
-          </p>
-          <SelectorMultiple
-            usuarios={usuariosActivos}
-            seleccionados={permitidos}
-            onToggle={togglePermitido}
           />
         </div>
 
@@ -348,10 +353,23 @@ export default function ConstructorFormulario({ formulario, usuarios, onGuardado
                 onCambiarDesde={(uid, desde) => cambiarDesde(a.id, uid, desde)}
               />
 
-              <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: "8px 0 0" }}>
+              <p style={{ fontSize: 12, color: "var(--texto-suave)", margin: "8px 0 12px" }}>
                 {(a.personas || []).length} persona{(a.personas || []).length === 1 ? "" : "s"} ·{" "}
                 {etiquetaCadencia(a.cantidad, a.frecuencia)}
               </p>
+
+              <div style={{ borderTop: "1px solid var(--borde)", paddingTop: 10 }}>
+                <label className="ca-label">Destinatarios permitidos</label>
+                <p style={{ fontSize: 11, color: "var(--texto-suave)", margin: "0 0 8px" }}>
+                  A quién se le puede dirigir la evaluación en esta reunión. Si no eliges a
+                  nadie, se podrá elegir a cualquier usuario.
+                </p>
+                <SelectorMultiple
+                  usuarios={usuariosActivos}
+                  seleccionados={a.destinatarios || []}
+                  onToggle={(u) => toggleDestinatario(a.id, u)}
+                />
+              </div>
             </div>
           ))}
 

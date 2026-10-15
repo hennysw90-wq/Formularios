@@ -143,7 +143,7 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
                 <p style={{ ...gris, fontSize: 12, margin: "0 0 5px" }}>
                   {etiquetaCadencia(a.cantidad, a.frecuencia)}
                 </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
                   {(a.personas || []).map((p) => (
                     <span key={p.uid} className="ca-chip" style={{ fontSize: 11 }}>
                       {p.nombre}
@@ -151,25 +151,21 @@ export default function DetalleFormulario({ formulario, usuario, onEditar, onEli
                     </span>
                   ))}
                 </div>
+                {(a.destinatarios || []).length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
+                    <span style={{ ...gris, fontSize: 11 }}>Dirigida a:</span>
+                    {a.destinatarios.map((d) => (
+                      <span key={d.uid} className="ca-chip ca-chip-ambar" style={{ fontSize: 11 }}>
+                        {d.nombre}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))
         )}
       </div>
-
-      {/* ── Destinatarios permitidos ── */}
-      {(formulario.destinatariosPermitidos || []).length > 0 && (
-        <div className="ca-card" style={{ marginBottom: 16 }}>
-          <h3 style={sub}>Destinatarios permitidos</h3>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-            {formulario.destinatariosPermitidos.map((p) => (
-              <span key={p.uid} className="ca-chip" style={{ fontSize: 11 }}>
-                {p.nombre}{p.area ? ` · ${p.area}` : ""}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ── Preguntas ── */}
       <div className="ca-card" style={{ marginBottom: 16 }}>

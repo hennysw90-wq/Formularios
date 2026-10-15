@@ -98,13 +98,21 @@ export function preguntaDestinatario(formulario) {
 // lista está vacía, no hay restricción y vale cualquier usuario. Nunca se
 // incluye a quien está respondiendo: el destinatario es siempre otra
 // persona.
-export function destinatariosPermitidos(formulario, excluirUid) {
-  const lista = formulario?.destinatariosPermitidos || [];
-  return lista.filter((p) => p.uid !== excluirUid);
+// La lista vive dentro de cada asignación: cada reunión define a quién se
+// le puede dirigir la evaluación. Los formularios antiguos la tenían a
+// nivel de formulario, así que esa se usa como respaldo.
+export function listaDestinatarios(asignacion, formulario) {
+  const deLaAsignacion = asignacion?.destinatarios || [];
+  if (deLaAsignacion.length > 0) return deLaAsignacion;
+  return formulario?.destinatariosPermitidos || [];
 }
 
-export function hayRestriccionDeDestinatarios(formulario) {
-  return (formulario?.destinatariosPermitidos || []).length > 0;
+export function destinatariosPermitidos(asignacion, formulario, excluirUid) {
+  return listaDestinatarios(asignacion, formulario).filter((p) => p.uid !== excluirUid);
+}
+
+export function hayRestriccionDeDestinatarios(asignacion, formulario) {
+  return listaDestinatarios(asignacion, formulario).length > 0;
 }
 
 // Texto legible de cualquier respuesta, incluidas las de tipo usuario, que

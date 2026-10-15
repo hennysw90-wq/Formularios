@@ -23,7 +23,7 @@ import {
   recibidasEnFormulario,
 } from "./formularios.js";
 
-const VERSION = "v1.21.1";
+const VERSION = "v1.22.0";
 
 export default function RegistroFormulario({ formularioId }) {
   const [formulario, setFormulario] = useState(null);
@@ -506,10 +506,10 @@ function Cuestionario({ formulario, item, persona, usuarios, onCancelar, onEnvia
   const [enviando, setEnviando] = useState(false);
 
   const cfgDest = configDestinatario(formulario);
-  // Si el formulario restringe a quién se le puede dirigir, la pregunta de
-  // destinatario ofrece solo esa lista.
-  const permitidos = hayRestriccionDeDestinatarios(formulario)
-    ? destinatariosPermitidos(formulario, persona.uid)
+  // La lista de destinatarios es la de la asignación que se está
+  // ejecutando: cada reunión tiene la suya.
+  const permitidos = hayRestriccionDeDestinatarios(item.asignacion, formulario)
+    ? destinatariosPermitidos(item.asignacion, formulario, persona.uid)
     : null;
 
   function set(pid, valor) {
