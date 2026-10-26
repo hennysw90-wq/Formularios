@@ -351,7 +351,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
                 </div>
                 <div style={{ flex: "0 0 160px" }}>
                   <label style={mini}>Controlar desde</label>
-                  <input className="rp-input" type="date" value={p.desde || ""} title="Vacío = desde siempre" onChange={(e) => cambiarPersona(p.uid, "desde", e.target.value)} />
+                  <input className="rp-input" type="date" value={p.desde || ""} title="Vacío = desde que se crea la asignación" onChange={(e) => cambiarPersona(p.uid, "desde", e.target.value)} />
                 </div>
               </div>
               <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>{etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal")}</div>

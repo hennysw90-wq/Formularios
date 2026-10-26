@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
-import { obtenerFormulario, obtenerEvaluacion, listarEvaluacionesDesde } from "./evaluaciones.js";
+import { obtenerFormulario, obtenerEvaluacion, listarEvaluacionesDesde, listarFormulariosPublicados } from "./evaluaciones.js";
+import CumplimientoPlan from "./CumplimientoPlan.jsx";
 import { listarUsuarios, verificarClave } from "./auth.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
 import {
-  asignacionesDeFormulario,
+  listarAsignaciones,
   proyectarFormulario,
   agendaDePersona,
   filaDeEvaluador,
@@ -22,13 +23,14 @@ const desde = () => new Date(Date.now() - 370 * 86400000).toISOString().slice(0,
 
 /**
  * Lo que se abre al escanear el QR de un formulario, igual que en la app Formularios:
- *   ¿Quién eres? → Pendientes · Mi plan · Resultados → responder.
+ *   Nombre y apellido → Pendientes (mis formularios asignados) · Mi cumplimiento · Resultados → responder.
  * Para ver el plan y responder basta con elegir tu nombre; los resultados piden tu clave.
  * Si ya hay sesión iniciada en el dispositivo, entra directo como esa persona.
  */
 export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, onIrALaApp }) {
   const [form, setForm] = useState(undefined); // undefined = cargando, null = no existe
-  const [asignaciones, setAsignaciones] = useState([]);
+  const [asignaciones, setAsignaciones] = useState([]); // todas: para "mis formularios asignados" y "mi cumplimiento"
+  const [publicados, setPublicados] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [evals, setEvals] = useState([]);
   const [error, setError] = useState("");
@@ -43,21 +45,21 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
     (async () => {
       try {
         const f = await obtenerFormulario(formularioId);
-        const a = f ? await asignacionesDeFormulario(formularioId) : [];
-        if (vivo) {
-          setAsignaciones(a);
-          setForm(f);
-        }
+        if (vivo) setForm(f);
       } catch (e) {
         if (vivo) setError(e.code || e.message || "error");
       }
     })();
     const c1 = listarUsuarios((lista) => setUsuarios(lista.filter((u) => u.rol !== "deshabilitado" && u.estado !== "pendiente")), () => {});
     const c2 = listarEvaluacionesDesde(desde(), setEvals, () => {});
+    const c3 = listarAsignaciones(setAsignaciones, () => {});
+    const c4 = listarFormulariosPublicados(setPublicados, () => {});
     return () => {
       vivo = false;
       c1();
       c2();
+      c3();
+      c4();
     };
   }, [formularioId]);
 
@@ -74,16 +76,34 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
   }, [claveBorrador, ejecutando]);
 
   const quien = persona ? { uid: persona.uid, nombreUsuario: persona.nombreUsuario, nombre: persona.nombreUsuario } : null;
-  const agenda = useMemo(() => {
+  const formPorId = useMemo(() => {
+    const m = new Map(publicados.map((f) => [f.id, f]));
+    if (form && form.estado === "publicado") m.set(form.id, form);
+    return m;
+  }, [publicados, form]);
+  const grupos = useMemo(() => {
     if (!quien) return [];
-    const items = agendaDePersona(asignaciones, quien, evals);
-    // Si el QR es de una reunión, esa va primero.
-    return rutinaId ? items.slice().sort((x, y) => (y.asignacion.reunionId === rutinaId) - (x.asignacion.reunionId === rutinaId)) : items;
+    const porForm = new Map();
+    agendaDePersona(asignaciones, quien, evals)
+      .filter((it) => formPorId.has(it.asignacion.formularioId))
+      .forEach((it) => {
+        const g = porForm.get(it.asignacion.formularioId) || [];
+        g.push(it);
+        porForm.set(it.asignacion.formularioId, g);
+      });
+    return [...porForm.entries()]
+      .map(([id, items]) => ({
+        formulario: formPorId.get(id),
+        // Si el QR es de una reunión, esa va primero.
+        items: rutinaId ? items.slice().sort((x, y) => (y.asignacion.reunionId === rutinaId) - (x.asignacion.reunionId === rutinaId)) : items,
+      }))
+      .sort((x, y) => (y.formulario.id === formularioId) - (x.formulario.id === formularioId) || x.formulario.nombre.localeCompare(y.formulario.nombre, "es"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asignaciones, evals, persona, rutinaId]);
+  }, [asignaciones, evals, persona, rutinaId, formPorId]);
 
-  function ejecutar(reunionId) {
-    const ev = nuevaEvaluacion(proyectarFormulario(form, asignaciones, quien), quien, reunionId);
+  function ejecutar(formId, reunionId) {
+    const f = formPorId.get(formId) || form;
+    const ev = nuevaEvaluacion(proyectarFormulario(f, asignaciones, quien), quien, reunionId);
     try { window.localStorage.setItem(claveBorrador, ev.id); } catch { /* sin almacenamiento local */ }
     setEjecutando(ev);
   }
@@ -105,15 +125,19 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
   if (error) {
     return (
       <Envoltorio>
-        <p style={{ color: "var(--rojo)", textAlign: "center" }}>No se pudo abrir el formulario ({error}). Revisa tu conexión e inténtalo de nuevo.</p>
+        <div className="ca-card"><p style={{ color: "var(--rojo)", textAlign: "center", margin: 0 }}>No se pudo abrir el formulario ({error}). Revisa tu conexión e inténtalo de nuevo.</p></div>
       </Envoltorio>
     );
   }
-  if (form === undefined) return <Envoltorio><p style={{ ...gris, textAlign: "center" }}>Cargando…</p></Envoltorio>;
+  if (form === undefined) return <Envoltorio><p style={{ ...gris, textAlign: "center" }}>Cargando formulario…</p></Envoltorio>;
   if (!form || form.estado !== "publicado") {
     return (
-      <Envoltorio titulo="Formulario no disponible">
-        <p style={{ ...gris, textAlign: "center", fontSize: 14 }}>Puede que todavía no esté publicado. Consulta con un administrador.</p>
+      <Envoltorio>
+        <div className="ca-card" style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 34 }}>⚠️</div>
+          <p style={{ fontWeight: 700, marginTop: 8 }}>Formulario no disponible</p>
+          <p style={{ ...gris, fontSize: 14 }}>Puede que todavía no esté publicado. Consulta con un administrador.</p>
+        </div>
         <PieApp usuario={usuario} onIrALaApp={onIrALaApp} />
       </Envoltorio>
     );
@@ -129,25 +153,27 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
 
   return (
     <Envoltorio titulo={form.nombre} descripcion={form.descripcion}>
+      <div className="ca-card">
       <Encabezado persona={persona} onCambiar={usuario ? null : cambiarPersona} />
       <div style={pestanas}>
         <button type="button" onClick={() => setPestana("pendientes")} style={pestanaEstilo(pestana === "pendientes")}>Pendientes</button>
-        <button type="button" onClick={() => setPestana("plan")} style={pestanaEstilo(pestana === "plan")}>Mi plan</button>
+        <button type="button" onClick={() => setPestana("plan")} style={pestanaEstilo(pestana === "plan")}>Mi cumplimiento</button>
         <button type="button" onClick={() => setPestana("resultados")} style={pestanaEstilo(pestana === "resultados")}>
           {desbloqueado ? "Resultados" : "🔒 Resultados"}
         </button>
       </div>
 
       {pestana === "pendientes" && (
-        <Pendientes agenda={agenda} rutinaId={rutinaId} borrador={borrador} onEjecutar={ejecutar} onContinuar={() => setEjecutando(borrador)} />
+        <Pendientes grupos={grupos} rutinaId={rutinaId} borrador={borrador} onEjecutar={ejecutar} onContinuar={() => setEjecutando(borrador)} />
       )}
-      {pestana === "plan" && <MiPlan persona={quien} asignaciones={asignaciones} evals={evals} />}
+      {pestana === "plan" && <CumplimientoPlan persona={quien} asignaciones={asignaciones} evals={evals} titulo="" compacto />}
       {pestana === "resultados" &&
         (desbloqueado ? (
           <Resultados persona={persona} formularioId={form.id} evals={evals} onVer={setEjecutando} />
         ) : (
           <PedirClave persona={persona} onOk={() => setDesbloqueado(true)} />
         ))}
+      </div>
       <PieApp usuario={usuario} onIrALaApp={onIrALaApp} />
     </Envoltorio>
   );
@@ -156,30 +182,129 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
 /* ─── ¿Quién eres? ─────────────────────────────────────────────────────── */
 
 function Identificarse({ usuarios, onElegir }) {
-  const [texto, setTexto] = useState("");
-  const escrito = texto.trim();
-  const filtrados = sugerirUsuarios(escrito, usuarios);
-  return (
-    <>
-      <p style={{ fontWeight: 700, fontSize: 15, margin: "0 0 4px" }}>¿Quién eres?</p>
-      <p style={{ ...gris, fontSize: 13, margin: "0 0 12px" }}>Escribe tu nombre y elígete de las sugerencias.</p>
-      <input className="rp-input" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Tu nombre" autoFocus />
-      <div style={{ marginTop: 10 }}>
-        {filtrados.map((u) => (
-          <button key={u.uid} type="button" onClick={() => onElegir(u)} style={filaPersona}>
-            <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <strong style={{ fontSize: 14 }}>{u.nombreUsuario}</strong>
-              {u.parecido && <span style={etiquetaParecido}>parecido</span>}
-            </span>
-            {u.area && <span style={{ ...gris, fontSize: 12 }}>{u.area}</span>}
-          </button>
-        ))}
-        {escrito.length >= 2 && filtrados.length === 0 && (
-          <p style={{ ...gris, fontSize: 13, margin: 0 }}>No encontramos ese nombre. Revisa cómo está escrito o pide a un administrador que te cree el usuario.</p>
-        )}
-        {escrito.length < 2 && <p style={{ ...gris, fontSize: 12, margin: 0 }}>Escribe al menos 2 letras para ver sugerencias.</p>}
+  // Mismo flujo que el QR de Asistencia: nombre con sugerencias → "Hola de nuevo" (o "¿Eres alguno de estos?").
+  // A diferencia de Asistencia, aquí no se crean personas nuevas: solo entran quienes ya tienen usuario.
+  const [paso, setPaso] = useState("nombre"); // nombre | confirmar | parecidos | noEncontrado
+  const [nombre, setNombre] = useState("");
+  const [abiertas, setAbiertas] = useState(false);
+  const [candidato, setCandidato] = useState(null);
+  const [parecidas, setParecidas] = useState([]);
+  const [error, setError] = useState("");
+  const inputRef = useRef(null);
+  const cajaRef = useRef(null);
+
+  useEffect(() => {
+    if (paso === "nombre" && inputRef.current) inputRef.current.focus();
+  }, [paso]);
+  useEffect(() => {
+    const fuera = (ev) => { if (cajaRef.current && !cajaRef.current.contains(ev.target)) setAbiertas(false); };
+    document.addEventListener("mousedown", fuera);
+    return () => document.removeEventListener("mousedown", fuera);
+  }, []);
+
+  const escrito = nombre.trim();
+  const sugerencias = escrito.length >= 2 ? sugerirUsuarios(escrito, usuarios, { max: 6 }).filter((u) => !u.parecido) : [];
+
+  function elegir(u) {
+    setAbiertas(false);
+    setNombre(u.nombreUsuario);
+    setCandidato(u);
+    setPaso("confirmar");
+  }
+  function continuar(ev) {
+    ev.preventDefault();
+    setError("");
+    if (escrito.length < 2) return setError("Escribe tu nombre y apellido.");
+    setAbiertas(false);
+    const exacto = usuarios.find((u) => norm(u.nombreUsuario) === norm(escrito));
+    if (exacto) return elegir(exacto);
+    const similares = sugerirUsuarios(escrito, usuarios, { max: 6 });
+    if (similares.length) {
+      setParecidas(similares);
+      setPaso("parecidos");
+    } else {
+      setPaso("noEncontrado");
+    }
+  }
+
+  if (paso === "confirmar" && candidato) {
+    return (
+      <div className="ca-card">
+        <p style={{ fontSize: 14, ...gris, marginTop: 0, marginBottom: 4 }}>Hola de nuevo,</p>
+        <p style={{ fontWeight: 800, fontSize: 18, margin: "0 0 14px" }}>{candidato.nombreUsuario}</p>
+        {candidato.area && <p style={{ margin: "-8px 0 14px" }}><span className="ca-chip">{candidato.area}</span></p>}
+        <button className="ca-btn" onClick={() => onElegir(candidato)}>Continuar</button>
+        <button type="button" className="ca-btn-texto" style={{ marginTop: 6, width: "100%" }} onClick={() => { setCandidato(null); setPaso("nombre"); }}>
+          ← No soy yo, volver
+        </button>
       </div>
-    </>
+    );
+  }
+
+  if (paso === "parecidos") {
+    return (
+      <div className="ca-card">
+        <p style={{ fontSize: 14, ...gris, marginTop: 0, marginBottom: 4 }}>
+          No encontramos "{escrito}" exactamente, pero hay nombres parecidos. ¿Eres alguno de estos?
+        </p>
+        <div style={{ marginTop: 12, borderRadius: 10, overflow: "hidden", border: "1px solid var(--borde)" }}>
+          {parecidas.map((u, i) => (
+            <button type="button" key={u.uid} onClick={() => elegir(u)} style={{ ...filaSugerencia, borderTop: i === 0 ? "none" : "1px solid var(--borde)" }}>
+              <span style={{ fontWeight: 600 }}>{u.nombreUsuario}</span>
+              {u.area && <span className="ca-chip">{u.area}</span>}
+            </button>
+          ))}
+        </div>
+        <p style={{ fontSize: 12, ...gris, margin: "12px 0 0" }}>Si no apareces, pide a un administrador que te cree el usuario.</p>
+        <button type="button" className="ca-btn-texto" style={{ marginTop: 6, width: "100%" }} onClick={() => setPaso("nombre")}>
+          ← Volver a escribir mi nombre
+        </button>
+      </div>
+    );
+  }
+
+  if (paso === "noEncontrado") {
+    return (
+      <div className="ca-card">
+        <p style={{ fontWeight: 700, margin: "0 0 6px" }}>No encontramos "{escrito}"</p>
+        <p style={{ fontSize: 14, ...gris, margin: 0 }}>
+          Revisa cómo está escrito. Si es la primera vez que usas Formularios, pide a un administrador que te cree el usuario.
+        </p>
+        <button type="button" className="ca-btn" style={{ marginTop: 14 }} onClick={() => setPaso("nombre")}>
+          ← Volver a escribir mi nombre
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form className="ca-card" onSubmit={continuar}>
+      <label className="ca-label" htmlFor="nombre-qr">Nombre y apellido</label>
+      <div ref={cajaRef} style={{ position: "relative" }}>
+        <input
+          id="nombre-qr"
+          ref={inputRef}
+          className="rp-input"
+          placeholder="Ej: Juan Pérez"
+          value={nombre}
+          onChange={(e) => { setNombre(e.target.value); setAbiertas(true); }}
+          onFocus={() => setAbiertas(true)}
+          autoComplete="off"
+        />
+        {abiertas && sugerencias.length > 0 && (
+          <div style={listaFlotante}>
+            {sugerencias.map((u) => (
+              <button type="button" key={u.uid} onClick={() => elegir(u)} style={{ ...filaSugerencia, borderTop: "1px solid var(--borde)" }}>
+                <span style={{ fontWeight: 600 }}>{u.nombreUsuario}</span>
+                {u.area && <span className="ca-chip">{u.area}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {error && <p style={{ color: "var(--rojo)", fontSize: 13, marginTop: 8 }}>{error}</p>}
+      <button className="ca-btn" style={{ marginTop: 14 }}>Continuar</button>
+    </form>
   );
 }
 
@@ -199,7 +324,7 @@ function Encabezado({ persona, onCambiar }) {
 
 /* ─── Pendientes ───────────────────────────────────────────────────────── */
 
-function Pendientes({ agenda, rutinaId, borrador, onEjecutar, onContinuar }) {
+function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar }) {
   return (
     <>
       {borrador && (
@@ -209,97 +334,45 @@ function Pendientes({ agenda, rutinaId, borrador, onEjecutar, onContinuar }) {
           <button className="cdr-nav-btn prim" style={{ marginTop: 10, width: "100%" }} onClick={onContinuar}>Continuar</button>
         </div>
       )}
-      {agenda.length === 0 ? (
+      <p style={{ fontWeight: 800, fontSize: 15, margin: "0 0 10px" }}>Mis formularios asignados</p>
+      {grupos.length === 0 ? (
         <p style={{ ...gris, fontSize: 14, textAlign: "center", padding: "14px 0" }}>
-          No tienes este formulario asignado. Si crees que es un error, avísale a un administrador.
+          No tienes formularios asignados. Si crees que es un error, avísale a un administrador.
         </p>
       ) : (
-        agenda.map((it) => {
-          const a = it.asignacion;
-          const periodo = TEXTO_PERIODO[it.frecuencia] || "en este periodo";
-          return (
-            <div key={a.id} style={{ ...tarjeta(it.completa || !it.empezo), ...(rutinaId && a.reunionId === rutinaId ? { boxShadow: "0 0 0 2px var(--verde-claro)" } : {}) }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 14 }}>{a.reunionNombre || "Sin reunión"}</p>
-                  <p style={{ ...gris, fontSize: 12, margin: 0 }}>
-                    {etiquetaCadencia(it.cantidad, it.frecuencia)} · {it.hechasEnPeriodo} de {it.cantidad} {periodo}
-                  </p>
-                  {(a.lideres || []).length > 0 && <p style={{ ...gris, fontSize: 12, margin: "2px 0 0" }}>Líder: {a.lideres.join(", ")}</p>}
+        grupos.map((g) => (
+          <div key={g.formulario.id} style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--verde-oscuro)", margin: "0 0 6px" }}>{g.formulario.nombre}</p>
+            {g.items.map((it) => {
+              const a = it.asignacion;
+              const periodo = TEXTO_PERIODO[it.frecuencia] || "en este periodo";
+              return (
+                <div key={a.id} style={{ ...tarjeta(it.completa || !it.empezo), ...(rutinaId && a.reunionId === rutinaId ? { boxShadow: "0 0 0 2px var(--verde-claro)" } : {}) }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 14 }}>{a.reunionNombre || "Sin reunión"}</p>
+                      <p style={{ ...gris, fontSize: 12, margin: 0 }}>
+                        {etiquetaCadencia(it.cantidad, it.frecuencia)} · {it.hechasEnPeriodo} de {it.cantidad} {periodo}
+                      </p>
+                      {(a.lideres || []).length > 0 && <p style={{ ...gris, fontSize: 12, margin: "2px 0 0" }}>Líder: {a.lideres.join(", ")}</p>}
+                    </div>
+                    {!it.empezo ? (
+                      <span style={chipNeutro}>Desde {it.desde.split("-").reverse().join("-")}</span>
+                    ) : it.completa ? (
+                      <span style={chipOk}>✓ Al día</span>
+                    ) : (
+                      <span style={chipPendiente}>{it.pendientes} pendiente{it.pendientes === 1 ? "" : "s"}</span>
+                    )}
+                  </div>
+                  <button className={`cdr-nav-btn ${it.completa || !it.empezo ? "" : "prim"}`} style={{ marginTop: 10, width: "100%" }} onClick={() => onEjecutar(g.formulario.id, a.reunionId)}>
+                    {it.completa ? "Responder otra vez" : "Ejecutar formulario"}
+                  </button>
                 </div>
-                {!it.empezo ? (
-                  <span style={chipNeutro}>Desde {it.desde.split("-").reverse().join("-")}</span>
-                ) : it.completa ? (
-                  <span style={chipOk}>✓ Al día</span>
-                ) : (
-                  <span style={chipPendiente}>{it.pendientes} pendiente{it.pendientes === 1 ? "" : "s"}</span>
-                )}
-              </div>
-              <button className={`cdr-nav-btn ${it.completa || !it.empezo ? "" : "prim"}`} style={{ marginTop: 10, width: "100%" }} onClick={() => onEjecutar(a.reunionId)}>
-                {it.completa ? "Responder otra vez" : "Ejecutar formulario"}
-              </button>
-            </div>
-          );
-        })
-      )}
-    </>
-  );
-}
-
-/* ─── Mi plan ──────────────────────────────────────────────────────────── */
-
-function MiPlan({ persona, asignaciones, evals }) {
-  const hoy = new Date();
-  const meses = [0, 1, 2].map((i) => {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-    return { anio: d.getFullYear(), mes: d.getMonth() };
-  });
-  const filas = meses.map(({ anio, mes }) => ({ anio, mes, fila: filaDeEvaluador(persona, asignaciones, evals, anio, mes, hoy) }));
-  const actual = filas[0].fila;
-  if (!actual.detalle.length) {
-    return <p style={{ ...gris, fontSize: 14, textAlign: "center", padding: "14px 0" }}>No tienes asignaciones en este formulario.</p>;
-  }
-  return (
-    <>
-      <div style={cajaTotal}>
-        <span style={{ fontSize: 13, ...gris }}>Mi cumplimiento de {MESES[filas[0].mes]}</span>
-        <div style={{ fontSize: 34, fontWeight: 800, color: tono(actual.porcentaje), lineHeight: 1.1 }}>
-          {actual.porcentaje === null ? "—" : `${actual.porcentaje}%`}
-        </div>
-        <span style={{ fontSize: 12, ...gris }}>
-          {actual.exigido > 0 ? `${actual.hechas} de ${actual.exigido} hechas · ` : ""}{ETIQUETA_ESTADO[actual.estado]}
-        </span>
-      </div>
-
-      {actual.detalle.map((d) => {
-        const pct = d.exigido > 0 ? Math.round((d.hechas / d.exigido) * 100) : null;
-        return (
-          <div key={d.asignacion.id} style={tarjetaDim}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: "0 0 5px", fontWeight: 700, fontSize: 14 }}>{d.asignacion.reunionNombre}</p>
-                <div style={{ background: "var(--borde)", borderRadius: 100, height: 7, overflow: "hidden" }}>
-                  <div style={{ width: `${pct ?? 0}%`, height: "100%", background: tono(pct), borderRadius: 100 }} />
-                </div>
-                <p style={{ ...gris, fontSize: 11, margin: "5px 0 0" }}>
-                  {etiquetaCadencia(d.cantidad, d.frecuencia)} · {d.exigido > 0 ? `${d.hechas} de ${d.exigido} este mes` : "nada exigido aún"}
-                </p>
-              </div>
-              <strong style={{ fontSize: 19, color: tono(pct), minWidth: 52, textAlign: "right" }}>{pct === null ? "—" : `${pct}%`}</strong>
-            </div>
+              );
+            })}
           </div>
-        );
-      })}
-
-      <p style={{ fontSize: 12, fontWeight: 700, margin: "14px 0 6px" }}>Meses anteriores</p>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {filas.slice(1).map(({ mes, fila }) => (
-          <span key={mes} style={{ ...chipNeutro, color: tono(fila.porcentaje), borderColor: tono(fila.porcentaje) }}>
-            {MESES[mes]}: {fila.porcentaje === null ? "—" : `${fila.porcentaje}%`}
-          </span>
-        ))}
-      </div>
-      <p style={{ ...gris, fontSize: 11, margin: "8px 0 0" }}>El periodo en curso no cuenta en contra hasta que termina.</p>
+        ))
+      )}
     </>
   );
 }
@@ -386,18 +459,19 @@ function PieApp({ usuario, onIrALaApp }) {
 
 function Envoltorio({ titulo, descripcion, children }) {
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 16 }}>
-      <div className="ca-card" style={{ width: "100%", maxWidth: 420, marginTop: 24 }}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-          <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 42 }} />
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 16px" }}>
+      <div style={{ width: "100%", maxWidth: 420 }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
+          <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 40 }} />
         </div>
-        {titulo && <p style={{ textAlign: "center", fontWeight: 800, fontSize: 18, margin: "0 0 4px" }}>{titulo}</p>}
-        {descripcion && (
-          <p style={{ textAlign: "center", ...gris, fontSize: 13, margin: "0 0 16px" }}>
-            {descripcion.length > 180 ? descripcion.slice(0, 180) + "…" : descripcion}
-          </p>
+        {titulo && (
+          <div style={{ textAlign: "center", marginBottom: 18 }}>
+            <p style={{ fontWeight: 800, fontSize: 19, margin: 0 }}>{titulo}</p>
+            {descripcion && (
+              <p style={{ ...gris, fontSize: 13, margin: "6px 0 0" }}>{descripcion.length > 180 ? descripcion.slice(0, 180) + "…" : descripcion}</p>
+            )}
+          </div>
         )}
-        {!descripcion && <div style={{ height: 12 }} />}
         {children}
         <p style={{ textAlign: "center", fontSize: 10, color: "#b8c4c2", marginTop: 16 }}>Formularios · Henny</p>
       </div>
@@ -414,6 +488,8 @@ function tono(p) {
 }
 
 const gris = { color: "var(--texto-suave)" };
+const listaFlotante = { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", border: "1px solid var(--borde)", borderRadius: 10, boxShadow: "0 8px 20px rgba(20,50,45,0.14)", zIndex: 30, overflow: "hidden" };
+const filaSugerencia = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 12px", background: "none", border: "none", fontSize: 14, cursor: "pointer", fontFamily: "inherit" };
 const filaPersona = { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, width: "100%", textAlign: "left", background: "#fff", border: "1px solid var(--borde)", borderRadius: 10, padding: "9px 12px", marginBottom: 6, cursor: "pointer", fontFamily: "inherit" };
 const etiquetaParecido = { fontSize: 10, fontWeight: 700, color: "#8a5a00", background: "#fbe8c8", borderRadius: 100, padding: "1px 7px" };
 const chipOk = { fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100, background: "var(--verde-claro)", color: "var(--verde-oscuro)", whiteSpace: "nowrap" };

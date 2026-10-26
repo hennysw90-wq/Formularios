@@ -37,7 +37,7 @@ export default function MiAgenda({ usuario, onIniciar, onIrAMisCdR, compacto = f
   return (
     <div className="ca-card" style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-        <p style={{ margin: 0, fontWeight: 800, fontSize: compacto ? 15 : 16 }}>Mis asignaciones</p>
+        <p style={{ margin: 0, fontWeight: 800, fontSize: compacto ? 15 : 16 }}>Mis formularios asignados</p>
         <span className={`ca-pill ${pendientes ? "ca-pill-ambar" : "ca-pill-verde"}`}>
           {pendientes ? `${pendientes} pendiente${pendientes === 1 ? "" : "s"}` : "✓ Todo al día"}
         </span>

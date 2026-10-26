@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import MiAgenda from "./MiAgenda.jsx";
-import { listarAsignaciones, proyectarFormulario, asignacionesDeFormulario } from "./asignaciones.js";
+import CumplimientoPlan from "./CumplimientoPlan.jsx";
+import { listarAsignaciones, proyectarFormulario, asignacionesDeFormulario, asignacionesDe } from "./asignaciones.js";
 import AvancePlan from "./AvancePlan.jsx";
 import logoOems from "./assets/logo-oems.png";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
@@ -294,6 +295,11 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
       {error && <p style={{ color: "var(--rojo)", fontSize: 14 }}>{error}</p>}
 
       <MiAgenda usuario={usuario} compacto onIniciar={(f, reunionId) => setEjecutando(nuevaEvaluacion(f, usuario, reunionId))} />
+      {asignacionesDe(asignaciones, usuario).length > 0 && (
+        <div className="ca-card" style={{ marginBottom: 14 }}>
+          <CumplimientoPlan persona={{ uid: usuario.uid, nombreUsuario: usuario.nombreUsuario, nombre: usuario.nombreUsuario }} asignaciones={asignaciones} evals={evals || []} />
+        </div>
+      )}
 
       {formularioDirecto && (
         <AccesoDirecto

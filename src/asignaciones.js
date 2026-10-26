@@ -205,6 +205,14 @@ export async function eliminarAsignacion(id) {
 }
 
 // ─── Personas y asignaciones ────────────────────────────────────────────────
+/**
+ * Desde cuándo se controla a una persona en una asignación: su fecha "desde" o, si la dejaron vacía, el día en
+ * que se creó la asignación. Así los meses en que todavía no tenía nada asignado no le cuentan como no cumplidos.
+ */
+export function desdeEfectivo(asignacion, persona) {
+  return persona?.desde || String(asignacion?.creado || "").slice(0, 10);
+}
+
 const comoPersona = (u) => ({ uid: u?.uid || "", personaId: u?.personaId || "", nombre: u?.nombre || u?.nombreUsuario || "" });
 
 /** ¿La persona `p` de una asignación es este usuario? (por uid o por nombre, sin tildes ni mayúsculas) */
@@ -289,7 +297,7 @@ export function agendaDePersona(asignaciones, usuario, evals, ahora = new Date()
       const p = a.personas.find((x) => esLaPersona(x, usuario));
       const cantidad = Math.max(1, Number(p.cantidad) || 1);
       const frecuencia = p.frecuencia || "semanal";
-      const desde = p.desde || "";
+      const desde = desdeEfectivo(a, p);
       const empezo = !desde || (fechaLocal(desde) || ahora) <= ahora;
       const hechas = hechasEnAsignacion(a, p, evals, frecuencia);
       const periodo = periodoVigente(frecuencia, ahora);
@@ -316,14 +324,14 @@ export function filaDeEvaluador(persona, asignaciones, evals, anio, mes, ahora =
     const cantidad = Math.max(1, Number(p.cantidad) || 1);
     const frecuencia = p.frecuencia || "semanal";
     const hechas = hechasEnAsignacion(a, p, evals, frecuencia);
-    const c = celdaDelMes(frecuencia, cantidad, p.desde || "", hechas, anio, mes, ahora);
+    const c = celdaDelMes(frecuencia, cantidad, desdeEfectivo(a, p), hechas, anio, mes, ahora);
     const periodo = periodoVigente(frecuencia, ahora);
     const enCurso = frecuencia === "unica" ? hechas.length : hechas.filter((h) => h.periodo === periodo).length;
     return {
       asignacion: a,
       cantidad,
       frecuencia,
-      desde: p.desde || "",
+      desde: desdeEfectivo(a, p),
       ...c,
       estado: estadoDelPlan({ ...c, anio, mes, ahora }),
       pendienteAhora: Math.max(0, cantidad - enCurso),
