@@ -15,6 +15,39 @@ import {
 } from "./calculo.js";
 
 const clonar = (x) => JSON.parse(JSON.stringify(x));
+
+const claveNombre = (t) =>
+  String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * Un formulario exportado desde otro ambiente (p. ej. Excelencia → Henny) trae en cada rutina el id de la
+ * reunión en la Asistencia de ESE ambiente, que acá no existe. Se re-enlazan por nombre con las reuniones de
+ * esta Asistencia, conservando los líderes. Las que no tienen par quedan tal cual y aparecen como
+ * "ya no existen en Asistencia" para revisarlas a mano.
+ */
+export function reenlazarRutinas(obj, disponibles) {
+  const rutinas = Array.isArray(obj.rutinas) ? obj.rutinas : [];
+  const porId = new Map(disponibles.map((s) => [s.id, s]));
+  const porNombre = new Map(disponibles.map((s) => [claveNombre(s.nombre), s]));
+  const usadas = new Set();
+  let enlazadas = 0;
+  const sinPar = [];
+  obj.rutinas = rutinas.map((r) => {
+    if (porId.has(r.sesionId)) {
+      usadas.add(r.sesionId); // mismo ambiente: ya apunta bien
+      return r;
+    }
+    const s = porNombre.get(claveNombre(r.nombre));
+    if (s && !usadas.has(s.id)) {
+      usadas.add(s.id);
+      enlazadas += 1;
+      return { ...r, sesionId: s.id, nombre: s.nombre, area: s.area || r.area || "", horaInicio: s.horaInicio || r.horaInicio || "", horaFin: s.horaFin || r.horaFin || "" };
+    }
+    sinPar.push(r.nombre);
+    return r;
+  });
+  return { enlazadas, sinPar };
+}
 const fmt = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
 
 /* ------------------------------------------------------------------ */
@@ -83,7 +116,20 @@ export default function Formularios({ usuario }) {
       try {
         const obj = JSON.parse(lector.result);
         if (!obj || !Array.isArray(obj.bloques) || !Array.isArray(obj.seccionA) || !obj.seccionB) throw new Error("estructura");
+        if (rutinasAsistencia === null) {
+          window.alert("Todavía se están cargando las reuniones de Asistencia. Espera un momento y vuelve a importar.");
+          return;
+        }
+        const { sinPar } = reenlazarRutinas(obj, rutinasAsistencia);
         crearDesde(obj, "(importado)");
+        const total = (obj.rutinas || []).length;
+        if (total > 0) {
+          window.alert(
+            `Formulario importado. Reuniones enlazadas con la Asistencia de este ambiente: ${total - sinPar.length} de ${total}.` +
+              (sinPar.length ? `\n\nNo se encontraron (revísalas en "Diálogos o rutinas"): ${sinPar.join(", ")}.` : "") +
+              "\n\nLos evaluadores no viajan en el archivo: asígnalos en la pestaña Evaluadores antes de publicar."
+          );
+        }
       } catch {
         window.alert("Ese archivo no es un formulario de CdR válido. Usa un archivo exportado desde esta misma pantalla.");
       }
