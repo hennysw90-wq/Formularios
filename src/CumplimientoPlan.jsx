@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { fechaCdR } from "./estadisticas.js";
 import { celdaDelMes, hechasEnAsignacion, asignacionesDe, esLaPersona, etiquetaCadencia, desdeEfectivo } from "./asignaciones.js";
 
+const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES_CORTOS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
 
 // Semáforo: 95–100 verde · 80–95 ámbar · bajo 80 rojo.
@@ -27,14 +28,14 @@ function badge(p) {
  * cadencia), una columna por mes con ejecutadas / exigidas, totales por fila y por mes.
  * El periodo en curso no castiga antes de tiempo (se usa la misma celdaDelMes que el resto de la app).
  */
-export default function CumplimientoPlan({ persona, asignaciones, evals, titulo = "Mi cumplimiento", compacto = false, nombreArchivo = "", conHistorial = false }) {
-  const [rango, setRango] = useState(compacto ? "3m" : "6m"); // 3m | 6m | anio
+export default function CumplimientoPlan({ persona, asignaciones, evals, titulo = "Mi cumplimiento", compacto = false, nombreArchivo = "", conHistorial = false, onVer = null }) {
+  const [rango, setRango] = useState(compacto ? "1m" : "6m"); // 1m | 3m | 6m | anio
   const ahora = new Date();
 
   const columnas = useMemo(() => {
     const hoy = new Date();
     if (rango === "anio") return Array.from({ length: hoy.getMonth() + 1 }, (_, i) => ({ anio: hoy.getFullYear(), mes: i }));
-    const n = rango === "3m" ? 3 : 6;
+    const n = rango === "1m" ? 1 : rango === "3m" ? 3 : 6;
     return Array.from({ length: n }, (_, i) => {
       const d = new Date(hoy.getFullYear(), hoy.getMonth() - (n - 1 - i), 1);
       return { anio: d.getFullYear(), mes: d.getMonth() };
@@ -116,7 +117,17 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: "var(--texto-suave)" }}>Cumplimiento general</div>
           <div style={{ fontSize: 40, fontWeight: 800, lineHeight: 1.1, color: color(granPorcentaje) }}>{granPorcentaje === null ? "—" : `${granPorcentaje}%`}</div>
           <div style={{ fontSize: 13, color: "var(--texto-suave)" }}>
-            {granExigido > 0 ? `${granHecho} de ${granExigido} exigidos` : "Sin exigencia en este periodo"} · {rango === "3m" ? "últimos 3 meses" : rango === "6m" ? "últimos 6 meses" : `año ${ahora.getFullYear()}`}
+            {rango === "1m" ? `${MESES_LARGOS[ahora.getMonth()]} ${ahora.getFullYear()}` : rango === "3m" ? "últimos 3 meses" : rango === "6m" ? "últimos 6 meses" : `año ${ahora.getFullYear()}`}
+          </div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 10 }}>
+            <div style={cajita}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "var(--verde-oscuro)" }}>{granHecho}</div>
+              <div style={{ fontSize: 11.5, color: "var(--texto-suave)", fontWeight: 600 }}>Realizados</div>
+            </div>
+            <div style={cajita}>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>{granExigido}</div>
+              <div style={{ fontSize: 11.5, color: "var(--texto-suave)", fontWeight: 600 }}>Plan</div>
+            </div>
           </div>
         </div>
       )}
@@ -126,7 +137,7 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {(compacto ? [["3m", "3 meses"], ["6m", "6 meses"], ["anio", `Año ${ahora.getFullYear()}`]] : [["6m", "Últimos 6 meses"], ["anio", `Año ${ahora.getFullYear()}`]]).map(([v, t]) => (
+          {(compacto ? [["1m", "Mes actual"], ["3m", "3 meses"], ["6m", "6 meses"], ["anio", `Año ${ahora.getFullYear()}`]] : [["6m", "Últimos 6 meses"], ["anio", `Año ${ahora.getFullYear()}`]]).map(([v, t]) => (
             <button key={v} type="button" onClick={() => setRango(v)} style={chip(rango === v)}>{t}</button>
           ))}
         </div>
@@ -208,12 +219,17 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
       </p>
       {conHistorial && (
         <div style={{ marginTop: 16 }}>
-          <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 15 }}>Historial de formularios realizados ({historial.length})</p>
+          <p style={{ margin: "0 0 2px", fontWeight: 800, fontSize: 15 }}>Historial de formularios realizados ({historial.length})</p>
+          <p style={{ margin: "0 0 8px", fontSize: 12.5, color: "var(--texto-suave)" }}>
+            {granHecho} {granHecho === 1 ? "realizado" : "realizados"} de {granExigido} del plan{onVer && historial.length > 0 ? " · toca uno para revisarlo" : ""}
+          </p>
           {historial.length === 0 ? (
             <p style={{ color: "var(--texto-suave)", fontSize: 13, margin: 0 }}>No enviaste formularios en este periodo.</p>
           ) : (
             historial.map(({ e, fecha }) => (
-              <div key={e.id} style={{ border: "1px solid var(--borde)", borderRadius: 10, padding: "9px 12px", marginBottom: 6, background: "#fff" }}>
+              <div key={e.id} role={onVer ? "button" : undefined} tabIndex={onVer ? 0 : undefined} onClick={onVer ? () => onVer(e) : undefined}
+                onKeyDown={onVer ? (k) => (k.key === "Enter" || k.key === " ") && onVer(e) : undefined}
+                style={{ border: "1px solid var(--borde)", borderRadius: 10, padding: "9px 12px", marginBottom: 6, background: "#fff", cursor: onVer ? "pointer" : "default" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <strong style={{ fontSize: 13.5 }}>{e.formulario?.nombre || "Formulario"}</strong>
                   <span style={{ fontSize: 12, color: "var(--texto-suave)", whiteSpace: "nowrap" }}>{fecha.split("-").reverse().join("-")}</span>
@@ -221,6 +237,7 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
                 <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 2 }}>
                   {e.rutinaNombre || "Sin reunión"}{e.lider ? ` · Líder: ${e.lider}` : ""}
                 </div>
+                {onVer && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--verde-oscuro)", marginTop: 4 }}>Revisar ›</div>}
               </div>
             ))
           )}
@@ -234,6 +251,7 @@ function normTexto(t) {
   return String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+const cajita = { flex: 1, maxWidth: 130, background: "#fff", border: "1px solid var(--borde)", borderRadius: 10, padding: "8px 6px" };
 const th = { padding: "9px 8px", color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: 0.3, textAlign: "center", whiteSpace: "nowrap" };
 const td = { padding: "8px 8px", verticalAlign: "middle" };
 function chip(sel) {

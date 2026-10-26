@@ -39,6 +39,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
   const [pestana, setPestana] = useState("pendientes");
   const [ejecutando, setEjecutando] = useState(null);
   const [borrador, setBorrador] = useState(null);
+  const [porVer, setPorVer] = useState(null); // formulario del historial que se abrirá tras ingresar la clave
 
   useEffect(() => {
     let vivo = true;
@@ -121,13 +122,14 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
     setPersona(null);
     setDesbloqueado(false);
     setPestana("pendientes");
+    setPorVer(null);
   }
 
   if (ejecutando) {
     return (
       <div className="ca-pagina">
         <div className="ca-contenido cdr-ejecutar">
-          <Ejecutar evaluacionInicial={ejecutando} onCerrar={() => { setEjecutando(null); setPestana(ejecutando.estado === "enviada" ? pestana : "pendientes"); }} textoVolver="← Volver a mis pendientes" />
+          <Ejecutar evaluacionInicial={ejecutando} onCerrar={() => { setEjecutando(null); setPestana(ejecutando.estado === "enviada" ? pestana : "pendientes"); }} textoVolver={pestana === "plan" ? "← Volver al cumplimiento" : "← Volver a mis pendientes"} />
         </div>
       </div>
     );
@@ -176,7 +178,16 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
       {pestana === "pendientes" && (
         <Pendientes grupos={grupos} rutinaId={rutinaId} borrador={borrador} onEjecutar={ejecutar} onContinuar={() => setEjecutando(borrador)} onBorrar={descartarBorrador} />
       )}
-      {pestana === "plan" && <CumplimientoPlan persona={quien} asignaciones={asignaciones} evals={evals} titulo="" compacto conHistorial />}
+      {pestana === "plan" &&
+        (porVer ? (
+          <>
+            <button type="button" className="ca-btn-texto" style={{ width: "auto", fontSize: 13, marginBottom: 8 }} onClick={() => setPorVer(null)}>← Volver al cumplimiento</button>
+            <PedirClave persona={persona} onOk={() => { setDesbloqueado(true); setEjecutando(porVer); setPorVer(null); }} />
+          </>
+        ) : (
+          <CumplimientoPlan persona={quien} asignaciones={asignaciones} evals={evals} titulo="" compacto conHistorial
+            onVer={(e) => (desbloqueado ? setEjecutando(e) : setPorVer(e))} />
+        ))}
       {pestana === "resultados" &&
         (desbloqueado ? (
           <Resultados persona={persona} formularioId={form.id} evals={evals} onVer={setEjecutando} />
