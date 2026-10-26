@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
-import { obtenerFormulario, obtenerEvaluacion, listarEvaluacionesDesde, listarFormulariosPublicados } from "./evaluaciones.js";
+import { obtenerFormulario, obtenerEvaluacion, listarEvaluacionesDesde, listarFormulariosPublicados, guardarEvaluacion } from "./evaluaciones.js";
 import CumplimientoPlan from "./CumplimientoPlan.jsx";
 import { listarUsuarios, verificarClave } from "./auth.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
@@ -23,7 +23,7 @@ const desde = () => new Date(Date.now() - 370 * 86400000).toISOString().slice(0,
 
 /**
  * Lo que se abre al escanear el QR de un formulario, igual que en la app Formularios:
- *   Nombre y apellido → Pendientes (mis formularios asignados) · Mi cumplimiento · Resultados → responder.
+ *   Nombre y apellido → Pendientes (mis formularios asignados) · Cumplimiento Plan · Resultados → responder.
  * Para ver el plan y responder basta con elegir tu nombre; los resultados piden tu clave.
  * Si ya hay sesión iniciada en el dispositivo, entra directo como esa persona.
  */
@@ -107,6 +107,16 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
     try { window.localStorage.setItem(claveBorrador, ev.id); } catch { /* sin almacenamiento local */ }
     setEjecutando(ev);
   }
+  async function descartarBorrador() {
+    if (!borrador || !window.confirm("¿Borrar este formulario incompleto? Se perderá lo que llevabas respondido.")) return;
+    try {
+      await guardarEvaluacion({ ...borrador, estado: "descartada", actualizado: new Date().toISOString() });
+      try { window.localStorage.removeItem(claveBorrador); } catch { /* sin almacenamiento local */ }
+      setBorrador(null);
+    } catch (e) {
+      window.alert(`No se pudo borrar (${e.code || e.message}).`);
+    }
+  }
   function cambiarPersona() {
     setPersona(null);
     setDesbloqueado(false);
@@ -157,16 +167,16 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
       <Encabezado persona={persona} onCambiar={usuario ? null : cambiarPersona} />
       <div style={pestanas}>
         <button type="button" onClick={() => setPestana("pendientes")} style={pestanaEstilo(pestana === "pendientes")}>Pendientes</button>
-        <button type="button" onClick={() => setPestana("plan")} style={pestanaEstilo(pestana === "plan")}>Mi cumplimiento</button>
+        <button type="button" onClick={() => setPestana("plan")} style={pestanaEstilo(pestana === "plan")}>Cumplimiento Plan</button>
         <button type="button" onClick={() => setPestana("resultados")} style={pestanaEstilo(pestana === "resultados")}>
           {desbloqueado ? "Resultados" : "🔒 Resultados"}
         </button>
       </div>
 
       {pestana === "pendientes" && (
-        <Pendientes grupos={grupos} rutinaId={rutinaId} borrador={borrador} onEjecutar={ejecutar} onContinuar={() => setEjecutando(borrador)} />
+        <Pendientes grupos={grupos} rutinaId={rutinaId} borrador={borrador} onEjecutar={ejecutar} onContinuar={() => setEjecutando(borrador)} onBorrar={descartarBorrador} />
       )}
-      {pestana === "plan" && <CumplimientoPlan persona={quien} asignaciones={asignaciones} evals={evals} titulo="" compacto />}
+      {pestana === "plan" && <CumplimientoPlan persona={quien} asignaciones={asignaciones} evals={evals} titulo="" compacto conHistorial />}
       {pestana === "resultados" &&
         (desbloqueado ? (
           <Resultados persona={persona} formularioId={form.id} evals={evals} onVer={setEjecutando} />
@@ -324,14 +334,17 @@ function Encabezado({ persona, onCambiar }) {
 
 /* ─── Pendientes ───────────────────────────────────────────────────────── */
 
-function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar }) {
+function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBorrar }) {
   return (
     <>
       {borrador && (
         <div style={{ ...tarjeta(false), borderColor: "var(--ambar)" }}>
-          <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 14 }}>Tienes una a medias</p>
+          <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 14 }}>Tienes uno incompleto</p>
           <p style={{ ...gris, fontSize: 12, margin: 0 }}>{borrador.rutinaNombre || "Sin reunión"}</p>
-          <button className="cdr-nav-btn prim" style={{ marginTop: 10, width: "100%" }} onClick={onContinuar}>Continuar</button>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button className="cdr-nav-btn prim" style={{ flex: 1 }} onClick={onContinuar}>Continuar</button>
+            <button className="cdr-nav-btn" style={{ color: "var(--rojo, #b02a26)" }} onClick={onBorrar}>Borrar</button>
+          </div>
         </div>
       )}
       <p style={{ fontWeight: 800, fontSize: 15, margin: "0 0 10px" }}>Mis formularios asignados</p>

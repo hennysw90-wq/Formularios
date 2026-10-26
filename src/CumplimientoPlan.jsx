@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { fechaCdR } from "./estadisticas.js";
 import { celdaDelMes, hechasEnAsignacion, asignacionesDe, esLaPersona, etiquetaCadencia, desdeEfectivo } from "./asignaciones.js";
 
 const MESES_CORTOS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
@@ -26,7 +27,7 @@ function badge(p) {
  * cadencia), una columna por mes con ejecutadas / exigidas, totales por fila y por mes.
  * El periodo en curso no castiga antes de tiempo (se usa la misma celdaDelMes que el resto de la app).
  */
-export default function CumplimientoPlan({ persona, asignaciones, evals, titulo = "Mi cumplimiento", compacto = false, nombreArchivo = "" }) {
+export default function CumplimientoPlan({ persona, asignaciones, evals, titulo = "Mi cumplimiento", compacto = false, nombreArchivo = "", conHistorial = false }) {
   const [rango, setRango] = useState(compacto ? "3m" : "6m"); // 3m | 6m | anio
   const ahora = new Date();
 
@@ -65,6 +66,19 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
   const granHecho = filas.reduce((s, f) => s + f.totalHecho, 0);
   const granPorcentaje = granExigido > 0 ? Math.round((granHecho / granExigido) * 100) : null;
 
+  // Historial: los formularios que esta persona envió dentro del rango elegido (más reciente primero).
+  const historial = useMemo(() => {
+    if (!conHistorial) return [];
+    const inicio = `${columnas[0].anio}-${String(columnas[0].mes + 1).padStart(2, "0")}-01`;
+    const yo = normTexto(persona.nombreUsuario || persona.nombre);
+    return (evals || [])
+      .filter((e) => e.estado === "enviada" && !e.anulada)
+      .filter((e) => (persona.uid && (e.evaluadorUid === persona.uid || e.registradoPorUid === persona.uid)) || (yo && normTexto(e.evaluadorNombre) === yo))
+      .map((e) => ({ e, fecha: fechaCdR(e) || "" }))
+      .filter((x) => x.fecha >= inicio)
+      .sort((a, b) => b.fecha.localeCompare(a.fecha));
+  }, [conHistorial, evals, persona, columnas]);
+
   function exportarCSV() {
     const cab = ["% Periodo", "Formulario", "Reunión", "Cadencia", ...columnas.map((c) => `${MESES_CORTOS[c.mes]}-${c.anio}`), "Total"];
     const lineas = [cab, ...filas.map((f) => [
@@ -97,6 +111,15 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
   return (
     <div>
       {titulo && <p style={{ margin: "0 0 4px", fontWeight: 800, fontSize: compacto ? 15 : 17 }}>{titulo}</p>}
+      {compacto && (
+        <div style={{ textAlign: "center", background: "var(--fondo)", border: "1px solid var(--borde)", borderRadius: 12, padding: "14px 12px", marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: "var(--texto-suave)" }}>Cumplimiento general</div>
+          <div style={{ fontSize: 40, fontWeight: 800, lineHeight: 1.1, color: color(granPorcentaje) }}>{granPorcentaje === null ? "—" : `${granPorcentaje}%`}</div>
+          <div style={{ fontSize: 13, color: "var(--texto-suave)" }}>
+            {granExigido > 0 ? `${granHecho} de ${granExigido} exigidos` : "Sin exigencia en este periodo"} · {rango === "3m" ? "últimos 3 meses" : rango === "6m" ? "últimos 6 meses" : `año ${ahora.getFullYear()}`}
+          </div>
+        </div>
+      )}
       <p style={{ color: "var(--texto-suave)", fontSize: 12.5, margin: "0 0 10px" }}>
         Cada celda muestra cuántas ejecutaste sobre cuántas se te exigían ese mes, según la cadencia de cada asignación.
       </p>
@@ -108,7 +131,7 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
           ))}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          {granPorcentaje !== null && (
+          {!compacto && granPorcentaje !== null && (
             <span style={{ fontSize: 14 }}>
               Cumplimiento <strong style={{ fontSize: 20, color: color(granPorcentaje) }}>{granPorcentaje}%</strong>
               <span style={{ color: "var(--texto-suave)", fontSize: 13 }}> · {granHecho} de {granExigido}</span>
@@ -183,8 +206,32 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
         Cada celda es ejecutadas / exigidas en ese mes. El punto gris indica que ese mes no tenía exigencia. Los periodos que
         aún no empiezan no se cuentan, así el mes en curso no aparece castigado antes de tiempo.
       </p>
+      {conHistorial && (
+        <div style={{ marginTop: 16 }}>
+          <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 15 }}>Historial de formularios realizados ({historial.length})</p>
+          {historial.length === 0 ? (
+            <p style={{ color: "var(--texto-suave)", fontSize: 13, margin: 0 }}>No enviaste formularios en este periodo.</p>
+          ) : (
+            historial.map(({ e, fecha }) => (
+              <div key={e.id} style={{ border: "1px solid var(--borde)", borderRadius: 10, padding: "9px 12px", marginBottom: 6, background: "#fff" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <strong style={{ fontSize: 13.5 }}>{e.formulario?.nombre || "Formulario"}</strong>
+                  <span style={{ fontSize: 12, color: "var(--texto-suave)", whiteSpace: "nowrap" }}>{fecha.split("-").reverse().join("-")}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 2 }}>
+                  {e.rutinaNombre || "Sin reunión"}{e.lider ? ` · Líder: ${e.lider}` : ""}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+function normTexto(t) {
+  return String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 const th = { padding: "9px 8px", color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: 0.3, textAlign: "center", whiteSpace: "nowrap" };
