@@ -8,7 +8,7 @@ import Administracion from "./Administracion.jsx";
 import Formularios from "./Formularios.jsx";
 import MisCdR, { AccesoQR } from "./MisCdR.jsx";
 import Estadisticas from "./Estadisticas.jsx";
-import ResumenPlan from "./ResumenPlan.jsx";
+import MiAgenda from "./MiAgenda.jsx";
 import { formularioDesdeUrl, rutinaDesdeUrl } from "./enlaces.js";
 
 export default function App() {
@@ -92,11 +92,11 @@ function Inicio({ usuario, esMaster, onIr }) {
         <p style={{ margin: 0, fontWeight: 800, fontSize: 18 }}>Hola, {usuario.nombreUsuario}</p>
         <p style={{ margin: "6px 0 0", color: "var(--texto-suave)", fontSize: 14 }}>
           {esMaster
-            ? "Eres Master: administras quién accede a la CdR, creas los formularios y los asignas a evaluadores."
-            : "Aquí vas a ejecutar las CdR que Excelencia te asigne y dar feedback a los líderes."}
+            ? "Eres Master: administras quién accede a la CdR, creas los formularios y los asignas en Estadísticas → Plan de evaluadores."
+            : "Aquí ves las CdR que tienes asignadas, cuántas te faltan en el periodo, y das feedback a los líderes."}
         </p>
       </div>
-      <ResumenPlan usuario={usuario} onHacerCdR={() => onIr("mis")} />
+      <MiAgenda usuario={usuario} onIrAMisCdR={() => onIr("mis")} />
       {esMaster && <Diagnostico />}
     </div>
   );

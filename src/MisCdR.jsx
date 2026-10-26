@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
-import ResumenPlan from "./ResumenPlan.jsx";
+import MiAgenda from "./MiAgenda.jsx";
+import { listarAsignaciones, proyectarFormulario, asignacionesDeFormulario } from "./asignaciones.js";
 import AvancePlan from "./AvancePlan.jsx";
 import logoOems from "./assets/logo-oems.png";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
@@ -229,6 +230,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
   const [evals, setEvals] = useState(null);
   const [error, setError] = useState("");
   const [ejecutando, setEjecutando] = useState(null);
+  const [asignaciones, setAsignaciones] = useState([]);
   const esMaster = usuario.rol === "master";
 
   useEffect(() => {
@@ -240,9 +242,11 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
       );
     const c1 = listarFormulariosPublicados(setFormularios, aviso);
     const c2 = listarMisEvaluaciones(usuario.uid, setEvals, aviso);
+    const c3 = listarAsignaciones(setAsignaciones, () => {});
     return () => {
       c1();
       c2();
+      c3();
     };
   }, [usuario.uid]);
 
@@ -259,7 +263,11 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
     return <Ejecutar evaluacionInicial={ejecutando} onCerrar={() => setEjecutando(null)} />;
   }
 
-  const disponibles = (formularios || []).filter((f) => esMaster || (f.asignadosUids || []).includes(usuario.uid));
+  // Las reuniones y los evaluadores de cada formulario salen de las asignaciones. Un evaluador solo ve los
+  // formularios donde tiene asignaciones, y en cada uno solo sus reuniones; el Master puede probar cualquiera.
+  const disponibles = (formularios || [])
+    .map((f) => proyectarFormulario(f, asignaciones, esMaster ? null : usuario))
+    .filter((f) => esMaster || f.rutinas.length > 0);
   // Un borrador lo ve quien lo registró; una CdR enviada la ven quien la registró y el evaluador elegido.
   const registroMio = (e) => (e.registradoPorUid || e.evaluadorUid) === usuario.uid;
   const enCurso = (evals || []).filter((e) => e.estado === "borrador" && registroMio(e)).sort((a, b) => (b.actualizado || "").localeCompare(a.actualizado || ""));
@@ -275,7 +283,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
     <div className="cdr-ejecutar" style={{ maxWidth: 900 }}>
       {error && <p style={{ color: "var(--rojo)", fontSize: 14 }}>{error}</p>}
 
-      <ResumenPlan usuario={usuario} compacto />
+      <MiAgenda usuario={usuario} compacto onIniciar={(f, reunionId) => setEjecutando(nuevaEvaluacion(f, usuario, reunionId))} />
 
       {formularioDirecto && (
         <AccesoDirecto
@@ -297,7 +305,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
           <b>No tienes formularios disponibles</b>
           {esMaster
             ? "Publica un formulario en la pestaña Formularios para poder ejecutarlo (como Master puedes probar cualquiera publicado)."
-            : "Excelencia Operacional debe publicar un formulario y asignártelo."}
+            : "Todavía no tienes asignaciones. Pídele a un administrador que te asigne en Plan de evaluadores."}
         </div>
       )}
       <div style={{ display: "grid", gap: 10 }}>
@@ -372,7 +380,7 @@ function BloqueReunionQR({ rutina, invalida }) {
       </div>
     );
   }
-  if (invalida) return <p className="cdr-aviso" style={{ margin: "0 0 12px" }}>La reunión de este QR ya no está en el formulario. Podrás elegirla en el primer paso; avisa a Excelencia Operacional para que lo actualice.</p>;
+  if (invalida) return <p className="cdr-aviso" style={{ margin: "0 0 12px" }}>La reunión de este QR ya no está en el formulario. Podrás elegirla en el primer paso; avisa a un administrador para que revise las asignaciones.</p>;
   return null;
 }
 
@@ -385,7 +393,7 @@ function AccesoDirecto({ formularios, form, rutina, rutinaInvalida, enCurso, onI
       <div className="ca-card" style={{ marginBottom: 18, borderLeft: "4px solid var(--rojo)" }}>
         <p style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 16 }}>Este formulario no está disponible para ti</p>
         <p style={{ ...ayuda, margin: "0 0 12px" }}>
-          Puede que todavía no esté publicado o que no estés asignado como evaluador. Pídele a Excelencia Operacional que te asigne.
+          Puede que todavía no esté publicado o que no estés asignado como evaluador. Pídele a un administrador que te asigne en Plan de evaluadores.
         </p>
         <button className="cdr-nav-btn" onClick={onCerrar}>Ver mis CdR</button>
       </div>
@@ -441,7 +449,8 @@ export function AccesoQR({ formularioId, rutinaId = "", onIniciarSesion }) {
     let vivo = true;
     (async () => {
       try {
-        const form = await obtenerFormulario(formularioId);
+        const crudo = await obtenerFormulario(formularioId);
+        const form = crudo ? proyectarFormulario(crudo, await asignacionesDeFormulario(formularioId)) : null;
         let borrador = null;
         const id = leerLocal();
         if (id && form) {
@@ -502,7 +511,7 @@ export function AccesoQR({ formularioId, rutinaId = "", onIniciarSesion }) {
     return marco(
       <div className="ca-card" style={{ borderLeft: "4px solid var(--rojo)" }}>
         <p style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 16 }}>Este formulario no está disponible</p>
-        <p style={{ ...ayuda, margin: 0 }}>Puede que todavía no esté publicado. Consulta con Excelencia Operacional.</p>
+        <p style={{ ...ayuda, margin: 0 }}>Puede que todavía no esté publicado. Consulta con un administrador.</p>
         {enlaceSesion}
       </div>
     );
@@ -712,7 +721,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
     return (
       <div className="cdr-ejecutar" style={{ maxWidth: 900 }}>
         <div style={{ marginBottom: 14 }}><button style={btn} onClick={onCerrar}>{textoVolver}</button></div>
-        {recienEnviada && <AvancePlan modo="enviada" evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />}
+        {recienEnviada && <AvancePlan modo="enviada" formularioId={ev.formularioId} rutinaSesionId={ev.rutinaSesionId} evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />}
         <ResumenEvaluacion ev={ev} />
       </div>
     );
@@ -734,7 +743,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
         <span style={{ fontSize: 12.5, color: estadoGuardado === "error" ? "var(--rojo)" : "var(--texto-suave)", fontWeight: 600 }}>{etiquetaGuardado}</span>
       </div>
 
-      <AvancePlan evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />
+      <AvancePlan formularioId={ev.formularioId} rutinaSesionId={ev.rutinaSesionId} evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />
 
       <div className="cdr-pasos">
         {PASOS.map((nombre, i) => (

@@ -37,6 +37,26 @@ Nada apunta a proyectos de Excelencia.
    reglas originales bloqueaban cualquier cambio a una enviada, incluida la
    anulación que la propia app ofrece).
 
+## Asignaciones (v0.2.0)
+
+Igual que en la app Formularios, **un formulario no está atado a reuniones**.
+Todo se configura en **Estadísticas → Plan de evaluadores → Asignaciones**:
+cada asignación es *formulario + reunión + líderes a evaluar + evaluadores*,
+y cada evaluador tiene su propia **cantidad**, **frecuencia** (al día, a la
+semana, a la quincena, al mes, una sola vez) y fecha **"controlar desde"**.
+
+- Las asignaciones viven en la colección `cdrAsignaciones` (`tipo: "asignacion"`).
+- Al evaluar, las reuniones y líderes que se ofrecen salen de las asignaciones
+  de esa persona (`proyectarFormulario` en `src/asignaciones.js`); el motor de
+  evaluación de la CdR no cambió.
+- Cada evaluador ve en Inicio y en Mis CdR **sus asignaciones**: cuántas lleva
+  en el periodo, cuántas le faltan y un botón para hacer la CdR con la reunión
+  ya puesta. Mientras evalúa y al enviar, ve el avance de esa asignación.
+- **Cumplimiento** por persona y mes, con estados *cumplido / al día /
+  atrasado / no cumplido*. El periodo en curso nunca cuenta en contra hasta que
+  termina.
+- Reemplaza al plan de "meta mensual" de la CdR original.
+
 ## Puesta en marcha
 
 Publicar las reglas de `firestore.rules` en la consola de Firebase del

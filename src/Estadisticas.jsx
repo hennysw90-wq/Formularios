@@ -4,6 +4,7 @@ import { listarFormularios } from "./formularios.js";
 import { listarUsuarios } from "./auth.js";
 import { Ejecutar } from "./MisCdR.jsx";
 import PlanEvaluadores from "./PlanEvaluadores.jsx";
+import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
 import { FILTROS_VACIOS, filtrar, ordenar, opciones, kpis, distribucion, tendencia, promedioPor, porBloque, porCriterio, compromisos, cobertura, rangoPreset, aCSV, hoyISO, fechaCdR } from "./estadisticas.js";
 
@@ -30,6 +31,7 @@ const ORDENES = [
 export default function Estadisticas({ usuario }) {
   const [evals, setEvals] = useState(null);
   const [formularios, setFormularios] = useState([]);
+  const [asignaciones, setAsignaciones] = useState([]);
   const [usuarios, setUsuarios] = useState(null); // directorio: quién tiene acceso hoy a la CdR
   const [errorUsuarios, setErrorUsuarios] = useState(false);
   const [error, setError] = useState("");
@@ -49,14 +51,18 @@ export default function Estadisticas({ usuario }) {
     );
     const c2 = listarFormularios(setFormularios, () => {});
     const c3 = listarUsuarios(setUsuarios, () => setErrorUsuarios(true));
+    const c4 = listarAsignaciones(setAsignaciones, () => {});
     return () => {
       c1();
       c2();
       c3();
+      c4();
     };
   }, []);
 
   const todas = useMemo(() => evals || [], [evals]);
+  // Las reuniones y los líderes de cada formulario salen de sus asignaciones (para la cobertura por reunión).
+  const formulariosConAsignaciones = useMemo(() => formularios.map((f) => proyectarFormulario(f, asignaciones)), [formularios, asignaciones]);
   // Las listas de filtros no ofrecen rutinas, líderes ni evaluadores que solo existen en CdR anuladas (a menos que se pidan).
   const opts = useMemo(() => opciones(todas.filter((e) => filtros.verAnuladas || !e.anulada)), [todas, filtros.verAnuladas]);
   const filtradas = useMemo(() => filtrar(todas, filtros), [todas, filtros]); // registros: incluye anuladas si se pide
@@ -116,7 +122,7 @@ export default function Estadisticas({ usuario }) {
               {vista === "registros" && (
                 <Registros lista={lista} orden={orden} onOrden={setOrden} limite={limite} onMas={() => setLimite((l) => l + 25)} onVer={setDetalleId} onDescargar={descargar} umbrales={umbrales} />
               )}
-              {vista === "analisis" && <Analisis lista={paraStats} todas={todas} formularios={formularios} umbrales={umbrales} />}
+              {vista === "analisis" && <Analisis lista={paraStats} todas={todas} formularios={formulariosConAsignaciones} umbrales={umbrales} />}
               {vista === "compromisos" && <Compromisos lista={paraStats} />}
             </>
           )}

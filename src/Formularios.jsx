@@ -4,6 +4,7 @@ import { listarFormularios, guardarFormulario, eliminarFormulario, nuevoId, cont
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { PLANTILLA_PAUTA_V3, formularioEnBlanco } from "./plantillas.js";
 import ModalQR from "./ModalQR.jsx";
+import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import {
   repartirIgual,
   repartirProporcional,
@@ -59,6 +60,7 @@ export default function Formularios({ usuario }) {
   const [error, setError] = useState("");
   const [usuarios, setUsuarios] = useState([]);
   const [rutinasAsistencia, setRutinasAsistencia] = useState(null);
+  const [asignaciones, setAsignaciones] = useState([]);
   const [errorRutinas, setErrorRutinas] = useState("");
   const [editando, setEditando] = useState(null); // { form, esNuevo }
   const [modalNuevo, setModalNuevo] = useState(false);
@@ -77,12 +79,16 @@ export default function Formularios({ usuario }) {
     const c3 = listarRutinasAsistencia(setRutinasAsistencia, (e) =>
       setErrorRutinas(`No se pudieron leer las reuniones de Control de Asistencia (${e.code || e.message}).`)
     );
+    const c4 = listarAsignaciones(setAsignaciones, () => {});
     return () => {
       c1();
       c2();
       c3();
+      c4();
     };
   }, []);
+
+  const cuantasAsignaciones = (id) => asignaciones.filter((a) => a.formularioId === id).length;
 
   function crearDesde(base, nombreExtra) {
     const ahora = new Date().toISOString();
@@ -126,8 +132,8 @@ export default function Formularios({ usuario }) {
         if (total > 0) {
           window.alert(
             `Formulario importado. Reuniones enlazadas con la Asistencia de este ambiente: ${total - sinPar.length} de ${total}.` +
-              (sinPar.length ? `\n\nNo se encontraron (revísalas en "Diálogos o rutinas"): ${sinPar.join(", ")}.` : "") +
-              "\n\nLos evaluadores no viajan en el archivo: asígnalos en la pestaña Evaluadores antes de publicar."
+              (sinPar.length ? `\n\nNo se encontraron en Asistencia: ${sinPar.join(", ")}.` : "") +
+              "\n\nLas reuniones y sus líderes quedan como sugerencia: al crear una asignación con este formulario y una de esas reuniones, los líderes se completan solos. Las asignaciones se crean en Estadísticas → Plan de evaluadores."
           );
         }
       } catch {
@@ -163,8 +169,7 @@ export default function Formularios({ usuario }) {
         inicial={editando.form}
         esNuevo={editando.esNuevo}
         usuarios={usuarios}
-        rutinasAsistencia={rutinasAsistencia}
-        errorRutinas={errorRutinas}
+        asignaciones={asignaciones}
         onCerrar={() => setEditando(null)}
       />
     );
@@ -197,7 +202,7 @@ export default function Formularios({ usuario }) {
               <th>Formulario</th>
               <th>Estado</th>
               <th>Criterios</th>
-              <th>Evaluadores</th>
+              <th>Asignaciones</th>
               <th>Actualizado</th>
               <th></th>
             </tr>
@@ -219,13 +224,13 @@ export default function Formularios({ usuario }) {
                   </span>
                 </td>
                 <td data-label="Criterios">{contarCriterios(f)}</td>
-                <td data-label="Evaluadores">{(f.asignadosUids || []).length}</td>
+                <td data-label="Asignaciones">{cuantasAsignaciones(f.id)}</td>
                 <td data-label="Actualizado">{f.actualizado ? new Date(f.actualizado).toLocaleDateString("es-CL") : "—"}</td>
                 <td>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                     <button style={btn} onClick={() => setEditando({ form: normalizarFormulario(f), esNuevo: false })}>Editar</button>
                     <button style={btn} onClick={() => crearDesde({ ...f, estado: undefined }, "(copia)")}>Duplicar</button>
-                    <button style={btn} onClick={() => setQrDe(f)}>QR</button>
+                    <button style={btn} onClick={() => setQrDe(proyectarFormulario(f, asignaciones))}>QR</button>
                     <button style={btn} onClick={() => exportar(f)}>Exportar</button>
                     <button style={btnPel} onClick={() => borrar(f)}>Eliminar</button>
                   </div>
@@ -308,7 +313,6 @@ const TABS = [
   ["c", "C · Rúbrica y pesos"],
   ["d", "D · Resultado"],
   ["e", "E · Feedback"],
-  ["evaluadores", "Evaluadores"],
   ["previa", "Vista previa"],
 ];
 
@@ -318,7 +322,7 @@ function mover(arr, i, d) {
   [arr[i], arr[j]] = [arr[j], arr[i]];
 }
 
-function Editor({ inicial, esNuevo, usuarios, rutinasAsistencia, errorRutinas, onCerrar }) {
+function Editor({ inicial, esNuevo, usuarios, asignaciones, onCerrar }) {
   const [form, setForm] = useState(() => {
     const f = normalizarFormulario(inicial);
     f.asignadosUids = f.asignadosUids || [];
@@ -360,11 +364,6 @@ function Editor({ inicial, esNuevo, usuarios, rutinasAsistencia, errorRutinas, o
     if (paraPublicar) {
       if (codigos.size === 0) errores.push("Para publicar, agrega al menos un criterio.");
       errores.push(...erroresDePesos(form));
-      if (form.seccionA.some((c) => c.tipo === "rutina")) {
-        if (form.rutinas.length === 0) errores.push("Marca al menos una rutina seleccionable en la pestaña A.");
-        const sinLider = form.rutinas.filter((r) => !(r.lideres || []).length).map((r) => r.nombre);
-        if (sinLider.length) errores.push(`Falta definir al menos un líder de: ${sinLider.join(", ")}.`);
-      }
     }
     return [...new Set(errores)];
   }
@@ -423,7 +422,7 @@ function Editor({ inicial, esNuevo, usuarios, rutinasAsistencia, errorRutinas, o
         </div>
       </div>
 
-      {verQr && <ModalQR form={form} onCerrar={() => setVerQr(false)} />}
+      {verQr && <ModalQR form={proyectarFormulario(form, asignaciones)} onCerrar={() => setVerQr(false)} />}
 
       {aviso.texto && (
         <p style={{ fontSize: 14, fontWeight: 600, color: aviso.tipo === "error" ? "var(--rojo)" : "#0f6e56", margin: "0 0 12px" }}>{aviso.texto}</p>
@@ -439,12 +438,11 @@ function Editor({ inicial, esNuevo, usuarios, rutinasAsistencia, errorRutinas, o
       </div>
 
       {tab === "general" && <TabGeneral form={form} cambiar={cambiar} />}
-      {tab === "a" && <TabA form={form} cambiar={cambiar} usuarios={usuarios} rutinasAsistencia={rutinasAsistencia} errorRutinas={errorRutinas} />}
+      {tab === "a" && <TabA form={form} cambiar={cambiar} />}
       {tab === "b" && <TabB form={form} cambiar={cambiar} />}
       {tab === "c" && <TabC form={form} cambiar={cambiar} />}
       {tab === "d" && <TabD form={form} />}
       {tab === "e" && <TabE form={form} cambiar={cambiar} />}
-      {tab === "evaluadores" && <TabEvaluadores form={form} cambiar={cambiar} usuarios={usuarios} />}
       {tab === "previa" && <VistaPrevia form={form} />}
     </div>
   );
@@ -511,12 +509,12 @@ const TIPOS_A = [
   ["seleccion", "Lista de opciones"],
 ];
 
-function TabA({ form, cambiar, usuarios, rutinasAsistencia, errorRutinas }) {
+function TabA({ form, cambiar }) {
   const n = form.seccionA.length;
   return (
     <div style={{ maxWidth: 980 }}>
       <p style={E.ayuda}>
-        Datos que el evaluador completa al empezar. El diálogo o rutina se elige de una lista, y el líder se completa solo según la rutina elegida.
+        Datos que el evaluador completa al empezar. La reunión y su líder no se fijan aquí: salen de la asignación con que se evalúa (Estadísticas → Plan de evaluadores).
       </p>
       {form.seccionA.map((c, i) => (
         <div key={c.id} style={E.fila}>
@@ -544,142 +542,6 @@ function TabA({ form, cambiar, usuarios, rutinasAsistencia, errorRutinas }) {
         + Agregar dato
       </button>
 
-      <RutinasSeleccionables form={form} cambiar={cambiar} usuarios={usuarios} rutinasAsistencia={rutinasAsistencia} errorRutinas={errorRutinas} />
-    </div>
-  );
-}
-
-function RutinasSeleccionables({ form, cambiar, usuarios, rutinasAsistencia, errorRutinas }) {
-  const [buscar, setBuscar] = useState("");
-  const tieneCampo = form.seccionA.some((c) => c.tipo === "rutina");
-  const lista = rutinasAsistencia || [];
-  const q = buscar.trim().toLowerCase();
-  const visibles = lista.filter((s) => !q || `${s.nombre} ${s.area || ""}`.toLowerCase().includes(q));
-  const idsAsistencia = new Set(lista.map((s) => s.id));
-  const huerfanas = form.rutinas.filter((r) => !idsAsistencia.has(r.sesionId));
-  const sinLider = form.rutinas.filter((r) => !(r.lideres || []).length).length;
-  const nombresPersonas = useMemo(
-    () => [...new Set(usuarios.filter((u) => u.rol !== "deshabilitado" && u.estado !== "pendiente").map((u) => u.nombreUsuario))].sort((a, b) => a.localeCompare(b, "es")),
-    [usuarios]
-  );
-  const seleccion = (id) => form.rutinas.find((r) => r.sesionId === id);
-
-  function alternar(s) {
-    cambiar((f) => {
-      const i = f.rutinas.findIndex((r) => r.sesionId === s.id);
-      if (i >= 0) f.rutinas.splice(i, 1);
-      else f.rutinas.push({ sesionId: s.id, nombre: s.nombre, area: s.area || "", horaInicio: s.horaInicio || "", horaFin: s.horaFin || "", lideres: [] });
-    });
-  }
-  function fijarLideres(id, lista) {
-    cambiar((f) => {
-      const r = f.rutinas.find((x) => x.sesionId === id);
-      if (r) r.lideres = lista;
-    });
-  }
-  function marcarVisibles() {
-    cambiar((f) => {
-      for (const s of visibles) {
-        if (!f.rutinas.some((r) => r.sesionId === s.id)) f.rutinas.push({ sesionId: s.id, nombre: s.nombre, area: s.area || "", horaInicio: s.horaInicio || "", horaFin: s.horaFin || "", lideres: [] });
-      }
-    });
-  }
-
-  return (
-    <div className="ca-card" style={{ marginTop: 22 }}>
-      <p style={{ fontWeight: 800, margin: "0 0 4px", fontSize: 15 }}>Diálogos o rutinas seleccionables en este formulario</p>
-      <p style={E.ayuda}>
-        La lista sale de las reuniones de Control de Asistencia. Marca las que se podrán elegir en este formulario y agrega el líder de cada una.
-        Si una reunión tiene varios líderes, agrégalos todos: al evaluar se elige quién lideró esa sesión (se guarda aquí, en la CdR; no modifica Asistencia).
-      </p>
-      {!tieneCampo && (
-        <p style={{ fontSize: 13, color: "var(--ambar)", fontWeight: 600 }}>
-          Este formulario no tiene un dato de tipo "Diálogo o rutina". Agrégalo arriba para que esta lista se use.
-        </p>
-      )}
-      {errorRutinas && <p style={{ color: "var(--rojo)", fontSize: 13 }}>{errorRutinas}</p>}
-      {rutinasAsistencia === null && !errorRutinas && <p style={E.ayuda}>Cargando reuniones de Asistencia…</p>}
-
-      <datalist id="lista-lideres">{nombresPersonas.map((n) => <option key={n} value={n} />)}</datalist>
-
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-        <input className="rp-input" style={{ maxWidth: 300 }} placeholder="Buscar reunión o área…" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
-        <button style={btn} onClick={marcarVisibles}>Marcar las visibles</button>
-        <span style={{ fontSize: 13, color: "var(--texto-suave)" }}>
-          <b>{form.rutinas.length}</b> seleccionada(s){sinLider > 0 && <span style={{ color: "var(--rojo)" }}> · {sinLider} sin líder</span>}
-        </span>
-      </div>
-
-      {huerfanas.length > 0 && (
-        <div style={{ fontSize: 13, color: "var(--rojo)", marginBottom: 10 }}>
-          <b>Ya no existen (o están inactivas) en Asistencia:</b> {huerfanas.map((r) => r.nombre).join(", ")}.{" "}
-          <button style={btn} onClick={() => cambiar((f) => (f.rutinas = f.rutinas.filter((r) => idsAsistencia.has(r.sesionId))))}>Quitarlas</button>
-        </div>
-      )}
-
-      <div style={{ maxHeight: 420, overflowY: "auto", border: "1px solid var(--borde)", borderRadius: 10 }}>
-        <table className="ca-tabla" style={{ border: "none", borderRadius: 0 }}>
-          <thead>
-            <tr><th style={{ width: 40 }}></th><th>Reunión</th><th>Área</th><th>Cuándo</th><th style={{ minWidth: 260 }}>Líder(es) del diálogo</th></tr>
-          </thead>
-          <tbody>
-            {visibles.map((s) => {
-              const sel = seleccion(s.id);
-              return (
-                <tr key={s.id} style={sel ? { background: "var(--verde-claro)" } : undefined}>
-                  <td><input type="checkbox" checked={!!sel} onChange={() => alternar(s)} /></td>
-                  <td><b>{s.nombre}</b></td>
-                  <td>{s.area || "—"}</td>
-                  <td style={{ fontSize: 12.5, color: "var(--texto-suave)" }}>{describirFrecuencia(s)}</td>
-                  <td>
-                    <EditorLideres lideres={sel ? sel.lideres || [] : []} disabled={!sel} onCambiar={(l) => fijarLideres(s.id, l)} />
-                  </td>
-                </tr>
-              );
-            })}
-            {rutinasAsistencia && visibles.length === 0 && (
-              <tr><td colSpan={5} style={{ color: "var(--texto-suave)" }}>{lista.length === 0 ? "No hay reuniones activas en Asistencia." : "Ninguna reunión coincide con la búsqueda."}</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function EditorLideres({ lideres, disabled, onCambiar }) {
-  const [texto, setTexto] = useState("");
-  function agregar() {
-    const n = texto.trim();
-    if (!n) return;
-    if (!lideres.some((l) => l.toLowerCase() === n.toLowerCase())) onCambiar([...lideres, n]);
-    setTexto("");
-  }
-  return (
-    <div>
-      {lideres.length > 0 && (
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 5 }}>
-          {lideres.map((l) => (
-            <span key={l} className="ca-chip" style={{ fontWeight: 600 }}>
-              {l}
-              <button style={{ background: "none", border: "none", cursor: "pointer", color: "var(--rojo)", padding: 0, fontSize: 12 }} title="Quitar" onClick={() => onCambiar(lideres.filter((x) => x !== l))}>✕</button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div style={{ display: "flex", gap: 4 }}>
-        <input
-          className="rp-input"
-          list="lista-lideres"
-          disabled={disabled}
-          value={texto}
-          placeholder={disabled ? "Marca la reunión primero" : lideres.length ? "Agregar otro líder" : "Nombre del líder"}
-          onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregar(); } }}
-          onBlur={agregar}
-        />
-        <button style={btnIco} disabled={disabled || !texto.trim()} onClick={agregar} title="Agregar líder">+</button>
-      </div>
     </div>
   );
 }
@@ -949,75 +811,6 @@ function TabE({ form, cambiar }) {
       <Campo etiqueta="Máximo de fortalezas y de oportunidades a registrar">
         <input className="rp-input" type="number" min="1" max="5" style={{ width: 100 }} value={fb.maxPorTipo} onChange={(e) => cambiar((f) => (f.feedback.maxPorTipo = Number(e.target.value)))} />
       </Campo>
-    </div>
-  );
-}
-
-/* ----- Evaluadores ----- */
-
-function TabEvaluadores({ form, cambiar, usuarios }) {
-  const [buscar, setBuscar] = useState("");
-  const elegibles = useMemo(
-    () => usuarios.filter((u) => u.estado !== "pendiente" && u.rol !== "deshabilitado" && (u.rol === "master" || (Array.isArray(u.apps) && u.apps.includes("cdr")))),
-    [usuarios]
-  );
-  const uidsElegibles = new Set(elegibles.map((u) => u.uid));
-  const sinAcceso = form.asignados.filter((a) => !uidsElegibles.has(a.uid));
-  const q = buscar.trim().toLowerCase();
-  const visibles = elegibles.filter((u) => !q || `${u.nombreUsuario} ${u.area || ""} ${u.cargo || ""}`.toLowerCase().includes(q));
-
-  function alternar(u) {
-    cambiar((f) => {
-      if (f.asignadosUids.includes(u.uid)) {
-        f.asignadosUids = f.asignadosUids.filter((x) => x !== u.uid);
-        f.asignados = f.asignados.filter((x) => x.uid !== u.uid);
-      } else {
-        f.asignadosUids.push(u.uid);
-        f.asignados.push({ uid: u.uid, nombre: u.nombreUsuario, correo: u.correo || "" });
-      }
-    });
-  }
-
-  return (
-    <div style={{ maxWidth: 760 }}>
-      <p style={E.ayuda}>
-        Quiénes pueden ejecutar este formulario. Solo aparecen personas que ya tienen acceso a la CdR (se activa en <b>Administración</b>). Un formulario en borrador no lo ve ningún evaluador. Esta lista también alimenta el dato "Evaluador": se sugiere primero quien inició sesión, luego los asignados y después los asistentes de Control de Asistencia.
-      </p>
-      <div className="ca-card" style={{ marginBottom: 16 }}>
-        <label style={E.check}>
-          <input type="checkbox" checked={form.accesoSinSesion !== false} onChange={(e) => cambiar((f) => (f.accesoSinSesion = e.target.checked))} />
-          <b>Permitir abrir con el QR sin iniciar sesión</b>
-        </label>
-        <p style={{ ...E.ayuda, margin: "6px 0 0" }}>
-          Activado: quien escanee el QR elige su nombre de la lista de asistentes de Control de Asistencia y no necesita usuario ni contraseña; cualquiera con el QR puede registrar una CdR.
-          Desactivado: debe iniciar sesión y estar asignado abajo.
-        </p>
-      </div>
-      <p style={{ fontWeight: 700, margin: "0 0 8px" }}>{form.asignadosUids.length} evaluador(es) asignado(s)</p>
-      <input className="rp-input" style={{ maxWidth: 320, marginBottom: 10 }} placeholder="Buscar por nombre, área o cargo…" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
-      {elegibles.length === 0 && (
-        <div className="cdr-molde"><b>Aún nadie tiene acceso a la CdR</b>Ve a Administración y activa el chip "CdR Diálogo de Desempeño" en las personas que serán evaluadoras.</div>
-      )}
-      <div className="ca-card" style={{ padding: 0, maxHeight: 380, overflowY: "auto" }}>
-        {visibles.map((u) => (
-          <label key={u.uid} style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px", alignItems: "center", padding: "10px 14px", borderBottom: "1px solid var(--fondo)", cursor: "pointer" }}>
-            <input type="checkbox" checked={form.asignadosUids.includes(u.uid)} onChange={() => alternar(u)} />
-            <span style={{ fontWeight: 600, flex: "1 1 150px" }}>{u.nombreUsuario}</span>
-            <span style={{ fontSize: 12, color: "var(--texto-suave)", flex: "1 1 150px" }}>{[u.cargo, u.area].filter(Boolean).join(" · ")}</span>
-          </label>
-        ))}
-        {elegibles.length > 0 && visibles.length === 0 && <div style={{ padding: 14, fontSize: 13, color: "var(--texto-suave)" }}>Nadie coincide con la búsqueda.</div>}
-      </div>
-      {sinAcceso.length > 0 && (
-        <div style={{ marginTop: 14, fontSize: 13, color: "var(--rojo)" }}>
-          <b>Asignados que ya no tienen acceso a la CdR:</b> {sinAcceso.map((a) => a.nombre).join(", ")}.{" "}
-          <button style={btn} onClick={() => cambiar((f) => {
-            const quitar = new Set(sinAcceso.map((a) => a.uid));
-            f.asignados = f.asignados.filter((a) => !quitar.has(a.uid));
-            f.asignadosUids = f.asignadosUids.filter((u) => !quitar.has(u));
-          })}>Quitarlos</button>
-        </div>
-      )}
     </div>
   );
 }
