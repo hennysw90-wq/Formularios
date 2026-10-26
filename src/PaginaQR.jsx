@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { obtenerFormulario, obtenerEvaluacion, listarEvaluacionesDesde, listarFormulariosPublicados, guardarEvaluacion } from "./evaluaciones.js";
 import CumplimientoPlan from "./CumplimientoPlan.jsx";
+import ResultadosQR, { VISTA_RESULTADOS_INICIAL } from "./ResultadosQR.jsx";
 import { listarUsuarios, verificarClave } from "./auth.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
 import {
@@ -13,8 +14,6 @@ import {
   ETIQUETA_ESTADO,
 } from "./asignaciones.js";
 import { Ejecutar, nuevaEvaluacion } from "./MisCdR.jsx";
-import { ETIQUETA_CLASIFICACION } from "./calculo.js";
-import { fechaCdR } from "./estadisticas.js";
 import { TEXTO_PERIODO } from "./MiAgenda.jsx";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -39,6 +38,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
   const [pestana, setPestana] = useState("pendientes");
   const [ejecutando, setEjecutando] = useState(null);
   const [borrador, setBorrador] = useState(null);
+  const [vistaRes, setVistaRes] = useState(VISTA_RESULTADOS_INICIAL);
   const [porVer, setPorVer] = useState(null); // formulario del historial que se abrirá tras ingresar la clave
 
   useEffect(() => {
@@ -123,13 +123,14 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
     setDesbloqueado(false);
     setPestana("pendientes");
     setPorVer(null);
+    setVistaRes(VISTA_RESULTADOS_INICIAL);
   }
 
   if (ejecutando) {
     return (
       <div className="ca-pagina">
         <div className="ca-contenido cdr-ejecutar">
-          <Ejecutar evaluacionInicial={ejecutando} onCerrar={() => { setEjecutando(null); setPestana(ejecutando.estado === "enviada" ? pestana : "pendientes"); }} textoVolver={pestana === "plan" ? "← Volver al cumplimiento" : "← Volver a mis pendientes"} />
+          <Ejecutar evaluacionInicial={ejecutando} onCerrar={() => { setEjecutando(null); setPestana(ejecutando.estado === "enviada" ? pestana : "pendientes"); }} textoVolver={pestana === "plan" ? "← Volver al cumplimiento" : pestana === "resultados" ? "← Volver a resultados" : "← Volver a mis pendientes"} />
         </div>
       </div>
     );
@@ -190,7 +191,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
         ))}
       {pestana === "resultados" &&
         (desbloqueado ? (
-          <Resultados persona={persona} formularioId={form.id} evals={evals} onVer={setEjecutando} />
+          <ResultadosQR persona={persona} evals={evals} vista={vistaRes} onVista={setVistaRes} onVer={setEjecutando} />
         ) : (
           <PedirClave persona={persona} onOk={() => setDesbloqueado(true)} />
         ))}
@@ -428,45 +429,6 @@ function PedirClave({ persona, onOk }) {
       {error && <p style={{ color: "var(--rojo)", fontSize: 13, margin: "8px 0 0" }}>{error}</p>}
       <button className="cdr-nav-btn prim" style={{ marginTop: 10, width: "100%" }} disabled={!clave || revisando}>{revisando ? "Revisando…" : "Ver mis resultados"}</button>
     </form>
-  );
-}
-
-function Resultados({ persona, formularioId, evals, onVer }) {
-  const yo = norm(persona.nombreUsuario);
-  const delForm = evals.filter((e) => e.formularioId === formularioId && e.estado === "enviada" && !e.anulada);
-  const hechas = delForm
-    .filter((e) => e.evaluadorUid === persona.uid || e.registradoPorUid === persona.uid || norm(e.evaluadorNombre) === yo)
-    .sort((a, b) => fechaCdR(b).localeCompare(fechaCdR(a)));
-  const recibidas = delForm.filter((e) => norm(e.lider) === yo).sort((a, b) => fechaCdR(b).localeCompare(fechaCdR(a)));
-  return (
-    <>
-      <ListaResultados titulo="CdR que te hicieron como líder" vacio="Nadie te ha evaluado con este formulario todavía." lista={recibidas} quien={(e) => `Evaluó: ${e.evaluadorNombre}`} onVer={onVer} />
-      <ListaResultados titulo="CdR que hiciste" vacio="Todavía no has enviado ninguna con este formulario." lista={hechas} quien={(e) => `Líder: ${e.lider}`} onVer={onVer} />
-    </>
-  );
-}
-
-function ListaResultados({ titulo, vacio, lista, quien, onVer }) {
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <p style={{ fontWeight: 700, fontSize: 14, margin: "0 0 8px" }}>{titulo} ({lista.length})</p>
-      {lista.length === 0 && <p style={{ ...gris, fontSize: 13, margin: 0 }}>{vacio}</p>}
-      {lista.map((e) => {
-        const ind = e.resultado?.indice;
-        return (
-          <div key={e.id} style={{ ...tarjeta(true), display: "flex", gap: 10, alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: 13.5 }}>{e.rutinaNombre}</p>
-              <p style={{ ...gris, fontSize: 12, margin: 0 }}>{fechaCdR(e).split("-").reverse().join("-")} · {quien(e)}</p>
-              <p style={{ fontSize: 12, margin: "2px 0 0", fontWeight: 700, color: tono(ind) }}>
-                {ind === undefined || ind === null ? "—" : `${String(Math.round(ind * 10) / 10).replace(".", ",")}%`} · {ETIQUETA_CLASIFICACION[e.resultado?.clasificacion] || "—"}
-              </p>
-            </div>
-            <button className="cdr-nav-btn" onClick={() => onVer(e)}>Ver</button>
-          </div>
-        );
-      })}
-    </div>
   );
 }
 

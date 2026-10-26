@@ -1100,7 +1100,7 @@ function claseNota(p, parametros) {
 }
 
 /** Nota (%) de cada bloque, su peso y cuánto aporta al total. */
-function TablaBloques({ bloques, parametros, indice }) {
+export function TablaBloques({ bloques, parametros, indice }) {
   return (
     <table className="ca-tabla cdr-apilada cdr-bloques">
       <thead>
