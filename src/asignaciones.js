@@ -234,9 +234,13 @@ export function proyectarFormulario(form, asignaciones, usuario = null) {
       horaInicio: a.horaInicio || "",
       horaFin: a.horaFin || "",
       lideres: [],
+      evaluadores: [], // quiénes están asignados a evaluar ESTA reunión (todos con usuario)
     };
     (a.lideres || []).forEach((l) => {
       if (!r.lideres.includes(l)) r.lideres.push(l);
+    });
+    (a.personas || []).forEach((p) => {
+      if (!r.evaluadores.some((x) => esLaPersona(x, p))) r.evaluadores.push({ uid: p.uid || "", nombre: p.nombre || "" });
     });
     rutinas.set(a.reunionId, r);
   });

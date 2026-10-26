@@ -88,10 +88,10 @@ export default function Login({ onIngresar }) {
           <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 42 }} />
         </div>
         <p style={{ textAlign: "center", fontWeight: 800, fontSize: 18, margin: "0 0 4px" }}>
-          Confirmación de Rol (CdR)
+          Formularios
         </p>
         <p style={{ textAlign: "center", color: "var(--texto-suave)", fontSize: 13, margin: "0 0 18px" }}>
-          Diálogo de Desempeño · Excelencia Operacional
+          Excelencia Operacional · Henny
         </p>
         <form onSubmit={enviarLogin}>
           <label className="ca-label">Usuario</label>
@@ -144,7 +144,7 @@ export default function Login({ onIngresar }) {
             {cargando ? "Ingresando…" : "Ingresar"}
           </button>
           <p style={{ textAlign: "center", fontSize: 12, color: "var(--texto-suave)", marginTop: 12 }}>
-            Usas el mismo usuario y contraseña de las otras apps de Excelencia. El acceso a la CdR lo asigna Excelencia Operacional.
+            Usas el mismo usuario y contraseña de las otras apps. El acceso a Formularios lo asigna un administrador.
           </p>
         </form>
       </div>

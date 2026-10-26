@@ -14,12 +14,12 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir }) {
         <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
         <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
       </div>
-      <p className="ca-eyebrow">Diálogo de Desempeño · v0.2.0 · Henny</p>
-      <p className="ca-titulo">Confirmación de Rol (CdR)</p>
+      <p className="ca-eyebrow">Formularios · v0.3.0 · Henny</p>
+      <p className="ca-titulo">Formularios</p>
 
       <div className="ca-nav">
         <Link id="inicio">Inicio</Link>
-        <Link id="mis">Mis CdR</Link>
+        <Link id="mis">Mis Formularios</Link>
         {esMaster && <Link id="formularios">Formularios</Link>}
         {esMaster && <Link id="estadisticas">Estadísticas</Link>}
         {esMaster && <Link id="admin">Administración</Link>}

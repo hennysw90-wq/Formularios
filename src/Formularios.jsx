@@ -491,17 +491,20 @@ function BotonesFila({ i, n, onMover, onBorrar }) {
     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
       <button style={btnIco} disabled={i === 0} onClick={() => onMover(-1)} title="Subir">↑</button>
       <button style={btnIco} disabled={i === n - 1} onClick={() => onMover(1)} title="Bajar">↓</button>
-      <button style={{ ...btnIco, color: "var(--rojo)" }} onClick={onBorrar} title="Eliminar">✕</button>
+      <button style={{ ...btnIco, color: "var(--rojo)", opacity: onBorrar ? 1 : 0.35 }} disabled={!onBorrar} onClick={onBorrar || undefined} title={onBorrar ? "Eliminar" : "Este dato es automático: no se elimina"}>✕</button>
     </div>
   );
 }
 
 /* ----- A · Datos generales ----- */
 
+// Estos tres datos no se llenan a mano: salen de la asignación con que se evalúa.
+const TIPOS_AUTOMATICOS = ["rutina", "lider", "evaluador"];
+
 const TIPOS_A = [
-  ["rutina", "Diálogo o rutina (de la lista de Asistencia)"],
-  ["lider", "Líder (según la rutina elegida)"],
-  ["evaluador", "Evaluador (lista: tú, asignados y asistentes de Asistencia)"],
+  ["rutina", "Reunión (automática: de la asignación)"],
+  ["lider", "Líder (automático: de la asignación)"],
+  ["evaluador", "Evaluador (automático: quien evalúa)"],
   ["texto", "Texto"],
   ["fecha", "Fecha"],
   ["hora", "Hora"],
@@ -522,9 +525,16 @@ function TabA({ form, cambiar }) {
             <input className="rp-input" value={c.etiqueta} placeholder="Etiqueta" onChange={(e) => cambiar((f) => (f.seccionA[i].etiqueta = e.target.value))} />
           </div>
           <div style={{ flex: "1 1 220px" }}>
-            <select className="rp-select" value={c.tipo} onChange={(e) => cambiar((f) => (f.seccionA[i].tipo = e.target.value))}>
-              {TIPOS_A.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-            </select>
+            {TIPOS_AUTOMATICOS.includes(c.tipo) ? (
+              <div className="rp-input" style={{ background: "var(--fondo)", display: "flex", alignItems: "center", gap: 8 }} title="Se completa solo al evaluar, desde la asignación">
+                <span className="ca-pill ca-pill-verde">Automático</span>
+                <span style={{ fontSize: 13.5 }}>{(TIPOS_A.find(([v]) => v === c.tipo) || [, c.tipo])[1].replace(/ \(automátic[oa]: /, " (")}</span>
+              </div>
+            ) : (
+              <select className="rp-select" value={c.tipo} onChange={(e) => cambiar((f) => (f.seccionA[i].tipo = e.target.value))}>
+                {TIPOS_A.filter(([v]) => !TIPOS_AUTOMATICOS.includes(v)).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+              </select>
+            )}
           </div>
           {c.tipo === "seleccion" && (
             <div style={{ flex: "2 1 220px" }}>
@@ -535,7 +545,7 @@ function TabA({ form, cambiar }) {
           <label style={E.check}>
             <input type="checkbox" checked={!!c.obligatorio} onChange={(e) => cambiar((f) => (f.seccionA[i].obligatorio = e.target.checked))} /> Obligatorio
           </label>
-          <BotonesFila i={i} n={n} onMover={(d) => cambiar((f) => mover(f.seccionA, i, d))} onBorrar={() => cambiar((f) => f.seccionA.splice(i, 1))} />
+          <BotonesFila i={i} n={n} onMover={(d) => cambiar((f) => mover(f.seccionA, i, d))} onBorrar={TIPOS_AUTOMATICOS.includes(c.tipo) ? null : () => cambiar((f) => f.seccionA.splice(i, 1))} />
         </div>
       ))}
       <button style={btn} onClick={() => cambiar((f) => f.seccionA.push({ id: nuevoId("a"), etiqueta: "", tipo: "texto", opciones: [], obligatorio: false }))}>

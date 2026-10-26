@@ -37,6 +37,15 @@ function aplicarRutina(c, rutina) {
   c.rutinaNombre = rutina ? rutina.nombre : "";
   const l = rutina ? rutina.lideres || [] : [];
   c.lider = l.length === 1 ? l[0] : "";
+  // Sin sesión (QR), el evaluador se elige entre los asignados a ESTA reunión; si hay uno solo, queda puesto.
+  if (c.sinSesion) {
+    const evs = rutina ? rutina.evaluadores || [] : [];
+    const sigue = evs.find((p) => norm(p.nombre) === norm(c.evaluadorNombre));
+    const elegido = sigue || (evs.length === 1 ? evs[0] : null);
+    c.evaluadorNombre = elegido ? elegido.nombre : "";
+    c.evaluadorUid = elegido ? elegido.uid || "" : "";
+    c.evaluadorPersonaId = "";
+  }
   if (rutina) {
     c.formulario.seccionA.forEach((campo) => {
       if (campo.tipo !== "hora") return;
@@ -88,7 +97,8 @@ export function nuevaEvaluacion(form, usuario, rutinaId) {
     creado: ahora,
     actualizado: ahora,
   };
-  const reunion = rutinaId ? snap.rutinas.find((r) => r.sesionId === rutinaId) : null;
+  // La reunión sale de la asignación: la del QR o la del botón "Hacer", o la única que tenga en este formulario.
+  const reunion = rutinaId ? snap.rutinas.find((r) => r.sesionId === rutinaId) : snap.rutinas.length === 1 ? snap.rutinas[0] : null;
   if (reunion) {
     aplicarRutina(ev, reunion);
     ev.rutinaBloqueada = true;
@@ -298,7 +308,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
         />
       )}
 
-      <Titulo t="Iniciar una CdR" />
+      <Titulo t="Iniciar un formulario" />
       {formularios === null && !error && <p style={ayuda}>Cargando…</p>}
       {formularios && disponibles.length === 0 && (
         <div className="cdr-molde">
@@ -315,7 +325,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
               <div style={{ fontWeight: 800, fontSize: 16 }}>{f.nombre}</div>
               {f.descripcion && <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginTop: 2 }}>{f.descripcion.length > 150 ? f.descripcion.slice(0, 150) + "…" : f.descripcion}</div>}
             </div>
-            <button style={btnPrim} onClick={() => setEjecutando(nuevaEvaluacion(f, usuario))}>Iniciar CdR</button>
+            <button style={btnPrim} onClick={() => setEjecutando(nuevaEvaluacion(f, usuario))}>Iniciar</button>
           </div>
         ))}
       </div>
@@ -411,7 +421,7 @@ function AccesoDirecto({ formularios, form, rutina, rutinaInvalida, enCurso, onI
             Continuar la CdR en curso{enCurso[0].rutinaNombre && <small className="cdr-sub"> ({enCurso[0].rutinaNombre})</small>}
           </button>
         )}
-        <button className={`cdr-nav-btn ${enCurso.length ? "" : "prim"}`} onClick={onIniciar}>{enCurso.length ? "Iniciar una nueva" : "Iniciar CdR"}</button>
+        <button className={`cdr-nav-btn ${enCurso.length ? "" : "prim"}`} onClick={onIniciar}>{enCurso.length ? "Iniciar una nueva" : "Iniciar"}</button>
         <button className="cdr-nav-btn" onClick={onCerrar}>Ver mis CdR</button>
       </div>
     </div>
@@ -480,7 +490,7 @@ export function AccesoQR({ formularioId, rutinaId = "", onIniciarSesion }) {
           <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
           <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
         </div>
-        <p className="ca-titulo">Confirmación de Rol (CdR)</p>
+        <p className="ca-titulo">Formularios</p>
       </div>
       <div className="ca-contenido cdr-ejecutar">{hijos}</div>
     </div>
@@ -539,7 +549,7 @@ export function AccesoQR({ formularioId, rutinaId = "", onIniciarSesion }) {
           </button>
         )}
         <button className={`cdr-nav-btn ${borrador ? "" : "prim"}`} onClick={() => { const ev = nuevaEvaluacion(form, null, rutinaQR ? rutinaQR.sesionId : undefined); guardarLocal(ev.id); setEjecutando(ev); }}>
-          {borrador ? "Iniciar una nueva" : "Iniciar CdR"}
+          {borrador ? "Iniciar una nueva" : "Iniciar"}
         </button>
       </div>
       {enlaceSesion}
@@ -554,7 +564,7 @@ export function AccesoQR({ formularioId, rutinaId = "", onIniciarSesion }) {
 const PASOS = ["Datos", "Notas en terreno", "Rúbrica", "Resultado y feedback", "Compromiso", "Cierre"];
 const PASOS_CORTOS = ["Datos", "Notas", "Rúbrica", "Resultado", "Compromiso", "Cierre"]; // para el celular
 
-export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoVolver = "← Volver a Mis CdR" }) {
+export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoVolver = "← Volver a Mis Formularios" }) {
   const [ev, setEv] = useState(() => clonar(evaluacionInicial));
   const [sucio, setSucio] = useState(false);
   const [estadoGuardado, setEstadoGuardado] = useState("");
@@ -786,15 +796,28 @@ function OpcionesLider({ lideres, valor, area, onElegir }) {
 
 function PasoDatos({ ev, cambiar, personas, errorPersonas }) {
   const f = ev.formulario;
-  const opciones = opcionesEvaluador(ev, personas);
-  const fijarEvaluador = (o) => cambiar((c) => { c.evaluadorNombre = o.nombre; c.evaluadorUid = o.uid || ""; c.evaluadorPersonaId = o.personaId || ""; });
-  const escribirEvaluador = (t) => {
-    const m = opciones.find((o) => norm(o.nombre) === norm(t));
-    if (m) fijarEvaluador(m);
-    else cambiar((c) => { c.evaluadorNombre = t; c.evaluadorUid = ""; c.evaluadorPersonaId = ""; });
-  };
-  const campoEvaluador = <ComboEvaluador valor={ev.evaluadorNombre} opciones={opciones} onTexto={escribirEvaluador} onElegir={fijarEvaluador} personas={personas} errorPersonas={errorPersonas} />;
   const rutina = f.rutinas.find((r) => r.sesionId === ev.rutinaSesionId);
+  // Evaluador: con sesión iniciada eres tú, fijo. Por QR (sin sesión), uno de los evaluadores asignados a esta
+  // reunión, que siempre son personas con usuario. Nunca se escribe a mano.
+  const evaluadoresReunion = rutina?.evaluadores || [];
+  const elegirEvaluador = (clave) => {
+    const p = evaluadoresReunion.find((x) => (x.uid || x.nombre) === clave);
+    cambiar((c) => { c.evaluadorNombre = p ? p.nombre : ""; c.evaluadorUid = p ? p.uid || "" : ""; c.evaluadorPersonaId = ""; });
+  };
+  const campoEvaluador = !ev.sinSesion ? (
+    <div className="rp-input" style={{ background: "var(--fondo)", display: "flex", alignItems: "center" }}>
+      {ev.evaluadorNombre}<span style={{ color: "var(--texto-suave)", marginLeft: 6 }}>(tú)</span>
+    </div>
+  ) : !ev.rutinaSesionId ? (
+    <input className="rp-input" disabled value="Primero elige la reunión" readOnly />
+  ) : evaluadoresReunion.length === 0 ? (
+    <p style={{ ...ayuda, margin: 0, color: "var(--rojo)" }}>Esta reunión no tiene evaluadores asignados. Pídele a un administrador que te asigne.</p>
+  ) : (
+    <select className="rp-select" value={ev.evaluadorUid || evaluadoresReunion.find((x) => norm(x.nombre) === norm(ev.evaluadorNombre))?.nombre || ""} onChange={(e) => elegirEvaluador(e.target.value)}>
+      <option value="">¿Quién eres?</option>
+      {evaluadoresReunion.map((x) => <option key={x.uid || x.nombre} value={x.uid || x.nombre}>{x.nombre}</option>)}
+    </select>
+  );
   const lideres = rutina?.lideres || [];
   const detalleReunion = [horarioDeReunion(rutina), rutina?.area].filter(Boolean).join(" · ");
 
@@ -807,12 +830,12 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas }) {
     <div className="ca-card">
       {ev.rutinaSesionId && (
         <div className="cdr-reunion">
-          <span className="cdr-reunion-etq">{ev.rutinaBloqueada ? "Reunión de este QR" : "Reunión elegida"}</span>
+          <span className="cdr-reunion-etq">{ev.rutinaBloqueada ? "Reunión asignada" : "Reunión elegida"}</span>
           <span className="cdr-reunion-nom">{ev.rutinaNombre}</span>
           {detalleReunion && <span className="cdr-reunion-sub">{detalleReunion}</span>}
         </div>
       )}
-      <p style={{ ...ayuda, marginTop: 0 }}>{ev.rutinaBloqueada ? "La reunión ya viene definida por el QR. Completa estos datos." : "Antes de empezar la observación, completa estos datos."}</p>
+      <p style={{ ...ayuda, marginTop: 0 }}>{ev.rutinaBloqueada ? "La reunión, el líder y el evaluador salen de la asignación. Completa el resto." : "Elige la reunión: el líder y el evaluador salen de la asignación."}</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
         {!f.seccionA.some((c) => c.tipo === "evaluador") && (
           <div>
@@ -828,12 +851,12 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas }) {
               <label className="ca-label">{c.etiqueta}{c.obligatorio ? " *" : ""}</label>
               {c.tipo === "rutina" && (
                 <select className="rp-select" value={ev.rutinaSesionId} onChange={(e) => elegirRutina(e.target.value)}>
-                  <option value="">Elige el diálogo o rutina…</option>
+                  <option value="">Elige la reunión…</option>
                   {f.rutinas.map((r) => <option key={r.sesionId} value={r.sesionId}>{r.nombre}</option>)}
                 </select>
               )}
               {c.tipo === "lider" && (
-                !ev.rutinaSesionId ? <input className="rp-input" disabled value="Primero elige la rutina" readOnly />
+                !ev.rutinaSesionId ? <input className="rp-input" disabled value="Primero elige la reunión" readOnly />
                 : lideres.length === 1 ? <OpcionesLider lideres={lideres} valor={lideres[0]} area={rutina.area} />
                 : lideresComoTarjetas ? <OpcionesLider lideres={lideres} valor={ev.lider} area={rutina.area} onElegir={(l) => cambiar((x) => { x.lider = l; })} />
                 : lideres.length > 6 ? (
@@ -841,7 +864,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas }) {
                     <option value="">¿Quién lideró esta sesión?</option>
                     {lideres.map((l) => <option key={l} value={l}>{l}</option>)}
                   </select>
-                ) : <input className="rp-input" value={ev.lider} placeholder="Nombre del líder" onChange={(e) => cambiar((x) => (x.lider = e.target.value))} />
+                ) : <p style={{ ...ayuda, margin: 0, color: "var(--rojo)" }}>Esta reunión no tiene líder asignado. Pídele a un administrador que lo agregue en la asignación.</p>
               )}
               {c.tipo === "evaluador" && campoEvaluador}
               {c.tipo === "texto" && <input className="rp-input" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}

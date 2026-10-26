@@ -64,7 +64,7 @@ export default function MiAgenda({ usuario, onIniciar, onIrAMisCdR, compacto = f
               </div>
               {onIniciar && (
                 <button className={`cdr-nav-btn ${it.pendientes ? "prim" : ""}`} onClick={() => onIniciar(it.formulario, a.reunionId)}>
-                  Hacer CdR
+                  Completar
                 </button>
               )}
             </div>

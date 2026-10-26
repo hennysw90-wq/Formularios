@@ -100,7 +100,7 @@ export default function ModalQR({ form, onCerrar }) {
     v.document.write(`<html><head><title>QR · ${esc(form.nombre)}${reunion ? " · " + esc(reunion.nombre) : ""}</title>
       <style>@page{margin:14mm} body{font-family:Arial,Helvetica,sans-serif;text-align:center;padding:10px;color:#2c2c2a}
       img{width:560px;max-width:100%;height:auto} .url{font-size:12.5px;word-break:break-all;color:#666;margin:10px 0 4px} .pie{font-size:13px;color:#555} .cab{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#b0420e;margin:0} .for{font-size:20px;font-weight:700;margin:2px 0 10px}</style></head>
-      <body><p class="cab">CdR · Confirmación de Rol</p><p class="for">${esc(form.nombre)}</p><img src="${dataUrl}" alt="QR" /><p class="url">${esc(link)}</p>
+      <body><p class="cab">Formularios</p><p class="for">${esc(form.nombre)}</p><img src="${dataUrl}" alt="QR" /><p class="url">${esc(link)}</p>
       <p class="pie">${sinSesion ? "No necesitas iniciar sesión: elige tu nombre en la lista de asistentes." : "Necesitas tu usuario y contraseña. Solo pueden abrirlo las personas asignadas como evaluadoras."}</p>
       <script>window.onload=function(){window.print()}</script></body></html>`);
     v.document.close();

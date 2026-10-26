@@ -26,7 +26,7 @@ export const APP_ACTUAL_ID = "formularios";
 export const APPS_DISPONIBLES = [
   { id: "asistencia", nombre: "Asistencia QR" },
   { id: "rdp", nombre: "RdP Tracker" },
-  { id: "formularios", nombre: "Formularios (CdR)" },
+  { id: "formularios", nombre: "Formularios" },
 ];
 
 // Apps que existían ANTES de la CdR. Se usa como lista por defecto para

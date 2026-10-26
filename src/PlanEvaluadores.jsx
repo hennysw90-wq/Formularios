@@ -112,6 +112,7 @@ export default function PlanEvaluadores({ todas, formularios, usuario, usuarios 
           onEditar={(a) => { setAviso({ tipo: "", texto: "" }); setEditando({ ...JSON.parse(JSON.stringify(a)), esNueva: false }); }}
           onEliminar={borrar}
           onNueva={nueva}
+          directorio={directorio}
         />
       )}
 
@@ -126,7 +127,8 @@ export default function PlanEvaluadores({ todas, formularios, usuario, usuarios 
 /*  Lista de asignaciones                                              */
 /* ------------------------------------------------------------------ */
 
-function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNueva }) {
+function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNueva, directorio = [] }) {
+  const tieneUsuario = (nombre) => directorio.some((u) => u.rol !== "deshabilitado" && esLaPersona({ nombre }, u));
   if (asignaciones === null) return <p style={ayuda}>Cargando asignaciones…</p>;
   if (asignaciones.length === 0) {
     return (
@@ -164,7 +166,9 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNu
                       <div style={{ flex: "1 1 280px", minWidth: 0 }}>
                         <div style={{ fontWeight: 800 }}>{a.reunionNombre}{a.area ? <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · {a.area}</span> : ""}</div>
                         <div style={{ fontSize: 13, color: "var(--texto-suave)", marginTop: 2 }}>
-                          Líderes: {(a.lideres || []).length ? a.lideres.join(", ") : <span style={{ color: "#ba7517" }}>sin definir (se escribe al evaluar)</span>}
+                          Líderes: {(a.lideres || []).length
+                            ? a.lideres.map((l, i) => <span key={l}>{i ? ", " : ""}{l}{directorio.length && !tieneUsuario(l) ? <b style={{ color: "#993c1d" }}> (sin usuario)</b> : ""}</span>)
+                            : <span style={{ color: "#993c1d" }}>sin líder: edítala para agregarlo</span>}
                         </div>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                           {(a.personas || []).map((p) => (
@@ -196,7 +200,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNu
 
 function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCancelar, onGuardada }) {
   const [a, setA] = useState(inicial);
-  const [lider, setLider] = useState("");
+  const [buscaLider, setBuscaLider] = useState("");
   const [busqueda, setBusqueda] = useState("");
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -206,7 +210,8 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     setA((x) => ({ ...x, ...parcial }));
   };
   const activos = directorio.filter((u) => u.rol !== "deshabilitado" && u.estado !== "pendiente");
-  const nombresDirectorio = [...new Set(activos.map((u) => u.nombreUsuario))].sort((x, y) => x.localeCompare(y, "es"));
+  // Líderes y evaluadores son siempre personas con usuario en el directorio.
+  const usuarioDe = (nombre) => activos.find((u) => esLaPersona({ nombre }, u));
   const ordenFormularios = formularios.slice().sort((x, y) => (x.estado === "publicado" ? 0 : 1) - (y.estado === "publicado" ? 0 : 1) || (x.nombre || "").localeCompare(y.nombre || "", "es"));
   const reunionActual = (reuniones || []).find((r) => r.id === a.reunionId);
   const reunionHuerfana = a.reunionId && reuniones && !reunionActual;
@@ -221,14 +226,14 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     // Si el formulario trae líderes guardados para esta reunión (p. ej. importado desde Excelencia), se sugieren.
     const f = formularios.find((x) => x.id === a.formularioId);
     const previa = (f?.rutinas || []).find((x) => x.sesionId === id);
-    if (previa && !(a.lideres || []).length) parcial.lideres = previa.lideres || [];
+    if (previa && !(a.lideres || []).length) {
+      parcial.lideres = [...new Set((previa.lideres || []).map((n) => usuarioDe(n)?.nombreUsuario || n))];
+    }
     cambiar(parcial);
   }
-  function agregarLider(nombre) {
-    const n = String(nombre || "").trim();
-    if (!n || (a.lideres || []).includes(n)) return setLider("");
-    cambiar({ lideres: [...(a.lideres || []), n] });
-    setLider("");
+  function agregarLider(u) {
+    if (!(a.lideres || []).includes(u.nombreUsuario)) cambiar({ lideres: [...(a.lideres || []), u.nombreUsuario] });
+    setBuscaLider("");
   }
   function alternarPersona(u) {
     const existe = (a.personas || []).some((p) => esLaPersona(p, u));
@@ -246,6 +251,9 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
   async function guardar() {
     if (!a.formularioId) return setError("Elige el formulario.");
     if (!a.reunionId) return setError("Elige la reunión.");
+    if (!(a.lideres || []).length) return setError("Agrega al menos un líder a evaluar.");
+    const sinUsuario = (a.lideres || []).filter((n) => !usuarioDe(n));
+    if (sinUsuario.length) return setError(`Estos líderes no tienen usuario: ${sinUsuario.join(", ")}. Quítalos o créales usuario en Administración.`);
     if (!(a.personas || []).length) return setError("Agrega al menos un evaluador.");
     for (const p of a.personas) {
       if (!(Number(p.cantidad) >= 1)) return setError(`Pon una cantidad válida para ${p.nombre}.`);
@@ -292,22 +300,29 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
       </div>
 
       <div style={{ marginTop: 14 }}>
-        <label className="ca-label">Líderes a evaluar</label>
-        <p style={{ ...ayuda, margin: "0 0 6px", fontSize: 12.5 }}>Quién lidera esta reunión. Si hay varios, al evaluar se elige quién la lideró ese día. Si no pones ninguno, se escribe al evaluar.</p>
+        <label className="ca-label">Líderes a evaluar *</label>
+        <p style={{ ...ayuda, margin: "0 0 6px", fontSize: 12.5 }}>Quién lidera esta reunión, elegido entre las personas con usuario. Si hay uno, al evaluar se pone solo; si hay varios, se elige entre ellos.</p>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-          {(a.lideres || []).map((l) => (
-            <span key={l} className="ca-chip" style={{ fontWeight: 600 }}>
-              {l}
-              <button style={x} title="Quitar" onClick={() => cambiar({ lideres: a.lideres.filter((y) => y !== l) })}>✕</button>
-            </span>
+          {(a.lideres || []).map((l) => {
+            const sinUsuario = !usuarioDe(l);
+            return (
+              <span key={l} className={`ca-chip ${sinUsuario ? "cdr-chip-mal" : ""}`} style={{ fontWeight: 600, ...(sinUsuario ? { background: "#fbeae5", color: "#993c1d", border: "1px solid #e8b7a8" } : {}) }}
+                title={sinUsuario ? "No tiene usuario: quítalo o créale usuario en Administración" : ""}>
+                {l}{sinUsuario ? " · sin usuario" : ""}
+                <button style={x} title="Quitar" onClick={() => cambiar({ lideres: a.lideres.filter((y) => y !== l) })}>✕</button>
+              </span>
+            );
+          })}
+        </div>
+        <input className="rp-input" style={{ maxWidth: 420 }} value={buscaLider} placeholder="Buscar líder por nombre o área…" onChange={(e) => setBuscaLider(e.target.value)} />
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+          {sugerirUsuarios(buscaLider, activos).filter((u) => !(a.lideres || []).includes(u.nombreUsuario)).map((u) => (
+            <button key={u.uid} style={chipBtn} title={u.area || ""} onClick={() => agregarLider(u)}>
+              + {u.nombreUsuario}{u.parecido && <span style={{ marginLeft: 5, fontSize: 10, color: "#8a5a00" }}>parecido</span>}
+            </button>
           ))}
+          {buscaLider.trim().length >= 2 && sugerirUsuarios(buscaLider, activos).length === 0 && <span style={{ ...ayuda, margin: 0, fontSize: 12.5 }}>Nadie con usuario coincide con esa búsqueda.</span>}
         </div>
-        <div style={{ display: "flex", gap: 6, maxWidth: 420 }}>
-          <input className="rp-input" list="lideres-directorio" value={lider} placeholder="Nombre del líder…" onChange={(e) => setLider(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregarLider(lider); } }} />
-          <button style={btn} onClick={() => agregarLider(lider)}>Agregar</button>
-        </div>
-        <datalist id="lideres-directorio">{nombresDirectorio.map((n) => <option key={n} value={n} />)}</datalist>
       </div>
 
       <div style={{ marginTop: 16 }}>
