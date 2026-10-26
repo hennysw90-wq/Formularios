@@ -6,7 +6,8 @@ import Login from "./Login.jsx";
 import Cabecera from "./Cabecera.jsx";
 import Administracion from "./Administracion.jsx";
 import Formularios from "./Formularios.jsx";
-import MisCdR, { AccesoQR } from "./MisCdR.jsx";
+import MisCdR from "./MisCdR.jsx";
+import PaginaQR from "./PaginaQR.jsx";
 import Estadisticas from "./Estadisticas.jsx";
 import MiAgenda from "./MiAgenda.jsx";
 import { formularioDesdeUrl, rutinaDesdeUrl } from "./enlaces.js";
@@ -18,7 +19,6 @@ export default function App() {
   // Se conserva mientras inicia sesión y se quita de la barra de direcciones al usarlo.
   const [formularioDirecto, setFormularioDirecto] = useState(() => formularioDesdeUrl(window.location.search));
   const [rutinaDirecta, setRutinaDirecta] = useState(() => rutinaDesdeUrl(window.location.search)); // la reunión del QR (una sola)
-  const [verLogin, setVerLogin] = useState(false); // quien llega por QR puede optar por iniciar sesión
 
   useEffect(() => {
     (async () => {
@@ -31,11 +31,6 @@ export default function App() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (usuario && formularioDirecto) setVista("mis");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [usuario]);
-
   function directoAtendido() {
     setFormularioDirecto("");
     setRutinaDirecta("");
@@ -46,11 +41,12 @@ export default function App() {
   }
 
   if (usuario === undefined) return null;
-  if (!usuario) {
-    // Con un QR de formulario no se pide iniciar sesión: elige su nombre de la lista de asistentes.
-    if (formularioDirecto && !verLogin) return <AccesoQR formularioId={formularioDirecto} rutinaId={rutinaDirecta} onIniciarSesion={() => setVerLogin(true)} />;
-    return <Login onIngresar={setUsuario} />;
+  // El QR abre siempre su propia página, igual que en la app Formularios: te identificas por tu nombre
+  // (o entras directo si ya hay sesión), ves tus pendientes y tu plan, y los resultados piden tu clave.
+  if (formularioDirecto) {
+    return <PaginaQR formularioId={formularioDirecto} rutinaId={rutinaDirecta} usuario={usuario} onIrALaApp={usuario ? directoAtendido : null} />;
   }
+  if (!usuario) return <Login onIngresar={setUsuario} />;
 
   const esMaster = usuario.rol === "master";
 

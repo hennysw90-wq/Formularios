@@ -122,6 +122,16 @@ export async function asegurarUsuarioMaestro() {
   });
 }
 
+// Confirma la clave de una persona SIN iniciar sesión en este dispositivo. La usa
+// la página del QR para mostrar resultados solo a quien sabe la clave.
+export async function verificarClave(uid, password) {
+  if (!uid || !password) return false;
+  const snap = await getDoc(doc(db, "usuarios", uid));
+  if (!snap.exists()) return false;
+  const datos = snap.data();
+  return datos.rol !== "deshabilitado" && datos.password === password;
+}
+
 export function listarUsuarios(callback, onError) {
   return onSnapshot(
     collection(db, "usuarios"),
