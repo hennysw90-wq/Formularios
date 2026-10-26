@@ -573,3 +573,179 @@ export function agendaDePersona(formulario, personaUid, respuestas, usuario = nu
       };
     });
 }
+
+// ─── Plan de evaluadores ────────────────────────────────────────────────────
+// Cuánto le corresponde a una persona en un mes dentro de UNA asignación y
+// cuánto lleva hecho. Lo usan por igual "Cumplimiento de mi plan" (una
+// persona, varios meses) y "Plan de evaluadores" (todas las personas, un mes),
+// para que las dos vistas no puedan dar números distintos.
+//   exigido        → todo lo del mes, incluido el periodo en curso
+//   exigidoVencido → solo los periodos que ya cerraron (lo que ya se debe)
+export function celdaDelMes(frecuencia, cantidad, desde, respuestas, anio, mes, ahora = new Date()) {
+  const periodos = periodosDelMes(frecuencia, anio, mes);
+
+  // "Una sola vez" no tiene periodos: se cuenta lo ejecutado en el mes contra
+  // la cantidad pedida, una única vez en total.
+  if (periodos.length === 0) {
+    const hechas = (respuestas || []).filter((r) => {
+      const f = new Date(r.fecha);
+      return f.getFullYear() === anio && f.getMonth() === mes;
+    }).length;
+    const exigido = hechas > 0 ? cantidad : 0;
+    return { hechas: Math.min(hechas, cantidad), exigido, exigidoVencido: exigido };
+  }
+
+  // Los periodos que todavía no empiezan no se exigen.
+  const actual = periodoVigente(frecuencia, ahora);
+  const considerados = periodos.filter(
+    (p) => (p.cierra <= ahora || p.clave === actual) && periodoDentroDelControl(p.cierra, desde)
+  );
+  const cerrados = considerados.filter((p) => p.cierra <= ahora && p.clave !== actual);
+  const contar = (lista) =>
+    lista.reduce((s, p) => {
+      const n = (respuestas || []).filter((r) => r.periodo === p.clave).length;
+      return s + Math.min(n, cantidad);
+    }, 0);
+  return {
+    hechas: contar(considerados),
+    exigido: considerados.length * cantidad,
+    exigidoVencido: cerrados.length * cantidad,
+  };
+}
+
+export const ETIQUETA_ESTADO_PLAN = {
+  cumplido: "Cumplido",
+  al_dia: "Al día",
+  atrasado: "Atrasado",
+  no_cumplido: "No cumplido",
+  pendiente: "Pendiente",
+  sin_plan: "Sin asignaciones",
+  sin_exigencia: "Nada exigido",
+};
+
+// Estado de un mes. La gracia es distinguir "vas atrasado" de "no cumpliste":
+// dentro del mes en curso solo se reclama lo de los periodos que YA cerraron,
+// así que el periodo en curso no cuenta en contra hasta que termine.
+export function estadoDelPlan({ exigido, exigidoVencido, hechas, anio, mes, ahora = new Date() }) {
+  const esteAnio = ahora.getFullYear();
+  const esteMes = ahora.getMonth();
+  if (anio > esteAnio || (anio === esteAnio && mes > esteMes)) return "pendiente";
+  if (!exigido) return "sin_exigencia";
+  if (hechas >= exigido) return "cumplido";
+  const esActual = anio === esteAnio && mes === esteMes;
+  if (!esActual) return "no_cumplido";
+  return hechas >= exigidoVencido ? "al_dia" : "atrasado";
+}
+
+// ¿La respuesta la registró esta persona? Se la reconoce por uid o por nombre,
+// igual que en el resto de la app.
+function respuestaDeLaPersona(respuesta, quien) {
+  return esLaMismaPersona(
+    { uid: respuesta.personaUid, nombre: respuesta.nombreUsuario },
+    quien
+  );
+}
+
+function clavePersonaPlan(p) {
+  if (p?.uid) return p.uid;
+  const n = (p?.nombre || p?.nombreUsuario || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  return n ? `n:${n}` : "";
+}
+
+// Todas las personas asignadas en algún formulario activo, con sus
+// asignaciones y las respuestas que cada una ya envió. Una sola pasada por la
+// base: un getDocs por formulario, no uno por persona.
+export async function cargarPlanEvaluadores() {
+  const snap = await getDocs(collection(db, "formularios"));
+  const formularios = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((f) => f.activo !== false);
+
+  const personas = new Map();
+  let conAsignaciones = 0;
+
+  for (const formulario of formularios) {
+    const asignaciones = formulario.asignaciones || [];
+    if (asignaciones.length > 0) conAsignaciones++;
+    else continue;
+
+    const rs = await getDocs(collection(db, "formularios", formulario.id, "respuestas"));
+    const respuestas = rs.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    for (const asignacion of asignaciones) {
+      for (const p of asignacion.personas || []) {
+        const clave = clavePersonaPlan(p);
+        if (!clave) continue;
+        const quien = { uid: p.uid || "", nombreUsuario: p.nombre || p.nombreUsuario || "" };
+        const entrada = personas.get(clave) || {
+          clave,
+          uid: p.uid || "",
+          nombre: quien.nombreUsuario,
+          area: p.area || "",
+          items: [],
+        };
+        if (!entrada.nombre) entrada.nombre = quien.nombreUsuario;
+        if (!entrada.area && p.area) entrada.area = p.area;
+        const { cantidad, frecuencia } = cadenciaDePersona(asignacion, quien);
+        entrada.items.push({
+          formulario,
+          asignacion,
+          cantidad,
+          frecuencia,
+          desde: desdeDePersona(asignacion, quien),
+          respuestas: respuestas.filter(
+            (r) => r.asignacionId === asignacion.id && respuestaDeLaPersona(r, quien)
+          ),
+        });
+        personas.set(clave, entrada);
+      }
+    }
+  }
+
+  return {
+    personas: [...personas.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
+    totalFormularios: formularios.length,
+    conAsignaciones,
+  };
+}
+
+// Una fila por persona para un mes: el detalle de cada asignación y el total.
+export function filaPlanDeEvaluador(persona, anio, mes, ahora = new Date()) {
+  const detalle = persona.items.map((it) => {
+    const c = celdaDelMes(it.frecuencia, it.cantidad, it.desde, it.respuestas, anio, mes, ahora);
+    const periodo = periodoVigente(it.frecuencia, ahora);
+    const enCurso = it.respuestas.filter((r) => r.periodo === periodo).length;
+    return {
+      ...it,
+      ...c,
+      estado: estadoDelPlan({ ...c, anio, mes, ahora }),
+      // Lo que le falta ahora mismo en el periodo vigente (solo tiene sentido
+      // si estamos mirando el mes en curso).
+      enCurso: Math.min(enCurso, it.cantidad),
+      pendienteAhora: Math.max(0, it.cantidad - enCurso),
+    };
+  });
+  const exigido = detalle.reduce((s, d) => s + d.exigido, 0);
+  const exigidoVencido = detalle.reduce((s, d) => s + d.exigidoVencido, 0);
+  const hechas = detalle.reduce((s, d) => s + d.hechas, 0);
+  return {
+    ...persona,
+    detalle,
+    exigido,
+    exigidoVencido,
+    hechas,
+    porcentaje: exigido > 0 ? Math.round((hechas / exigido) * 100) : null,
+    estado: detalle.length === 0 ? "sin_plan" : estadoDelPlan({ exigido, exigidoVencido, hechas, anio, mes, ahora }),
+  };
+}
+
+export function resumenPlanEvaluadores(filas) {
+  const r = { personas: filas.length, cumplido: 0, al_dia: 0, atrasado: 0, no_cumplido: 0, pendiente: 0, sin_exigencia: 0, sin_plan: 0 };
+  filas.forEach((f) => { r[f.estado] = (r[f.estado] || 0) + 1; });
+  return r;
+}

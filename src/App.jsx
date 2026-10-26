@@ -10,6 +10,7 @@ import Administracion from "./Administracion.jsx";
 import RegistroFormulario from "./RegistroFormulario.jsx";
 import MiPlan from "./MiPlan.jsx";
 import Recibidas from "./Recibidas.jsx";
+import PlanEvaluadores from "./PlanEvaluadores.jsx";
 
 export default function App() {
   // El link del QR es público: no pasa por login, se muestra directo.
@@ -118,6 +119,16 @@ function PanelPrincipal() {
       <>
         <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
         <Recibidas usuario={usuario} />
+      </>
+    );
+  }
+
+  // ── Plan de evaluadores ──
+  if (vista === "planevaluadores" && esMasterOAdmin) {
+    return (
+      <>
+        <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
+        <PlanEvaluadores />
       </>
     );
   }

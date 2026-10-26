@@ -8,7 +8,7 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir }) {
         <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
         <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
       </div>
-      <p className="ca-eyebrow">Formularios · V1.23.0 · Henny</p>
+      <p className="ca-eyebrow">Formularios · V1.24.0 · Henny</p>
       <p className="ca-titulo">Formularios</p>
 
       <div className="ca-nav">
@@ -31,12 +31,20 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir }) {
           Feedbacks y confirmaciones recibidas
         </button>
         {(usuario.rol === "admin" || usuario.rol === "master") && (
-          <button
-            className={`ca-nav-link ${vista === "admin" ? "activo" : ""}`}
-            onClick={() => onCambiarVista("admin")}
-          >
-            Administración
-          </button>
+          <>
+            <button
+              className={`ca-nav-link ${vista === "planevaluadores" ? "activo" : ""}`}
+              onClick={() => onCambiarVista("planevaluadores")}
+            >
+              Plan de evaluadores
+            </button>
+            <button
+              className={`ca-nav-link ${vista === "admin" ? "activo" : ""}`}
+              onClick={() => onCambiarVista("admin")}
+            >
+              Administración
+            </button>
+          </>
         )}
         <div className="ca-nav-espaciador" />
         <span style={{ fontSize: 14, color: "var(--texto-suave)" }}>{usuario.nombreUsuario}</span>

@@ -1,12 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   datosCumplimiento,
-  periodosDelMes,
-  periodoVigente,
+  celdaDelMes,
   etiquetaCadencia,
   desdeDePersona,
   cadenciaDePersona,
-  periodoDentroDelControl,
 } from "./formularios.js";
 
 const MESES_CORTOS = [
@@ -52,7 +50,6 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
 
   const filas = useMemo(() => {
     const ahora = new Date();
-    const periodoActual = (frec) => periodoVigente(frec, ahora);
     const salida = [];
 
     for (const { formulario, asignaciones, respuestas } of datos) {
@@ -63,33 +60,10 @@ export default function MiPlan({ usuario, onAbrirFormulario }) {
         const mias = respuestas.filter((r) => r.asignacionId === asig.id);
         const desde = desdeDePersona(asig, usuario);
 
-        const celdas = columnas.map(({ anio, mes }) => {
-          const periodos = periodosDelMes(frecuencia, anio, mes);
-
-          // "Una sola vez" no tiene periodos: se cuenta lo ejecutado en el mes
-          // contra la cantidad pedida, una única vez en total.
-          if (periodos.length === 0) {
-            const hechas = mias.filter((r) => {
-              const f = new Date(r.fecha);
-              return f.getFullYear() === anio && f.getMonth() === mes;
-            }).length;
-            return { hechas: Math.min(hechas, cantidad), exigido: hechas > 0 ? cantidad : 0 };
-          }
-
-          // Los periodos que todavía no empiezan no se exigen.
-          const actual = periodoActual(frecuencia);
-          const considerados = periodos.filter(
-            (p) =>
-              (p.cierra <= ahora || p.clave === actual) &&
-              periodoDentroDelControl(p.cierra, desde)
-          );
-          const exigido = considerados.length * cantidad;
-          const hechas = considerados.reduce((s, p) => {
-            const n = mias.filter((r) => r.periodo === p.clave).length;
-            return s + Math.min(n, cantidad);
-          }, 0);
-          return { hechas, exigido };
-        });
+        // Mismo cálculo que usa la pestaña "Plan de evaluadores".
+        const celdas = columnas.map(({ anio, mes }) =>
+          celdaDelMes(frecuencia, cantidad, desde, mias, anio, mes, ahora)
+        );
 
         const totalExigido = celdas.reduce((s, c) => s + c.exigido, 0);
         const totalHecho = celdas.reduce((s, c) => s + c.hechas, 0);
