@@ -1,13 +1,13 @@
 :root {
-  --verde: #14a79d;
-  --verde-oscuro: #0e7d75;
-  --verde-claro: #e5f6f4;
-  --ambar: #f0a500;
-  --rojo: #d9534f;
-  --texto: #1f2a2e;
-  --texto-suave: #5b6b6e;
-  --borde: #dbe6e5;
-  --fondo: #f4f8f8;
+  --verde: #009899;
+  --verde-oscuro: #046566;
+  --verde-claro: #e1f5ee;
+  --ambar: #ba7517;
+  --rojo: #993c1d;
+  --texto: #2c2c2a;
+  --texto-suave: #5f5e5a;
+  --borde: #d3d1c7;
+  --fondo: #f1efe8;
 }
 
 * {
@@ -16,7 +16,7 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
   background: var(--fondo);
   color: var(--texto);
   -webkit-tap-highlight-color: transparent;
@@ -25,6 +25,12 @@ body {
 button {
   font-family: inherit;
   cursor: pointer;
+}
+
+/* Un botón deshabilitado se ve atenuado (antes se veía igual de activo). */
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 input,
@@ -140,7 +146,7 @@ textarea {
 
 .ca-pagina {
   min-height: 100vh;
-  background: #faf7f0;
+  background: var(--fondo);
 }
 
 .ca-cabecera {
@@ -165,7 +171,7 @@ textarea {
 }
 
 .ca-titulo {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: "Archivo", "Helvetica Neue", Arial, sans-serif;
   font-weight: 800;
   font-size: 30px;
   margin: 0 0 18px;
@@ -294,6 +300,7 @@ textarea {
 }
 
 .ca-pill {
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -373,3 +380,184 @@ textarea {
 .rp-textarea { resize: vertical; min-height: 60px; word-break: break-word; overflow-wrap: break-word; }
 .rp-btn-icon { cursor: pointer; border: none; background: transparent; padding: 4px; border-radius: 4px; }
 .rp-btn-icon:hover { background: rgba(0,0,0,0.06); }
+
+/* --- CdR: bloques de inicio y moldes de próximas etapas --- */
+.cdr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.cdr-molde { border: 1.5px dashed var(--borde); border-radius: 12px; padding: 22px; color: var(--texto-suave); background: #fff; }
+.cdr-molde b { color: var(--texto); display: block; margin-bottom: 4px; }
+.cdr-diag { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 6px 0; }
+.cdr-ok { color: #0f6e56; font-weight: 700; }
+.cdr-mal { color: var(--rojo); font-weight: 700; }
+
+/* Vistas con tablas anchas (Administración, Formularios) */
+.ca-ancho { max-width: 1480px; }
+
+/* ---------- Ejecución de la CdR: pasos, navegación y avisos ---------- */
+.cdr-pasos { display: flex; gap: 6px; margin-bottom: 16px; }
+.cdr-paso {
+  flex: 1 1 0; border: 1px solid var(--borde); background: #fff; border-radius: 8px;
+  padding: 9px 6px; font-size: 13px; font-weight: 600; color: var(--texto); cursor: pointer; text-align: center;
+}
+.cdr-paso .n { font-weight: 800; }
+.cdr-paso.activo { background: var(--verde); border-color: var(--verde); color: #fff; }
+
+.cdr-barra-inferior {
+  position: sticky; bottom: 0; z-index: 20; display: flex; justify-content: space-between; gap: 10px;
+  background: #fff; border-top: 1px solid var(--borde); padding: 10px 0; margin-top: 20px;
+}
+.cdr-nav-btn {
+  border: 1px solid var(--borde); background: #fff; border-radius: 10px; padding: 10px 18px;
+  font-size: 14px; font-weight: 700; color: var(--texto); cursor: pointer;
+}
+.cdr-nav-btn.prim { background: var(--verde); border-color: var(--verde); color: #fff; }
+.cdr-nav-btn:disabled { opacity: 0.45; cursor: default; }
+.cdr-acciones-directo { display: flex; gap: 10px; flex-wrap: wrap; }
+.cdr-nav-btn .cdr-sub { display: block; font-size: 12.5px; font-weight: 600; opacity: 0.92; margin-top: 2px; }
+
+.cdr-aviso {
+  background: #fff3de; color: #7a5200; border: 1px solid #f0d9a8; border-radius: 10px;
+  padding: 10px 14px; font-size: 13.5px; font-weight: 600; margin-bottom: 12px;
+}
+
+/* ---------- Reunión del QR y opciones de un toque ---------- */
+.cdr-reunion { display: flex; flex-direction: column; gap: 2px; background: #e4f4f4; border-radius: 14px; padding: 12px 16px; margin-bottom: 14px; }
+.cdr-reunion-etq { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--verde-oscuro); }
+.cdr-reunion-nom { font-size: 17px; font-weight: 800; color: var(--verde-oscuro); line-height: 1.25; }
+.cdr-reunion-sub { font-size: 13px; color: var(--texto-suave); }
+.cdr-opciones { display: grid; gap: 8px; }
+.cdr-opcion { text-align: left; border: 2px solid var(--borde); background: #fff; border-radius: 14px; padding: 12px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-height: 56px; }
+.cdr-opcion .nom { font-weight: 800; font-size: 16px; color: var(--texto); }
+.cdr-opcion .sub { font-size: 13px; color: var(--texto-suave); }
+.cdr-opcion.sel { border-color: var(--verde); background: var(--verde-claro); }
+.cdr-opcion.sel .nom { color: var(--verde-oscuro); }
+.cdr-opcion.fijo { cursor: default; }
+
+/* ---------- Avance del plan dentro de la evaluación ---------- */
+.cdr-avance { background: #fff; border: 1px solid var(--borde); border-left: 5px solid var(--verde); border-radius: 12px; padding: 9px 14px; margin-bottom: 12px; }
+.cdr-avance .msg { font-size: 13.5px; line-height: 1.4; }
+.cdr-avance .barra { margin-top: 6px; }
+.cdr-avance.enviada { padding: 14px 16px; margin-bottom: 14px; }
+.cdr-avance.enviada .msg { font-size: 16px; }
+.cdr-avance.ok { background: #e8f6ee; border-left-color: #0f6e56; }
+
+/* ---------- Rúbrica: un criterio por tarjeta, botones grandes ---------- */
+.cdr-progreso-rubrica { position: sticky; top: 0; z-index: 15; background: var(--fondo); padding: 10px 2px 8px; margin: 0 0 6px; border-bottom: 1px solid var(--borde); }
+.cdr-progreso-rubrica .fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14.5px; }
+.cdr-progreso-rubrica .barra { height: 8px; background: #e4e1d6; border-radius: 8px; margin-top: 6px; overflow: hidden; }
+.cdr-progreso-rubrica .barra > div { height: 100%; background: var(--verde); border-radius: 8px; transition: width 0.2s; }
+.cdr-ayuda-rubrica { margin: 4px 2px 12px; font-size: 13px; color: var(--texto-suave); }
+.cdr-link { background: none; border: none; color: var(--verde-oscuro); font-weight: 700; font-size: 13.5px; cursor: pointer; padding: 8px 2px; text-decoration: underline; text-underline-offset: 3px; }
+.cdr-criterio { background: #fff; border: 1px solid var(--borde); border-left-width: 5px; border-radius: 16px; padding: 16px; margin-bottom: 12px; scroll-margin-top: 90px; }
+.cdr-criterio.n2 { border-left-color: #0f6e56; }
+.cdr-criterio.n1 { border-left-color: #ba7517; }
+.cdr-criterio.n0 { border-left-color: #993c1d; }
+.cdr-criterio.nNA { border-left-color: #8b8a85; }
+.cdr-chip-bloque { display: inline-block; background: #e4f4f4; color: var(--verde-oscuro); font-size: 12.5px; font-weight: 700; border-radius: 100px; padding: 4px 12px; margin-bottom: 8px; }
+.cdr-pregunta { margin: 0 0 14px; font-size: 17px; line-height: 1.35; font-weight: 700; }
+.cdr-pregunta .cod { color: var(--texto-suave); font-weight: 800; margin-right: 3px; }
+.cdr-niveles { display: grid; gap: 8px; }
+.cdr-nivel { border: 2px solid var(--borde); background: #fff; border-radius: 14px; min-height: 64px; padding: 8px 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--texto); }
+.cdr-nivel .num { font-size: 22px; font-weight: 800; line-height: 1; }
+.cdr-nivel .etq { font-size: 12.5px; font-weight: 700; }
+.cdr-nivel[data-n="2"] .num { color: #0f6e56; }
+.cdr-nivel[data-n="1"] .num { color: #ba7517; }
+.cdr-nivel[data-n="0"] .num { color: #993c1d; }
+.cdr-nivel[data-n="NA"] { border-style: dashed; }
+.cdr-nivel.sel, .cdr-nivel.sel .num { color: #fff; }
+.cdr-nivel.sel { border-style: solid; border-color: transparent; }
+.cdr-nivel.sel[data-n="2"] { background: #0f6e56; }
+.cdr-nivel.sel[data-n="1"] { background: #ba7517; }
+.cdr-nivel.sel[data-n="0"] { background: #993c1d; }
+.cdr-nivel.sel[data-n="NA"] { background: #5f5e5a; }
+
+/* Etiquetas de los campos del flujo: más legibles */
+.cdr-ejecutar .ca-label { font-size: 14px; font-weight: 700; color: var(--texto); }
+
+/* ---------- Textos largos: se parten, no ensanchan la página ---------- */
+/* Enlaces, códigos o nombres sin espacios no caben en una línea: se cortan en vez de empujar toda la pantalla. */
+.ca-contenido, .cdr-ejecutar, .ca-card { overflow-wrap: break-word; }
+/* Los hijos de filas y cuadrículas pueden encogerse (si no, el texto largo los obliga a quedarse anchos). */
+.ca-contenido [style*="display: flex"] > *,
+.ca-contenido [style*="display: grid"] > *,
+.cdr-ejecutar [style*="display: flex"] > *,
+.cdr-ejecutar [style*="display: grid"] > * { min-width: 0; }
+.cdr-ejecutar img, .cdr-ejecutar svg, .cdr-ejecutar textarea, .cdr-ejecutar input, .cdr-ejecutar select { max-width: 100%; }
+/* Títulos largos: máximo dos líneas (el texto completo queda en el tooltip). */
+.cdr-clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ---------- Celular ---------- */
+@media (max-width: 640px) {
+  .ca-cabecera { padding: 12px 14px 0; }
+  .ca-cabecera-top img { height: 26px !important; }
+  .ca-eyebrow { display: none; }
+  .ca-titulo { font-size: 20px; margin: 8px 0 10px; }
+  .ca-nav { gap: 6px 16px; padding-bottom: 8px; }
+  .ca-nav-link { font-size: 14px; }
+  .ca-contenido { padding: 12px 12px 40px; }
+  .ca-ancho { max-width: 100%; }
+
+  /* 16 px evita que el iPhone haga zoom automático al tocar un campo */
+  .rp-input, .rp-select, .rp-textarea { font-size: 16px; }
+
+  .cdr-ejecutar button { min-height: 44px; }
+  .cdr-ejecutar .ca-chip { min-height: 38px; }
+  .cdr-ejecutar .ca-card { padding: 14px; }
+
+  /* Pasos: solo el número, y el nombre únicamente del paso actual */
+  .cdr-paso { flex: 0 0 auto; min-width: 44px; min-height: 44px; }
+  .cdr-paso .nombre { display: none; }
+  .cdr-paso.activo { flex: 1 1 auto; }
+  .cdr-paso.activo::after { content: " · " attr(data-corto); }
+
+  /* Barra de navegación fija abajo, con botones grandes para el pulgar */
+  .cdr-barra-inferior { margin: 20px -12px 0; padding: 10px 12px; box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06); }
+  .cdr-nav-btn { flex: 1; min-height: 48px; font-size: 15px; }
+  .cdr-acciones-directo { flex-direction: column; }
+  .cdr-acciones-directo .cdr-nav-btn { width: 100%; }
+
+}
+
+/* ---------- Tablas como tarjetas (celulares y tablets verticales) ---------- */
+/* Las columnas se ajustan solas al contenido: una palabra solo se parte si de verdad no cabe en la pantalla,
+   nunca porque la tabla encogió la columna. Las etiquetas de estado y los botones no se parten. */
+.ca-tabla th { overflow-wrap: normal; word-break: normal; }   /* bajan de línea entre palabras, nunca dentro de una */
+.ca-tabla td { overflow-wrap: break-word; }
+.ca-tabla td.cdr-libre { overflow-wrap: anywhere; }   /* texto libre (justificaciones, compromisos): un enlace largo no ensancha la tabla */
+.ca-tabla td button, .ca-tabla td .cdr-nav-btn { white-space: nowrap; }
+@media (max-width: 860px) {
+  .ca-tabla.cdr-apilada thead { display: none; }
+  .ca-tabla.cdr-apilada, .ca-tabla.cdr-apilada tbody, .ca-tabla.cdr-apilada tr, .ca-tabla.cdr-apilada td { display: block; width: 100%; }
+  .ca-tabla.cdr-apilada tr { border-top: 1px solid var(--borde); padding: 8px 0; }
+  .ca-tabla.cdr-apilada td { border: none; padding: 3px 12px; }
+  .ca-tabla.cdr-bloques tr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 6px; padding: 8px 4px; }
+  .ca-tabla.cdr-bloques td:first-child { grid-column: 1 / -1; }
+  .ca-tabla.cdr-bloques td { padding: 2px 8px; }
+  .ca-tabla.cdr-apilada td[data-label]::before {
+    content: attr(data-label); display: block; font-size: 11.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.03em; color: var(--texto-suave);
+  }
+}
+
+/* ---------- Dentro del portal (?embed=1): mismo aspecto que Gestión de Agenda ---------- */
+/* El portal pone el banner, el título de la práctica y el fondo en degradado; aquí solo queda el contenido. */
+html.ca-embed, html.ca-embed body, html.ca-embed .ca-pagina { background: transparent; min-height: 0; }
+html.ca-embed .ca-cabecera { background: transparent; border: none; padding: 2px 0 14px; }
+html.ca-embed .ca-cabecera-top, html.ca-embed .ca-eyebrow, html.ca-embed .ca-titulo { display: none; }
+html.ca-embed .ca-nav { gap: 8px; padding: 0; }
+html.ca-embed .ca-nav-link {
+  padding: 7px 15px; border-radius: 100px; border: 1.5px solid var(--borde); background: #fff;
+  font-size: 13px; font-weight: 700; color: var(--texto);
+}
+html.ca-embed .ca-nav-link:hover { border-color: var(--verde); color: var(--verde); }
+html.ca-embed .ca-nav-link.activo { background: var(--verde-claro); border-color: var(--verde); color: var(--verde-oscuro); }
+/* El contenido ocupa el ancho que le da el portal (el portal ya centra y limita el ancho). */
+html.ca-embed .ca-contenido, html.ca-embed .ca-ancho { max-width: none; padding: 0 0 48px; }
+html.ca-embed .ca-card { box-shadow: none; border-radius: 14px; }
+/* Gestión de Agenda usa paneles de 1100 px: la CdR embebida ocupa el mismo ancho (en vez de la columna de 900 px). */
+html.ca-embed .cdr-ejecutar { max-width: 1100px !important; }
+@media (max-width: 640px) {
+  html.ca-embed .ca-contenido, html.ca-embed .ca-ancho { padding: 0 0 40px; }
+  html.ca-embed .ca-cabecera { padding-bottom: 10px; }
+  /* Sin relleno lateral, la barra inferior ya no debe salirse con márgenes negativos. */
+  html.ca-embed .cdr-barra-inferior { margin-left: 0; margin-right: 0; }
+}

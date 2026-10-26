@@ -1,50 +1,71 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
-import {
-  asegurarUsuarioMaestro,
-  listarUsuarios,
-  listarAreas,
-  iniciarSesion,
-  crearUsuarioPendiente,
-  crearArea,
-} from "./auth.js";
+import { asegurarUsuarioMaestro, iniciarSesion, listarUsuarios } from "./auth.js";
+
+const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 
 export default function Login({ onIngresar }) {
-  const [usuarios, setUsuarios] = useState([]);
-  const [areas, setAreas] = useState([]);
-  const [modo, setModo] = useState("login"); // login | registro | esperando_validacion
-  const [nombreUsuario, setNombreUsuario] = useState("");
+  const [usuarios, setUsuarios] = useState(null);
+  const [errorLista, setErrorLista] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [elegido, setElegido] = useState(""); // nombre exacto elegido de la lista
+  const [abierto, setAbierto] = useState(false);
   const [password, setPassword] = useState("");
-  const [correo, setCorreo] = useState("");
-  const [area, setArea] = useState("");
-  const [areaNueva, setAreaNueva] = useState("");
-  const [creandoArea, setCreandoArea] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+  const claveRef = useRef(null);
 
   useEffect(() => {
+    // Deja listo al usuario maestro del directorio (con acceso a todas las apps).
     asegurarUsuarioMaestro().catch(() => {});
-    const c1 = listarUsuarios((lista) => setUsuarios(lista.filter((u) => u.rol !== "deshabilitado")));
-    const c2 = listarAreas(setAreas);
-    return () => {
-      c1();
-      c2();
-    };
+    return listarUsuarios(setUsuarios, () => {
+      setErrorLista(true);
+      setUsuarios([]);
+    });
   }, []);
+
+  // Solo se sugieren personas que realmente pueden entrar a la CdR.
+  const nombres = useMemo(
+    () =>
+      (usuarios || [])
+        .filter((u) => u.estado !== "pendiente" && u.rol !== "deshabilitado" && (u.rol === "master" || (Array.isArray(u.apps) && u.apps.includes("cdr"))))
+        .map((u) => u.nombreUsuario)
+        .filter(Boolean),
+    [usuarios]
+  );
+  // Si la lista no se pudo cargar, se deja escribir el usuario a mano para no bloquear el ingreso.
+  const modoLibre = errorLista || (usuarios !== null && nombres.length === 0);
+  const q = norm(texto);
+  const sugerencias = q.length >= 2 ? nombres.filter((n) => norm(n).includes(q)).slice(0, 8) : [];
+
+  function elegir(nombre) {
+    setTexto(nombre);
+    setElegido(nombre);
+    setAbierto(false);
+    setError("");
+    setTimeout(() => claveRef.current?.focus(), 0);
+  }
+
+  function escribir(t) {
+    setTexto(t);
+    setAbierto(true);
+    setError("");
+    if (modoLibre) return setElegido(t.trim());
+    const exacto = nombres.find((n) => norm(n) === norm(t));
+    setElegido(exacto || "");
+  }
 
   async function enviarLogin(ev) {
     ev.preventDefault();
+    if (!elegido) return;
     setError("");
     setCargando(true);
     try {
-      const usuario = await iniciarSesion(nombreUsuario, password);
+      const usuario = await iniciarSesion(elegido, password);
       onIngresar(usuario);
     } catch (e) {
       if (e.message === "Ese usuario ya no existe.") {
-        // No existe todavía: le ofrecemos crear su perfil en vez de solo
-        // decirle que está mal escrito.
-        setModo("registro");
-        setError("");
+        setError("No encontramos ese usuario. Si deberías tener acceso a la CdR, pídeselo a Excelencia Operacional.");
       } else {
         setError(e.message || "No se pudo iniciar sesión.");
       }
@@ -53,239 +74,79 @@ export default function Login({ onIngresar }) {
     }
   }
 
-  async function enviarRegistro(ev) {
-    ev.preventDefault();
-    setError("");
-    if (password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres.");
-      return;
-    }
-    setCargando(true);
-    try {
-      const resultado = await crearUsuarioPendiente(nombreUsuario, password, correo, area);
-      if (resultado?.fusionado && resultado.estado === "activo") {
-        // Ya tenía una cuenta activa creada desde otra app: no se creó
-        // ninguna cuenta nueva ni se pisó su contraseña, solo se le
-        // habilitó el acceso a Asistencia QR. Se le avisa y se lo manda
-        // a iniciar sesión con su clave de siempre (no la que acaba de
-        // escribir acá, que no se guardó).
-        setModo("login");
-        setNombreUsuario(resultado.nombreUsuario);
-        setPassword("");
-        setError("");
-        window.alert(
-          `"${resultado.nombreUsuario}" ya tenía una cuenta (creada desde otra app) — se le habilitó el acceso a Formularios. Inicia sesión con tu usuario y tu contraseña de siempre (no la que acabas de escribir acá).`
-        );
-      } else {
-        setModo("esperando_validacion");
-      }
-    } catch (e) {
-      setError(e.message || "No se pudo crear tu perfil.");
-    } finally {
-      setCargando(false);
-    }
-  }
+  let pista;
+  if (modoLibre) pista = errorLista ? "No se pudo cargar la lista de usuarios: escribe tu usuario completo." : "Escribe tu usuario completo.";
+  else if (elegido) pista = "✓ Usuario seleccionado";
+  else if (q.length < 2) pista = "Escribe las primeras letras de tu nombre y elígelo de la lista.";
+  else if (sugerencias.length === 0) pista = "No hay ningún usuario con ese nombre. Si deberías tener acceso a la CdR, pídeselo a Excelencia Operacional.";
+  else pista = "Elige tu nombre de la lista.";
 
-  async function agregarAreaNueva() {
-    const limpio = areaNueva.trim();
-    if (!limpio) return;
-    setCreandoArea(true);
-    setError("");
-    try {
-      await crearArea(limpio);
-      setArea(limpio);
-      setAreaNueva("");
-    } catch (e) {
-      setError(e.message || "No se pudo crear el área.");
-    } finally {
-      setCreandoArea(false);
-    }
-  }
-
-  if (modo === "esperando_validacion") {
-    return (
-      <Envoltorio>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 34 }}>✅</div>
-          <p style={{ fontWeight: 700, marginTop: 8 }}>Perfil creado</p>
-          <p style={{ color: "var(--texto-suave)", fontSize: 14 }}>
-            Un administrador tiene que validar tu cuenta antes de que puedas entrar. Avísale que ya te
-            registraste como <b>{nombreUsuario}</b>.
-          </p>
-          <button
-            type="button"
-            className="ca-btn ca-btn-secundario"
-            style={{ marginTop: 14 }}
-            onClick={() => {
-              setModo("login");
-              setPassword("");
-            }}
-          >
-            Volver a intentar entrar
-          </button>
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div className="ca-card" style={{ width: "100%", maxWidth: 360 }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+          <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 42 }} />
         </div>
-      </Envoltorio>
-    );
-  }
+        <p style={{ textAlign: "center", fontWeight: 800, fontSize: 18, margin: "0 0 4px" }}>
+          Confirmación de Rol (CdR)
+        </p>
+        <p style={{ textAlign: "center", color: "var(--texto-suave)", fontSize: 13, margin: "0 0 18px" }}>
+          Diálogo de Desempeño · Excelencia Operacional
+        </p>
+        <form onSubmit={enviarLogin}>
+          <label className="ca-label">Usuario</label>
+          <div style={{ position: "relative" }}>
+            <input
+              className="ca-input"
+              value={texto}
+              onChange={(e) => escribir(e.target.value)}
+              onFocus={() => setAbierto(true)}
+              onBlur={() => setTimeout(() => setAbierto(false), 180)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                if (!elegido && sugerencias.length === 1) {
+                  e.preventDefault();
+                  elegir(sugerencias[0]);
+                } else if (!elegido) e.preventDefault();
+              }}
+              placeholder="Escribe tu nombre y elígelo"
+              autoComplete="off"
+              autoCapitalize="words"
+              autoFocus
+            />
+            {abierto && !elegido && !modoLibre && sugerencias.length > 0 && (
+              <div style={{ position: "absolute", zIndex: 30, left: 0, right: 0, top: "100%", marginTop: 2, background: "#fff", border: "1px solid var(--borde)", borderRadius: 10, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 22px rgba(0,0,0,.12)" }}>
+                {sugerencias.map((n) => (
+                  <button key={n} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => elegir(n)}
+                    style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid var(--fondo)", padding: "13px 14px", fontSize: 15, cursor: "pointer" }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: 12, marginTop: 4, color: elegido ? "var(--verde-oscuro)" : q.length >= 2 && !modoLibre && sugerencias.length === 0 ? "var(--rojo)" : "var(--texto-suave)" }}>{pista}</div>
 
-  if (modo === "registro") {
-    return (
-      <Envoltorio>
-        <form onSubmit={enviarRegistro}>
-          <p style={{ textAlign: "center", fontWeight: 800, fontSize: 17, margin: "0 0 4px" }}>
-            No encontramos a "{nombreUsuario}"
-          </p>
-          <p style={{ textAlign: "center", color: "var(--texto-suave)", fontSize: 13, margin: "0 0 16px" }}>
-            Crea tu perfil — un administrador lo tiene que validar antes de que puedas entrar.
-          </p>
-
-          <label className="ca-label">Nombre completo</label>
-          <input
-            className="ca-input"
-            value={nombreUsuario}
-            onChange={(e) => setNombreUsuario(e.target.value)}
-          />
-
-          <label className="ca-label" style={{ marginTop: 10 }}>
-            Elige una contraseña
+          <label className="ca-label" style={{ marginTop: 12 }}>
+            Contraseña
           </label>
           <input
+            ref={claveRef}
             className="ca-input"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="mínimo 6 caracteres"
+            placeholder="••••••••"
+            autoComplete="current-password"
           />
-
-          <label className="ca-label" style={{ marginTop: 10 }}>
-            Correo
-          </label>
-          <input
-            className="ca-input"
-            type="email"
-            value={correo}
-            onChange={(e) => setCorreo(e.target.value)}
-            placeholder="nombre.apellido@empresa.cl"
-          />
-
-          <label className="ca-label" style={{ marginTop: 10 }}>
-            Área
-          </label>
-          <select className="ca-input" value={area} onChange={(e) => setArea(e.target.value)}>
-            <option value="">Sin área…</option>
-            {areas.map((a) => (
-              <option key={a.id} value={a.nombre}>
-                {a.nombre}
-              </option>
-            ))}
-          </select>
-          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-            <input
-              className="ca-input"
-              placeholder="¿No está tu área? Escríbela aquí…"
-              value={areaNueva}
-              onChange={(e) => setAreaNueva(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  agregarAreaNueva();
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="ca-btn ca-btn-secundario"
-              style={{ width: "auto" }}
-              onClick={agregarAreaNueva}
-              disabled={creandoArea}
-            >
-              + Agregar
-            </button>
-          </div>
-
           {error && <p style={{ color: "var(--rojo)", fontSize: 13, marginTop: 10 }}>{error}</p>}
-
-          <button className="ca-btn" style={{ marginTop: 16 }} disabled={cargando}>
-            {cargando ? "Creando…" : "Crear mi perfil"}
+          <button className="ca-btn" style={{ marginTop: 16 }} disabled={cargando || !elegido || !password}>
+            {cargando ? "Ingresando…" : "Ingresar"}
           </button>
-          <button
-            type="button"
-            className="ca-btn-texto"
-            style={{ marginTop: 6, width: "100%" }}
-            onClick={() => {
-              setModo("login");
-              setError("");
-            }}
-          >
-            ← Volver a intentar entrar
-          </button>
+          <p style={{ textAlign: "center", fontSize: 12, color: "var(--texto-suave)", marginTop: 12 }}>
+            Usas el mismo usuario y contraseña de las otras apps de Excelencia. El acceso a la CdR lo asigna Excelencia Operacional.
+          </p>
         </form>
-      </Envoltorio>
-    );
-  }
-
-  return (
-    <Envoltorio>
-      <form onSubmit={enviarLogin}>
-        <label className="ca-label">Usuario</label>
-        <input
-          className="ca-input"
-          list="lista-usuarios"
-          value={nombreUsuario}
-          onChange={(e) => setNombreUsuario(e.target.value)}
-          placeholder="Tu nombre de usuario"
-          autoFocus
-        />
-        <datalist id="lista-usuarios">
-          {usuarios.map((u) => (
-            <option key={u.uid} value={u.nombreUsuario} />
-          ))}
-        </datalist>
-
-        <label className="ca-label" style={{ marginTop: 12 }}>
-          Contraseña
-        </label>
-        <input
-          className="ca-input"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-        />
-
-        {error && <p style={{ color: "var(--rojo)", fontSize: 13, marginTop: 10 }}>{error}</p>}
-
-        <button className="ca-btn" style={{ marginTop: 16 }} disabled={cargando}>
-          {cargando ? "Ingresando…" : "Ingresar"}
-        </button>
-        <p style={{ textAlign: "center", fontSize: 12, color: "var(--texto-suave)", marginTop: 12 }}>
-          ¿No tienes cuenta? Escribe tu nombre arriba e intenta entrar — te vamos a ofrecer crear tu perfil.
-        </p>
-      </form>
-    </Envoltorio>
-  );
-}
-
-function Envoltorio({ children }) {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-      }}
-    >
-      <div className="ca-card" style={{ width: "100%", maxWidth: 360 }}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-          <img src={logoLomasBayas} alt="Logo" style={{ height: 42 }} />
-        </div>
-        <p style={{ textAlign: "center", fontWeight: 800, fontSize: 18, margin: "0 0 18px" }}>
-          Formularios
-        </p>
-        {children}
-        <p style={{ textAlign: "center", fontSize: 10, color: "#b8c4c2", marginTop: 16 }}>v1.24.0</p>
       </div>
     </div>
   );

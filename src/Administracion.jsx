@@ -17,6 +17,7 @@ import {
   eliminarArea,
   correoPorDefecto,
   APPS_DISPONIBLES,
+  APPS_HEREDADAS,
   APP_ACTUAL_ID,
 } from "./auth.js";
 
@@ -25,7 +26,7 @@ import {
 // migrados antes de que existiera este campo), se asume que tienen acceso
 // a todas — no se les corta el paso por una migración de datos.
 function nombresApps(apps) {
-  if (!Array.isArray(apps) || apps.length === 0) return "Todas (heredado)";
+  if (!Array.isArray(apps) || apps.length === 0) return "Asistencia QR, RdP Tracker (heredado — sin CdR)";
   return apps
     .map((id) => APPS_DISPONIBLES.find((a) => a.id === id)?.nombre || id)
     .join(", ");
@@ -91,9 +92,9 @@ function FilaValidacion({ u, areas, usuarios, esMaster, onValidar, onRechazar })
   const [password, setPassword] = useState("RdPTracker");
   const [rol, setRol] = useState("usuario");
   const [area, setArea] = useState(u.area || "");
-  // Sin campo "apps" el usuario entra a todas por herencia; al validarlo se
-  // parte de esa misma realidad, para no quitarle en silencio el acceso a
-  // las otras apps.
+  // Henny: el directorio es compartido con Asistencia y RdP. Al validar a
+  // alguien sin campo "apps" se parte de todas (lo que tenía por herencia),
+  // para no quitarle en silencio el acceso a las otras apps.
   const [apps, setApps] = useState(
     Array.isArray(u.apps) && u.apps.length ? u.apps : APPS_DISPONIBLES.map((a) => a.id)
   );
@@ -484,7 +485,7 @@ export default function Administracion({ usuarioActual }) {
   }
 
   return (
-    <div style={{ maxWidth: 1240, margin: "0 auto", padding: "0 4px" }}>
+    <div style={{ maxWidth: 1480, margin: "0 auto", padding: "0 4px" }}>
       <h2 style={estilos.titulo}>Crear nuevo usuario</h2>
       <p style={estilos.ayudaSeccion}>
         La contraseña queda por defecto en <strong>RdPTracker</strong>; puedes cambiarla antes de crear.
@@ -799,7 +800,7 @@ export default function Administracion({ usuarioActual }) {
                   valor={
                     Array.isArray(u.apps) && u.apps.length
                       ? u.apps
-                      : APPS_DISPONIBLES.map((a) => a.id) // heredado = acceso a todas, igual que en el login
+                      : APPS_HEREDADAS // heredado = solo las apps anteriores a la CdR (la CdR nunca es por defecto)
                   }
                   onCambiar={(seleccion) =>
                     conManejoDeError(
@@ -985,7 +986,7 @@ const estilos = {
   tabla: {
     border: "1px solid #D3D1C7",
     borderRadius: 8,
-    maxWidth: 1240,
+    maxWidth: 1480,
     overflowX: "auto",
   },
   fila: {
@@ -995,6 +996,7 @@ const estilos = {
     borderBottom: "1px solid #F1EFE8",
     background: "#FFFFFF",
     gap: 8,
+    minWidth: 1240, // las filas nunca se comprimen: si la pantalla es angosta, la tabla se desplaza en vez de cortarse
   },
   filaEncabezado: {
     background: "#F1EFE8",
@@ -1007,7 +1009,7 @@ const estilos = {
   colUsuario: { flex: "1 1 150px", minWidth: 130, fontSize: 13, color: "#2C2C2A" },
   colRol: { width: 110, flexShrink: 0 },
   colArea: { width: 150, flexShrink: 0 },
-  colApps: { width: 150, flexShrink: 0 },
+  colApps: { width: 215, flexShrink: 0 },
   colCargo: { width: 140, flexShrink: 0 },
   colCorreo: { width: 175, flexShrink: 0 },
   colPassword: { width: 120, flexShrink: 0 },

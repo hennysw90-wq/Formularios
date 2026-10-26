@@ -1,7 +1,11 @@
+// Base de datos de la CdR en Henny (proyecto "formularios-7f89a", el mismo de
+// Formularios; las colecciones de la CdR llevan prefijo "cdr"). Aquí viven los
+// formularios, asignaciones, evaluaciones y compromisos. Las personas y su
+// acceso NO están acá — se leen del directorio compartido (firebaseDirectorio.js).
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 
-// Proyecto formularios-7f89a — datos propios de los formularios
 const firebaseConfig = {
   apiKey: "AIzaSyBTrJuMQAdOtYJVxVcqxZYgCSkijgaCB3k",
   authDomain: "formularios-7f89a.firebaseapp.com",
@@ -13,3 +17,28 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+const auth = getAuth(app);
+
+// Sesión anónima: no identifica a nadie (la identidad sale del directorio),
+// solo permite que las reglas de Firestore exijan "request.auth != null".
+let promesaSesion = null;
+export function asegurarSesionCdR() {
+  if (!promesaSesion) {
+    promesaSesion = new Promise((resolve, reject) => {
+      const apagar = onAuthStateChanged(auth, (u) => {
+        if (u) {
+          apagar();
+          resolve(u);
+        }
+      });
+      signInAnonymously(auth).catch((e) => {
+        // En Henny las reglas no exigen sesión: si el login anónimo no está
+        // habilitado en el proyecto, se sigue igual en vez de bloquear la app.
+        console.warn("Login anónimo no disponible; se continúa sin sesión:", e?.code || e);
+        apagar();
+        resolve(null);
+      });
+    });
+  }
+  return promesaSesion;
+}

@@ -2,17 +2,32 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Formularios creados desde el panel (login propio, sin Firebase Auth).
-    // El link público del QR LEE el formulario sin haber iniciado sesión,
-    // así que la lectura no puede requerir autenticación.
+    // ── Datos de la app Formularios anterior ────────────────────────────
+    // Se conservan tal cual: la CdR no los lee ni los modifica (sus
+    // colecciones llevan prefijo "cdr"), así que no se pierde nada.
     match /formularios/{id} {
       allow read, write: if true;
-
-      // Respuestas enviadas desde el QR: las escribe gente que no tiene
-      // sesión, por eso también quedan abiertas.
       match /respuestas/{respuestaId} {
         allow read, write: if true;
       }
+    }
+
+    // ── CdR · Diálogo de Desempeño ──────────────────────────────────────
+    // Igual que en el resto de Henny, sin exigir sesión: la identidad y el
+    // acceso salen del directorio compartido, no de Firebase Auth.
+    match /cdrFormularios/{id}  { allow read, write: if true; }
+    match /cdrAsignaciones/{id} { allow read, write: if true; }
+    match /cdrCompromisos/{id}  { allow read, write: if true; }
+
+    // Una CdR enviada queda bloqueada: no se puede editar ni borrar. Lo único
+    // que se permite sobre una enviada es anularla o restaurarla (los tres
+    // campos "anulada*"), para que una prueba deje de contar sin perderse.
+    match /cdrEvaluaciones/{id} {
+      allow read, create: if true;
+      allow update: if resource.data.estado != 'enviada'
+        || request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['anulada', 'anuladaMotivo', 'anuladaFecha']);
+      allow delete: if false;
     }
   }
 }

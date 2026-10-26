@@ -1,265 +1,148 @@
 import { useState, useEffect } from "react";
-import { recuperarSesion, cerrarSesion, listarUsuarios } from "./auth.js";
-import { listarFormularios } from "./formularios.js";
+import { collection, getDocs } from "firebase/firestore";
+import { recuperarSesion, cerrarSesion } from "./auth.js";
+import { db, asegurarSesionCdR } from "./firebase.js";
 import Login from "./Login.jsx";
 import Cabecera from "./Cabecera.jsx";
-import ConstructorFormulario from "./ConstructorFormulario.jsx";
-import DetalleFormulario from "./DetalleFormulario.jsx";
-import QRFormulario from "./QRFormulario.jsx";
 import Administracion from "./Administracion.jsx";
-import RegistroFormulario from "./RegistroFormulario.jsx";
-import MiPlan from "./MiPlan.jsx";
-import Recibidas from "./Recibidas.jsx";
-import PlanEvaluadores from "./PlanEvaluadores.jsx";
+import Formularios from "./Formularios.jsx";
+import MisCdR, { AccesoQR } from "./MisCdR.jsx";
+import Estadisticas from "./Estadisticas.jsx";
+import ResumenPlan from "./ResumenPlan.jsx";
+import { formularioDesdeUrl, rutinaDesdeUrl } from "./enlaces.js";
 
 export default function App() {
-  // El link del QR es público: no pasa por login, se muestra directo.
-  const formularioQR = new URLSearchParams(window.location.search).get("formulario");
-  if (formularioQR) {
-    return <RegistroFormulario formularioId={formularioQR} />;
-  }
-
-  return <PanelPrincipal />;
-}
-
-function PanelPrincipal() {
-  const [usuario, setUsuario] = useState(undefined); // undefined = cargando
-  const [vista, setVista] = useState("lista"); // lista | constructor | detalle | admin
-  const [formularios, setFormularios] = useState([]);
-  const [usuarios, setUsuarios] = useState([]);
-  const [formularioActivo, setFormularioActivo] = useState(null);
-  const [formularioQR, setFormularioQR] = useState(null);
-  const [busqueda, setBusqueda] = useState("");
+  const [usuario, setUsuario] = useState(undefined); // undefined = cargando, null = sin sesión
+  const [vista, setVista] = useState("inicio");
+  // Si la persona llegó escaneando un QR, el enlace trae el formulario (?formulario=...).
+  // Se conserva mientras inicia sesión y se quita de la barra de direcciones al usarlo.
+  const [formularioDirecto, setFormularioDirecto] = useState(() => formularioDesdeUrl(window.location.search));
+  const [rutinaDirecta, setRutinaDirecta] = useState(() => rutinaDesdeUrl(window.location.search)); // la reunión del QR (una sola)
+  const [verLogin, setVerLogin] = useState(false); // quien llega por QR puede optar por iniciar sesión
 
   useEffect(() => {
-    (async () => setUsuario(await recuperarSesion()))();
+    (async () => {
+      try {
+        setUsuario(await recuperarSesion());
+      } catch (e) {
+        console.error("No se pudo recuperar la sesión:", e);
+        setUsuario(null);
+      }
+    })();
   }, []);
 
   useEffect(() => {
-    if (!usuario) return;
-    const c1 = listarFormularios(setFormularios);
-    const c2 = listarUsuarios(setUsuarios);
-    return () => { c1(); c2(); };
+    if (usuario && formularioDirecto) setVista("mis");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario]);
+
+  function directoAtendido() {
+    setFormularioDirecto("");
+    setRutinaDirecta("");
+    const u = new URL(window.location.href);
+    u.searchParams.delete("formulario");
+    u.searchParams.delete("rutina");
+    window.history.replaceState(null, "", u.pathname + u.search + u.hash);
+  }
+
+  if (usuario === undefined) return null;
+  if (!usuario) {
+    // Con un QR de formulario no se pide iniciar sesión: elige su nombre de la lista de asistentes.
+    if (formularioDirecto && !verLogin) return <AccesoQR formularioId={formularioDirecto} rutinaId={rutinaDirecta} onIniciarSesion={() => setVerLogin(true)} />;
+    return <Login onIngresar={setUsuario} />;
+  }
+
+  const esMaster = usuario.rol === "master";
 
   function salir() {
     cerrarSesion();
     setUsuario(null);
+    setVista("inicio");
   }
-
-  // ── Cargando ──
-  if (usuario === undefined) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
-        <p style={{ color: "#5b6b6e" }}>Cargando…</p>
-      </div>
-    );
-  }
-
-  // ── Login ──
-  if (!usuario) {
-    return <Login onIngresar={setUsuario} />;
-  }
-
-  const esMasterOAdmin = usuario.rol === "master" || usuario.rol === "admin";
-  // Crear, editar y eliminar formularios queda reservado al rol Master.
-  // Un Administrador sigue viendo todo y administrando usuarios.
-  const esMaster = usuario.rol === "master";
-
-  // ── Constructor (crear / editar) ──
-  if (vista === "constructor" && esMaster) {
-    return (
-      <>
-        <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
-        <ConstructorFormulario
-          formulario={formularioActivo}
-          usuarios={usuarios}
-          onGuardado={() => { setVista("lista"); setFormularioActivo(null); }}
-          onCancelar={() => { setVista(formularioActivo ? "detalle" : "lista"); }}
-        />
-      </>
-    );
-  }
-
-  // ── Detalle de un formulario ──
-  if (vista === "detalle" && formularioActivo) {
-    return (
-      <>
-        <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
-        {formularioQR && (
-          <QRFormulario formulario={formularioQR} onCerrar={() => setFormularioQR(null)} />
-        )}
-        <DetalleFormulario
-          formulario={formularioActivo}
-          usuario={usuario}
-          onEditar={() => setVista("constructor")}
-          onEliminar={() => { setVista("lista"); setFormularioActivo(null); }}
-          onVolver={() => setVista("lista")}
-        />
-      </>
-    );
-  }
-
-  // ── Cumplimiento de mi plan ──
-  if (vista === "miplan") {
-    return (
-      <>
-        <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
-        <MiPlan
-          usuario={usuario}
-          onAbrirFormulario={(f) => { setFormularioActivo(f); setVista("detalle"); }}
-        />
-      </>
-    );
-  }
-
-  // ── Feedbacks y confirmaciones recibidas ──
-  if (vista === "recibidas") {
-    return (
-      <>
-        <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
-        <Recibidas usuario={usuario} />
-      </>
-    );
-  }
-
-  // ── Plan de evaluadores ──
-  if (vista === "planevaluadores" && esMasterOAdmin) {
-    return (
-      <>
-        <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
-        <PlanEvaluadores />
-      </>
-    );
-  }
-
-  // ── Administración ──
-  if (vista === "admin" && esMasterOAdmin) {
-    return (
-      <>
-        <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
-        <div style={{ marginTop: 20, padding: "0 28px 40px" }}>
-          <Administracion usuarioActual={usuario} />
-        </div>
-      </>
-    );
-  }
-
-  // ── Lista de formularios ──
-  const formulariosFiltrados = formularios.filter((f) =>
-    !busqueda || f.titulo.toLowerCase().includes(busqueda.toLowerCase())
-  );
-
-  // Un usuario normal solo ve los formularios donde está asignado (o los
-  // que no tienen asignaciones, que quedan abiertos para todos).
-  const formulariosMostrados =
-    usuario.rol === "usuario"
-      ? formulariosFiltrados.filter((f) => {
-          const asigs = f.asignaciones || [];
-          return (
-            asigs.length === 0 ||
-            asigs.some((a) => (a.personas || []).some((p) => p.uid === usuario.uid))
-          );
-        })
-      : formulariosFiltrados;
 
   return (
-    <>
-      <Cabecera usuario={usuario} vista="lista" onCambiarVista={setVista} onSalir={salir} />
-      <div className="ca-contenido">
+    <div className="ca-pagina">
+      <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
 
-        <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-          <input
-            className="ca-input"
-            style={{ flex: 1, minWidth: 200 }}
-            placeholder="Buscar formulario…"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
-          {esMaster && (
-            <button
-              className="ca-btn"
-              style={{ width: "auto", padding: "12px 20px" }}
-              onClick={() => { setFormularioActivo(null); setVista("constructor"); }}
-            >
-              + Nuevo formulario
-            </button>
-          )}
-        </div>
+      <div className={`ca-contenido ${vista === "admin" || vista === "formularios" || vista === "mis" || vista === "estadisticas" ? "ca-ancho" : ""}`}>
+        {vista === "inicio" && <Inicio usuario={usuario} esMaster={esMaster} onIr={setVista} />}
 
-        {formulariosMostrados.length === 0 ? (
-          <div className="ca-card" style={{ textAlign: "center", padding: "40px 24px" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-            <p style={{ color: "#5b6b6e", margin: 0 }}>
-              {busqueda ? "Sin resultados para la búsqueda." : "No hay formularios disponibles."}
-            </p>
-          </div>
-        ) : (
-          formulariosMostrados.map((f) => (
-            <TarjetaFormulario
-              key={f.id}
-              formulario={f}
-              esMasterOAdmin={esMaster}
-              onAbrir={() => { setFormularioActivo(f); setVista("detalle"); }}
-              onQR={() => { setFormularioActivo(f); setFormularioQR(f); setVista("detalle"); }}
-            />
-          ))
-        )}
+        {vista === "mis" && <MisCdR usuario={usuario} formularioDirecto={formularioDirecto} rutinaDirecta={rutinaDirecta} onDirectoAtendido={directoAtendido} />}
+        {vista === "formularios" && esMaster && <Formularios usuario={usuario} />}
+        {vista === "estadisticas" && esMaster && <Estadisticas usuario={usuario} />}
+        {vista === "admin" && esMaster && <Administracion usuarioActual={usuario} />}
       </div>
-
-      {formularioQR && (
-        <QRFormulario formulario={formularioQR} onCerrar={() => setFormularioQR(null)} />
-      )}
-    </>
+    </div>
   );
 }
 
-function TarjetaFormulario({ formulario, esMasterOAdmin, onAbrir, onQR }) {
-  const asignaciones = formulario.asignaciones || [];
-  const reuniones = [...new Set(asignaciones.map((a) => a.reunionNombre).filter(Boolean))];
-  const personas = new Set();
-  asignaciones.forEach((a) => (a.personas || []).forEach((p) => personas.add(p.uid)));
+function Molde({ titulo, texto }) {
+  return (
+    <div className="cdr-molde">
+      <b>{titulo}</b>
+      {texto}
+    </div>
+  );
+}
+
+function Inicio({ usuario, esMaster, onIr }) {
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div className="ca-card">
+        <p style={{ margin: 0, fontWeight: 800, fontSize: 18 }}>Hola, {usuario.nombreUsuario}</p>
+        <p style={{ margin: "6px 0 0", color: "var(--texto-suave)", fontSize: 14 }}>
+          {esMaster
+            ? "Eres Master: administras quién accede a la CdR, creas los formularios y los asignas a evaluadores."
+            : "Aquí vas a ejecutar las CdR que Excelencia te asigne y dar feedback a los líderes."}
+        </p>
+      </div>
+      <ResumenPlan usuario={usuario} onHacerCdR={() => onIr("mis")} />
+      {esMaster && <Diagnostico />}
+    </div>
+  );
+}
+
+// Solo para el Master: confirma que la base propia de la CdR responde, para
+// detectar a tiempo si falta habilitar el login anónimo o publicar las reglas.
+function Diagnostico() {
+  const [estado, setEstado] = useState({ cargando: true });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await asegurarSesionCdR();
+        const snap = await getDocs(collection(db, "cdrFormularios"));
+        setEstado({ ok: true, formularios: snap.size });
+      } catch (e) {
+        console.error("Diagnóstico CdR:", e);
+        setEstado({ ok: false, mensaje: e.code || e.message || String(e) });
+      }
+    })();
+  }, []);
 
   return (
-    <div className="ca-card" style={{ marginBottom: 12, cursor: "pointer" }} onClick={onAbrir}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: 16, color: "#1f2a2e" }}>
-            {formulario.titulo}
-          </p>
-          {formulario.descripcion && (
-            <p style={{ margin: "0 0 8px", fontSize: 13, color: "#5b6b6e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {formulario.descripcion}
-            </p>
-          )}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span className="ca-chip" style={{ background: "#f0f0f0", color: "#5b6b6e" }}>
-              {(formulario.preguntas || []).length} pregunta{(formulario.preguntas || []).length !== 1 ? "s" : ""}
-            </span>
-            {reuniones.slice(0, 2).map((n) => (
-              <span key={n} className="ca-chip">{n}</span>
-            ))}
-            {reuniones.length > 2 && (
-              <span className="ca-chip">+{reuniones.length - 2} reuniones</span>
-            )}
-            {personas.size > 0 && (
-              <span className="ca-chip" style={{ background: "#f0f0f0", color: "#5b6b6e" }}>
-                {personas.size} persona{personas.size !== 1 ? "s" : ""}
-              </span>
-            )}
-            {asignaciones.length === 0 && (
-              <span className="ca-chip" style={{ background: "#f0f0f0", color: "#5b6b6e" }}>Abierto</span>
-            )}
-          </div>
-        </div>
-        <button
-          className="ca-btn"
-          style={{ width: "auto", padding: "8px 14px", flexShrink: 0 }}
-          onClick={(e) => { e.stopPropagation(); onQR(); }}
-        >
-          QR
-        </button>
+    <div className="ca-card">
+      <p style={{ margin: "0 0 8px", fontWeight: 800 }}>Estado de las conexiones</p>
+      <div className="cdr-diag">
+        <span className="cdr-ok">✓</span> Directorio de usuarios: conectado (iniciaste sesión con él)
       </div>
+      {estado.cargando && <div className="cdr-diag">… Probando la base propia de la CdR</div>}
+      {estado.ok && (
+        <div className="cdr-diag">
+          <span className="cdr-ok">✓</span> Base propia de la CdR: conectada ({estado.formularios} formularios)
+        </div>
+      )}
+      {estado.ok === false && (
+        <>
+          <div className="cdr-diag">
+            <span className="cdr-mal">✕</span> Base propia de la CdR: no responde ({estado.mensaje})
+          </div>
+          <p style={{ fontSize: 13, color: "var(--texto-suave)", margin: "4px 0 0" }}>
+            Revisa en la consola de Firebase del proyecto <b>formularios-7f89a</b>: (1) Authentication → método
+            "Anónimo" habilitado, y (2) Firestore → Reglas publicadas con las del archivo <b>firestore.rules</b>.
+          </p>
+        </>
+      )}
     </div>
   );
 }

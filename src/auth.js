@@ -11,7 +11,7 @@ import {
 } from "firebase/firestore";
 import { dbDirectorio as db } from "./firebaseDirectorio.js";
 
-const CLAVE_SESION = "rdp_sesion_uid";
+const CLAVE_SESION = "cdr_sesion_uid";
 
 const USUARIO_MAESTRO = "Excelencia Operacional";
 const CLAVE_MAESTRO = "Excelencia OEMS";
@@ -26,8 +26,13 @@ export const APP_ACTUAL_ID = "formularios";
 export const APPS_DISPONIBLES = [
   { id: "asistencia", nombre: "Asistencia QR" },
   { id: "rdp", nombre: "RdP Tracker" },
-  { id: "formularios", nombre: "Formularios" },
+  { id: "formularios", nombre: "Formularios (CdR)" },
 ];
+
+// Apps que existían ANTES de la CdR. Se usa como lista por defecto para
+// cuentas antiguas sin el campo "apps" — NUNCA debe incluir esta app
+// ("formularios" en Henny), para que no se entregue a nadie por defecto.
+export const APPS_HEREDADAS = ["asistencia", "rdp"];
 
 // Solo recorta espacios sueltos al inicio/final y colapsa espacios
 // dobles. A propósito NO cambia mayúsculas ni saca los espacios internos,
@@ -158,7 +163,7 @@ function appsSegunRol(rol, apps) {
 // tocar su contraseña, rol ni área ya existentes.
 async function asegurarAppHabilitada(docExistente) {
   const datos = docExistente.data();
-  const appsActuales = Array.isArray(datos.apps) && datos.apps.length ? datos.apps : APPS_DISPONIBLES.map((a) => a.id);
+  const appsActuales = Array.isArray(datos.apps) && datos.apps.length ? datos.apps : APPS_HEREDADAS;
   if (!appsActuales.includes(APP_ACTUAL_ID)) {
     await updateDoc(doc(db, "usuarios", docExistente.id), { apps: [...appsActuales, APP_ACTUAL_ID] });
   }
@@ -185,46 +190,6 @@ export async function crearUsuario(nombreUsuario, password, rol, area = "", carg
   };
   await setDoc(ref, datosNuevos);
   return { uid: ref.id, fusionado: false, nombreUsuario: datosNuevos.nombreUsuario };
-}
-
-// Autorregistro: cuando alguien intenta entrar al portal con un usuario que
-// no existe, puede crear su propio perfil (nombre, clave que él mismo
-// elige, correo y área). Queda en estado "pendiente" — no puede iniciar
-// sesión todavía — hasta que un administrador lo valide en Administración,
-// donde ya se puede revisar la clave y el correo que escribió.
-export async function crearUsuarioPendiente(nombreUsuario, password, correo = "", area = "", cargo = "") {
-  const nombreLimpio = normalizarUsuario(nombreUsuario);
-  if (!nombreLimpio) throw new Error("Escribe tu nombre.");
-  if (!password || password.length < 6) {
-    throw new Error("La contraseña debe tener al menos 6 caracteres.");
-  }
-  const yaExiste = await buscarUsuarioPorNombre(nombreUsuario);
-  if (yaExiste) {
-    // Ya existe (por ejemplo, se creó antes desde RdP Tracker): no se
-    // pisa su contraseña ni se crea una cuenta duplicada — se le
-    // habilita esta app automáticamente sobre su cuenta existente.
-    const datosExistentes = await asegurarAppHabilitada(yaExiste);
-    return {
-      uid: yaExiste.id,
-      fusionado: true,
-      estado: datosExistentes.estado,
-      nombreUsuario: datosExistentes.nombreUsuario,
-    };
-  }
-  const ref = doc(collection(db, "usuarios"));
-  const datos = {
-    nombreUsuario: nombreLimpio,
-    password,
-    rol: "usuario",
-    area: area || "",
-    cargo: (cargo || "").trim(),
-    correo: correo ? correo.trim() : correoPorDefecto(nombreLimpio),
-    estado: "pendiente",
-    apps: [APP_ACTUAL_ID],
-    creado: new Date().toISOString(),
-  };
-  await setDoc(ref, datos);
-  return { uid: ref.id, fusionado: false, estado: "pendiente", ...datos };
 }
 
 // El administrador valida una persona pendiente (o corrige un usuario
@@ -272,62 +237,6 @@ export async function validarUsuarioPendiente(uid, { password, rol, area, nombre
   }
   await updateDoc(doc(db, "usuarios", uid), datos);
   return { fusionado: false };
-}
-
-// Clave por defecto para quien se registra por primera vez desde el QR
-// (ahí nunca se pide clave): las primeras 4 letras del nombre + "26". Ej.
-// "Juan Pérez" -> "juan26". El admin la puede ver y cambiar al validarlo.
-function claveDefaultDesdeNombre(nombre) {
-  const soloLetras = normalizarParaCorreo(nombre);
-  const primeras4 = soloLetras.slice(0, 4).padEnd(4, "x");
-  return `${primeras4}26`;
-}
-
-// Se llama desde el formulario público del QR cuando alguien se registra
-// por primera vez a una reunión: además de guardar su ficha de asistencia,
-// le crea (o actualiza) un perfil de portal en estado "pendiente", con una
-// clave por defecto (las primeras 4 letras de su nombre + "26") ya que el
-// QR nunca pide clave — el admin la puede cambiar al validarlo. Si la
-// persona ya tiene un usuario de portal (pendiente o activo), solo se le
-// refresca correo/área, sin tocar su estado ni su contraseña.
-export async function registrarPersonaComoUsuarioPendiente(nombreUsuario, correo = "", area = "") {
-  const nombreLimpio = normalizarUsuario(nombreUsuario);
-  if (!nombreLimpio) return;
-  const existente = await buscarUsuarioPorNombre(nombreLimpio);
-  if (existente) {
-    const datosExistentes = existente.data();
-    const cambios = {};
-    if (correo) cambios.correo = correo.trim();
-    // El área del perfil queda fija una vez establecida: registrarse en una
-    // reunión con otra área no la cambia (solo el admin la cambia a mano).
-    // Se completa automáticamente solo la primera vez, si estaba vacía.
-    if (area && !datosExistentes.area) cambios.area = area;
-    // Si ya existía (ej. lo agregaron como líder/integrante en un RdP)
-    // pero todavía no tenía esta app habilitada, se le agrega acá — es
-    // la misma persona registrándose por primera vez en Asistencia QR.
-    const appsExistentes = Array.isArray(datosExistentes.apps) && datosExistentes.apps.length
-      ? datosExistentes.apps
-      : APPS_DISPONIBLES.map((a) => a.id);
-    if (!appsExistentes.includes(APP_ACTUAL_ID)) {
-      cambios.apps = [...appsExistentes, APP_ACTUAL_ID];
-    }
-    if (Object.keys(cambios).length > 0) {
-      await updateDoc(doc(db, "usuarios", existente.id), cambios);
-    }
-    return;
-  }
-  const ref = doc(collection(db, "usuarios"));
-  await setDoc(ref, {
-    nombreUsuario: nombreLimpio,
-    password: claveDefaultDesdeNombre(nombreLimpio),
-    rol: "usuario",
-    area: area || "",
-    cargo: "",
-    correo: correo ? correo.trim() : correoPorDefecto(nombreLimpio),
-    estado: "pendiente",
-    apps: [APP_ACTUAL_ID],
-    creado: new Date().toISOString(),
-  });
 }
 
 export async function cambiarRolUsuario(uid, rol) {
@@ -431,19 +340,13 @@ export async function eliminarArea(id) {
   await deleteDoc(doc(db, "areas", id));
 }
 
-// Un usuario tiene paso a esta app si es "master" (acceso a todo), o si
-// el campo "apps" incluye esta app. Los usuarios migrados antes de que
-// existiera este campo (sin "apps" guardado) quedan con acceso a todas
-// por compatibilidad — no se les corta el paso por una migración de
-// datos; el corte solo aplica hacia adelante, para cuentas nuevas o para
-// cuentas donde el rol Master haya elegido a mano restringir el acceso.
+// Acceso ESTRICTO a la CdR: entra solo quien es "master" o tiene "cdr"
+// marcado explícitamente en su lista de apps. A diferencia de otras apps,
+// acá NO vale la regla "sin campo apps = acceso a todo": las cuentas
+// antiguas no tienen la CdR hasta que Excelencia se la asigne a mano.
 function tieneAccesoAEstaApp(datos) {
-  // Un usuario "deshabilitado" no entra a ninguna app, sin excepción —
-  // ni siquiera si en algún momento fue Master. Es la forma de dar de
-  // baja a alguien sin borrar su cuenta (historial, RdPs, asistencia).
   if (datos.rol === "deshabilitado") return false;
   if (datos.rol === "master") return true;
-  if (!Object.prototype.hasOwnProperty.call(datos, "apps")) return true;
   return Array.isArray(datos.apps) && datos.apps.includes(APP_ACTUAL_ID);
 }
 
@@ -460,7 +363,7 @@ export async function iniciarSesion(nombreUsuario, password) {
     throw new Error("Tu cuenta fue deshabilitada. Contacta a un administrador.");
   }
   if (!tieneAccesoAEstaApp(datos)) {
-    throw new Error("Tu usuario no está habilitado para esta aplicación. Pide a un administrador que te habilite acceso.");
+    throw new Error("Tu usuario no tiene acceso a esta app. Pídele a un administrador que te habilite.");
   }
   const usuario = { uid: encontrado.id, ...datos };
   window.localStorage.setItem(CLAVE_SESION, usuario.uid);
