@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
+import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import MiAgenda from "./MiAgenda.jsx";
 import CumplimientoPlan from "./CumplimientoPlan.jsx";
@@ -769,7 +769,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
         ))}
       </div>
 
-      {paso === 0 && <PasoDatos ev={ev} cambiar={cambiar} personas={personas} errorPersonas={errorPersonas} />}
+      {paso === 0 && <PasoDatos ev={ev} cambiar={cambiar} personas={personas} errorPersonas={errorPersonas} soloLectura={soloLectura} />}
       {paso === 1 && <PasoNotas ev={ev} cambiar={cambiar} />}
       {paso === 2 && <PasoRubrica ev={ev} cambiar={cambiar} />}
       {paso === 3 && <PasoResultado ev={ev} cambiar={cambiar} />}
@@ -800,7 +800,7 @@ function OpcionesLider({ lideres, valor, area, onElegir }) {
   );
 }
 
-function PasoDatos({ ev, cambiar, personas, errorPersonas }) {
+function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
   const f = ev.formulario;
   const rutina = f.rutinas.find((r) => r.sesionId === ev.rutinaSesionId);
   // Evaluador: con sesión iniciada eres tú, fijo. Por QR (sin sesión), uno de los evaluadores asignados a esta
@@ -853,7 +853,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas }) {
           if (c.tipo === "rutina" && ev.rutinaBloqueada) return null; // ya viene definida por el QR: no se elige
           const lideresComoTarjetas = c.tipo === "lider" && ev.rutinaSesionId && lideres.length >= 1 && lideres.length <= 6;
           return (
-            <div key={c.id} style={lideresComoTarjetas ? { gridColumn: "1 / -1" } : undefined}>
+            <div key={c.id} style={lideresComoTarjetas || (c.tipo === "lider" && ev.lider && !soloLectura) ? { gridColumn: "1 / -1" } : undefined}>
               <label className="ca-label">{c.etiqueta}{c.obligatorio ? " *" : ""}</label>
               {c.tipo === "rutina" && (
                 <select className="rp-select" value={ev.rutinaSesionId} onChange={(e) => elegirRutina(e.target.value)}>
@@ -872,6 +872,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas }) {
                   </select>
                 ) : <p style={{ ...ayuda, margin: 0, color: "var(--rojo)" }}>Esta reunión no tiene líder asignado. Pídele a un administrador que lo agregue en la asignación.</p>
               )}
+              {c.tipo === "lider" && !soloLectura && <UltimaDelLider ev={ev} />}
               {c.tipo === "evaluador" && campoEvaluador}
               {c.tipo === "texto" && <input className="rp-input" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "numero" && <input className="rp-input" type="number" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
@@ -887,6 +888,70 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** Al elegir el líder: su última oportunidad de mejora y su compromiso, de la CdR más reciente con este formulario. */
+function UltimaDelLider({ ev }) {
+  const [estado, setEstado] = useState({ cargando: false, ultima: null });
+  useEffect(() => {
+    if (!(ev.lider || "").trim()) {
+      setEstado({ cargando: false, ultima: null });
+      return undefined;
+    }
+    let vivo = true;
+    setEstado({ cargando: true, ultima: null });
+    buscarUltimaDelLider({ id: ev.id, formularioId: ev.formularioId, lider: ev.lider })
+      .then((u) => vivo && setEstado({ cargando: false, ultima: u }))
+      .catch(() => vivo && setEstado({ cargando: false, ultima: null }));
+    return () => { vivo = false; };
+  }, [ev.id, ev.formularioId, ev.lider]);
+
+  if (!(ev.lider || "").trim()) return null;
+  const u = estado.ultima;
+  const criterios = (u?.formulario?.bloques || []).flatMap((b) => b.criterios);
+  const nombreCriterio = (cod) => { const c = criterios.find((x) => x.codigo === cod); return c ? `${c.codigo} · ${c.nombre}` : cod; };
+  const ops = u?.feedback?.oportunidades || [];
+  const comp = u?.feedback?.compromiso || {};
+  return (
+    <div className="ca-card" style={{ marginTop: 14, borderLeft: "4px solid var(--ambar, #B5820A)" }}>
+      <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Última CdR de {ev.lider}</p>
+      {estado.cargando && <p style={{ ...ayuda, margin: 0 }}>Buscando…</p>}
+      {!estado.cargando && !u && <p style={{ ...ayuda, margin: 0 }}>Es la primera CdR de este líder con este formulario: no hay oportunidades ni compromisos anteriores.</p>}
+      {!estado.cargando && u && (
+        <>
+          <p style={{ ...ayuda, margin: "0 0 10px" }}>
+            {fechaLegible(u.fechaEnvio)} · {u.rutinaNombre || "Sin reunión"} · Evaluó: {u.evaluadorNombre || "—"}
+          </p>
+          <p style={{ fontWeight: 700, fontSize: 14, margin: "0 0 6px" }}>Oportunidad de mejora</p>
+          {ops.length === 0 ? (
+            <p style={{ ...ayuda, margin: "0 0 10px" }}>No registró oportunidades de mejora.</p>
+          ) : (
+            ops.map((o) => (
+              <div key={o.id} style={{ background: "var(--fondo)", borderRadius: 10, padding: "8px 10px", marginBottom: 8, fontSize: 13.5 }}>
+                {o.criterio && <div style={{ fontWeight: 700, marginBottom: 2 }}>{nombreCriterio(o.criterio)}</div>}
+                {o.situacion && <div><b>Situación:</b> {o.situacion}</div>}
+                {o.comportamiento && <div><b>Comportamiento:</b> {o.comportamiento}</div>}
+                {o.impacto && <div><b>Impacto:</b> {o.impacto}</div>}
+              </div>
+            ))
+          )}
+          <p style={{ fontWeight: 700, fontSize: 14, margin: "4px 0 6px" }}>Compromiso de mejora</p>
+          {(comp.accion || "").trim() ? (
+            <div style={{ background: "var(--fondo)", borderRadius: 10, padding: "8px 10px", fontSize: 13.5 }}>
+              {comp.accion}
+              {(comp.responsable || comp.fecha) && (
+                <div style={{ ...ayuda, margin: "4px 0 0" }}>
+                  {comp.responsable ? `Responsable: ${comp.responsable}` : ""}{comp.responsable && comp.fecha ? " · " : ""}{comp.fecha ? `Plazo: ${fechaLegible(comp.fecha.length === 10 ? `${comp.fecha}T12:00` : comp.fecha)}` : ""}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p style={{ ...ayuda, margin: 0 }}>No registró compromiso de mejora.</p>
+          )}
+        </>
+      )}
     </div>
   );
 }

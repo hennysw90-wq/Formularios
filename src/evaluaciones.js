@@ -69,6 +69,23 @@ export async function buscarCompromisoAnterior(actual) {
   return elegirCompromisoAnterior(snap.docs.map((d) => ({ id: d.id, ...d.data() })), actual);
 }
 
+/**
+ * La CdR enviada más reciente de un líder con este formulario (cualquier reunión y cualquier evaluador),
+ * para mostrar su última oportunidad de mejora y su compromiso al empezar una nueva.
+ */
+export async function buscarUltimaDelLider({ id, formularioId, lider }) {
+  const nl = normLider(lider);
+  if (!formularioId || !nl) return null;
+  await asegurarSesionCdR();
+  const snap = await getDocs(query(collection(db, "cdrEvaluaciones"), where("formularioId", "==", formularioId)));
+  const lista = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((e) => e.estado === "enviada" && !e.anulada && e.id !== id && normLider(e.lider) === nl)
+    .sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
+  return lista[0] || null;
+}
+const normLider = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
 /** Un formulario por su id (para la pantalla a la que llega quien escanea el QR). */
 export async function obtenerFormulario(id) {
   await asegurarSesionCdR();
