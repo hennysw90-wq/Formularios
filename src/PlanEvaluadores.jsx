@@ -479,7 +479,7 @@ function Cumplimiento({ asignaciones, todas, directorio, cargandoDirectorio, onI
                   <td><b>{f.nombre}</b></td>
                   <td data-label="Área">{f.area || "—"}</td>
                   <td data-label="Asignaciones">{f.detalle.length}</td>
-                  <td data-label="Hecho / exigido">{f.exigido > 0 ? <b style={{ color: colorPorcentaje(f.porcentaje) }}>{f.hechas} / {f.exigido}</b> : "—"}</td>
+                  <td data-label="Hecho / exigido">{f.exigido > 0 ? <b style={{ color: colorPorcentaje(f.porcentaje) }}>{f.reales} / {f.exigido}</b> : "—"}</td>
                   <td data-label="%">{f.porcentaje === null ? "—" : <b style={{ color: colorPorcentaje(f.porcentaje) }}>{f.porcentaje}%</b>}</td>
                   <td data-label="Estado"><span className={`ca-pill ${PILL_ESTADO[f.estado]}`}>{ETIQUETA_ESTADO[f.estado]}</span></td>
                   <td style={{ textAlign: "right", color: "var(--texto-suave)" }}>{f.detalle.length ? (abierto ? "▲" : "▼") : ""}</td>
@@ -492,7 +492,7 @@ function Cumplimiento({ asignaciones, todas, directorio, cargandoDirectorio, onI
                           <div key={d.asignacion.id} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline", fontSize: 13.5 }}>
                             <b style={{ flex: "1 1 220px" }}>{d.asignacion.reunionNombre}<span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · {d.asignacion.formularioNombre}</span></b>
                             <span style={{ flex: "0 0 auto", color: "var(--texto-suave)" }}>{etiquetaCadencia(d.cantidad, d.frecuencia)}</span>
-                            <span style={{ flex: "0 0 90px" }}>{d.exigido > 0 ? `${d.hechas} / ${d.exigido}` : "—"}</span>
+                            <span style={{ flex: "0 0 90px" }}>{d.exigido > 0 ? `${d.reales} / ${d.exigido}` : "—"}</span>
                             {esMesActual && <span style={{ flex: "0 0 auto", color: d.pendienteAhora ? "#ba7517" : "#0f6e56", fontWeight: 700 }}>{d.pendienteAhora ? `Le falta ${d.pendienteAhora} este periodo` : "✓ al día este periodo"}</span>}
                             <span className={`ca-pill ${PILL_ESTADO[d.estado]}`}>{ETIQUETA_ESTADO[d.estado]}</span>
                           </div>

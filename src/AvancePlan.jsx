@@ -26,7 +26,7 @@ export default function AvancePlan({ evaluador, formularioId, rutinaSesionId, mo
   if (!it || !it.empezo) return null;
 
   const periodo = TEXTO_PERIODO[it.frecuencia] || "";
-  const lleva = it.hechasEnPeriodo;
+  const lleva = it.hechasReales;
   let mensaje;
   if (modo === "enviada") {
     mensaje = it.completa

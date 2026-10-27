@@ -100,7 +100,7 @@ export function celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahor
       return f && f.getFullYear() === anio && f.getMonth() === mes;
     }).length;
     const exigido = n > 0 ? cantidad : 0;
-    return { hechas: Math.min(n, cantidad), exigido, exigidoVencido: exigido };
+    return { hechas: Math.min(n, cantidad), reales: n, exigido, exigidoVencido: exigido };
   }
 
   const actual = periodoVigente(frecuencia, ahora);
@@ -108,10 +108,12 @@ export function celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahor
     (p) => (p.cierra <= ahora || p.clave === actual) && periodoDentroDelControl(p.cierra, desde)
   );
   const cerrados = considerados.filter((p) => p.cierra <= ahora && p.clave !== actual);
-  const contar = (ps) =>
-    ps.reduce((s, p) => s + Math.min(lista.filter((r) => r.periodo === p.clave).length, cantidad), 0);
+  const contar = (ps, tope = true) =>
+    ps.reduce((s, p) => { const n = lista.filter((r) => r.periodo === p.clave).length; return s + (tope ? Math.min(n, cantidad) : n); }, 0);
+  // `hechas` (con tope) es lo que cuenta para el %; `reales` es lo que se hizo de verdad, para mostrarlo.
   return {
     hechas: contar(considerados),
+    reales: contar(considerados, false),
     exigido: considerados.length * cantidad,
     exigidoVencido: cerrados.length * cantidad,
   };
@@ -309,6 +311,7 @@ export function agendaDePersona(asignaciones, usuario, evals, ahora = new Date()
         desde,
         empezo,
         hechasEnPeriodo: Math.min(enPeriodo, cantidad),
+        hechasReales: enPeriodo,
         pendientes: empezo ? Math.max(0, cantidad - enPeriodo) : 0,
         completa: enPeriodo >= cantidad,
         hechas,
@@ -340,6 +343,7 @@ export function filaDeEvaluador(persona, asignaciones, evals, anio, mes, ahora =
   const exigido = detalle.reduce((s, d) => s + d.exigido, 0);
   const exigidoVencido = detalle.reduce((s, d) => s + d.exigidoVencido, 0);
   const hechas = detalle.reduce((s, d) => s + d.hechas, 0);
+  const reales = detalle.reduce((s, d) => s + d.reales, 0);
   return {
     uid: persona.uid || "",
     nombre: persona.nombre || persona.nombreUsuario || "",
@@ -348,6 +352,7 @@ export function filaDeEvaluador(persona, asignaciones, evals, anio, mes, ahora =
     exigido,
     exigidoVencido,
     hechas,
+    reales,
     porcentaje: exigido > 0 ? Math.round((hechas / exigido) * 100) : null,
     estado: detalle.length === 0 ? "sin_plan" : estadoDelPlan({ exigido, exigidoVencido, hechas, anio, mes, ahora }),
   };

@@ -53,7 +53,8 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
         const celdas = columnas.map(({ anio, mes }) => celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahora));
         const totalExigido = celdas.reduce((s, c) => s + c.exigido, 0);
         const totalHecho = celdas.reduce((s, c) => s + c.hechas, 0);
-        return { asignacion: a, cantidad, frecuencia, desde, celdas, totalExigido, totalHecho, porcentaje: totalExigido > 0 ? Math.round((totalHecho / totalExigido) * 100) : null };
+        const totalReal = celdas.reduce((s, c) => s + (c.reales ?? c.hechas), 0);
+        return { asignacion: a, cantidad, frecuencia, desde, celdas, totalExigido, totalHecho, totalReal, porcentaje: totalExigido > 0 ? Math.round((totalHecho / totalExigido) * 100) : null };
       })
       .sort((x, y) => (x.porcentaje ?? 999) - (y.porcentaje ?? 999));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,24 +62,24 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
 
   const totalesColumna = columnas.map((_, i) => ({
     hechas: filas.reduce((s, f) => s + f.celdas[i].hechas, 0),
+    reales: filas.reduce((s, f) => s + (f.celdas[i].reales ?? f.celdas[i].hechas), 0),
     exigido: filas.reduce((s, f) => s + f.celdas[i].exigido, 0),
   }));
   const granExigido = filas.reduce((s, f) => s + f.totalExigido, 0);
   const granHecho = filas.reduce((s, f) => s + f.totalHecho, 0);
+  const granReal = filas.reduce((s, f) => s + f.totalReal, 0); // lo hecho de verdad (puede superar el plan)
   const granPorcentaje = granExigido > 0 ? Math.round((granHecho / granExigido) * 100) : null;
 
-  // Historial: los formularios que esta persona envió dentro del rango elegido (más reciente primero).
+  // Historial: todos los formularios que esta persona envió (más reciente primero), sin importar el rango.
   const historial = useMemo(() => {
     if (!conHistorial) return [];
-    const inicio = `${columnas[0].anio}-${String(columnas[0].mes + 1).padStart(2, "0")}-01`;
     const yo = normTexto(persona.nombreUsuario || persona.nombre);
     return (evals || [])
       .filter((e) => e.estado === "enviada" && !e.anulada)
       .filter((e) => (persona.uid && (e.evaluadorUid === persona.uid || e.registradoPorUid === persona.uid)) || (yo && normTexto(e.evaluadorNombre) === yo))
       .map((e) => ({ e, fecha: fechaCdR(e) || "" }))
-      .filter((x) => x.fecha >= inicio)
       .sort((a, b) => b.fecha.localeCompare(a.fecha));
-  }, [conHistorial, evals, persona, columnas]);
+  }, [conHistorial, evals, persona]);
 
   function exportarCSV() {
     const cab = ["% Periodo", "Formulario", "Reunión", "Cadencia", ...columnas.map((c) => `${MESES_CORTOS[c.mes]}-${c.anio}`), "Total"];
@@ -87,8 +88,8 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
       f.asignacion.formularioNombre || "",
       f.asignacion.reunionNombre || "",
       etiquetaCadencia(f.cantidad, f.frecuencia),
-      ...f.celdas.map((c) => (c.exigido === 0 ? "" : `${c.hechas}/${c.exigido}`)),
-      `${f.totalHecho}/${f.totalExigido}`,
+      ...f.celdas.map((c) => (c.exigido === 0 ? "" : `${c.reales ?? c.hechas}/${c.exigido}`)),
+      `${f.totalReal}/${f.totalExigido}`,
     ])];
     const csv = lineas.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
     const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }));
@@ -118,7 +119,8 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
   const cortoPeriodo = columnas.length === 1
     ? MESES_CORTOS[ini.mes]
     : `${MESES_CORTOS[ini.mes]}–${MESES_CORTOS[fin.mes]}`;
-  const total = (h, e) => ({ hechas: h, exigido: e });
+  const total = (h, r, e) => ({ hechas: h, reales: r, exigido: e });
+  const real = (c) => c.reales ?? c.hechas;
 
   return (
     <div>
@@ -132,7 +134,7 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
           </div>
           <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 10 }}>
             <div style={cajita}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: "var(--verde-oscuro)" }}>{granHecho}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "var(--verde-oscuro)" }}>{granReal}</div>
               <div style={{ fontSize: 11.5, color: "var(--texto-suave)", fontWeight: 600 }}>Realizados</div>
             </div>
             <div style={cajita}>
@@ -158,7 +160,7 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
           {!compacto && granPorcentaje !== null && (
             <span style={{ fontSize: 14 }}>
               Cumplimiento <strong style={{ fontSize: 20, color: color(granPorcentaje) }}>{granPorcentaje}%</strong>
-              <span style={{ color: "var(--texto-suave)", fontSize: 13 }}> · {granHecho} de {granExigido}</span>
+              <span style={{ color: "var(--texto-suave)", fontSize: 13 }}> · {granReal} de {granExigido}</span>
             </span>
           )}
           {!compacto && <button type="button" className="cdr-nav-btn" onClick={exportarCSV}>↓ Exportar (CSV)</button>}
@@ -212,12 +214,12 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
                     {f.desde && <div style={{ fontSize: 10, marginTop: 2 }}>desde {f.desde.split("-").reverse().join("-")}</div>}
                   </td>
                 )}
-                {(compacto ? [total(f.totalHecho, f.totalExigido)] : f.celdas).map((c, i) => (
+                {(compacto ? [total(f.totalHecho, f.totalReal, f.totalExigido)] : f.celdas).map((c, i) => (
                   <td key={i} style={{ ...td, textAlign: "center", ...fondo(c) }}>
-                    {c.exigido === 0 ? <span style={{ color: "#d7e2e0" }}>·</span> : <strong style={{ color: color((c.hechas / c.exigido) * 100) }}>{c.hechas}/{c.exigido}</strong>}
+                    {c.exigido === 0 ? <span style={{ color: "#d7e2e0" }}>·</span> : <strong style={{ color: color((c.hechas / c.exigido) * 100) }}>{real(c)}/{c.exigido}</strong>}
                   </td>
                 ))}
-                {!compacto && <td style={{ ...td, textAlign: "center", fontWeight: 700 }}>{f.totalHecho}/{f.totalExigido}</td>}
+                {!compacto && <td style={{ ...td, textAlign: "center", fontWeight: 700 }}>{f.totalReal}/{f.totalExigido}</td>}
               </tr>
             ))}
           </tbody>
@@ -225,12 +227,12 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
             <tr style={{ borderTop: "2px solid var(--borde)", background: "var(--fondo)" }}>
               <td style={{ ...td, textAlign: "center" }}>{granPorcentaje !== null && <span style={badge(granPorcentaje)}>{granPorcentaje}%</span>}</td>
               <td style={{ ...td, fontWeight: 700 }} colSpan={compacto ? 1 : 3}>TOTAL</td>
-              {(compacto ? [total(granHecho, granExigido)] : totalesColumna).map((c, i) => (
+              {(compacto ? [total(granHecho, granReal, granExigido)] : totalesColumna).map((c, i) => (
                 <td key={i} style={{ ...td, textAlign: "center", fontWeight: 700, ...fondo(c) }}>
-                  {c.exigido === 0 ? <span style={{ color: "#d7e2e0" }}>·</span> : `${c.hechas}/${c.exigido}`}
+                  {c.exigido === 0 ? <span style={{ color: "#d7e2e0" }}>·</span> : `${real(c)}/${c.exigido}`}
                 </td>
               ))}
-              {!compacto && <td style={{ ...td, textAlign: "center", fontWeight: 800 }}>{granHecho}/{granExigido}</td>}
+              {!compacto && <td style={{ ...td, textAlign: "center", fontWeight: 800 }}>{granReal}/{granExigido}</td>}
             </tr>
           </tfoot>
         </table>
@@ -239,32 +241,64 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
         {compacto ? `Periodo: ${textoPeriodo}. ` : "Cada celda es ejecutadas / exigidas en ese mes. El punto gris indica que ese mes no tenía exigencia. "}
         Los periodos que aún no empiezan no se cuentan, así el mes en curso no aparece castigado antes de tiempo.
       </p>
-      {conHistorial && (
-        <div style={{ marginTop: 16 }}>
-          <p style={{ margin: "0 0 2px", fontWeight: 800, fontSize: 15 }}>{historial.length > 5 ? "Últimos 5 formularios realizados" : `Historial de formularios realizados (${historial.length})`}</p>
-          <p style={{ margin: "0 0 8px", fontSize: 12.5, color: "var(--texto-suave)" }}>
-            {granHecho} {granHecho === 1 ? "realizado" : "realizados"} de {granExigido} del plan{onVer && historial.length > 0 ? " · toca uno para revisarlo" : ""}
-          </p>
-          {historial.length === 0 ? (
-            <p style={{ color: "var(--texto-suave)", fontSize: 13, margin: 0 }}>No enviaste formularios en este periodo.</p>
-          ) : (
-            historial.slice(0, 5).map(({ e, fecha }) => (
-              <div key={e.id} role={onVer ? "button" : undefined} tabIndex={onVer ? 0 : undefined} onClick={onVer ? () => onVer(e) : undefined}
-                onKeyDown={onVer ? (k) => (k.key === "Enter" || k.key === " ") && onVer(e) : undefined}
-                style={{ border: "1px solid var(--borde)", borderRadius: 10, padding: "9px 12px", marginBottom: 6, background: "#fff", cursor: onVer ? "pointer" : "default" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <strong style={{ fontSize: 13.5 }}>{e.formulario?.nombre || "Formulario"}</strong>
-                  <span style={{ fontSize: 12, color: "var(--texto-suave)", whiteSpace: "nowrap" }}>{fecha.split("-").reverse().join("-")}</span>
-                </div>
-                <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 2 }}>
-                  {e.rutinaNombre || "Sin reunión"}{e.lider ? ` · Líder: ${e.lider}` : ""}
-                </div>
-                {onVer && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--verde-oscuro)", marginTop: 4 }}>Revisar ›</div>}
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      {conHistorial && <HistorialRealizados historial={historial} onVer={onVer} />}
+    </div>
+  );
+}
+
+/** Últimos 5 realizados y, debajo, un buscador por mes-año. Abrir uno en detalle pide la clave (lo resuelve onVer). */
+function HistorialRealizados({ historial, onVer }) {
+  const hoy = new Date();
+  const meses = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const clave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return { clave, texto: `${MESES_LARGOS[d.getMonth()][0].toUpperCase()}${MESES_LARGOS[d.getMonth()].slice(1)} ${d.getFullYear()}`, n: historial.filter((x) => x.fecha.startsWith(clave)).length };
+  });
+  const [mesBuscado, setMesBuscado] = useState("");
+  const delMes = mesBuscado ? historial.filter((x) => x.fecha.startsWith(mesBuscado)) : [];
+  const textoMes = meses.find((m) => m.clave === mesBuscado)?.texto || "";
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <p style={{ margin: "0 0 2px", fontWeight: 800, fontSize: 15 }}>Últimos 5 formularios realizados</p>
+      <p style={{ margin: "0 0 8px", fontSize: 12.5, color: "var(--texto-suave)" }}>
+        {historial.length === 0 ? "Todavía no envías formularios." : onVer ? "Toca uno para revisarlo en detalle (pide tu clave)." : ""}
+      </p>
+      {historial.slice(0, 5).map((x) => <ItemRealizado key={x.e.id} {...x} onVer={onVer} />)}
+
+      <div style={{ marginTop: 14, borderTop: "1px solid var(--borde)", paddingTop: 12 }}>
+        <label style={{ display: "block", fontWeight: 700, fontSize: 14, marginBottom: 6 }}>Buscar por mes</label>
+        <select className="rp-select" value={mesBuscado} onChange={(e) => setMesBuscado(e.target.value)}>
+          <option value="">Elige mes y año…</option>
+          {meses.map((m) => (
+            <option key={m.clave} value={m.clave}>{m.texto} ({m.n})</option>
+          ))}
+        </select>
+        {mesBuscado && (
+          <div style={{ marginTop: 10 }}>
+            <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700 }}>{textoMes}: {delMes.length} {delMes.length === 1 ? "realizado" : "realizados"}</p>
+            {delMes.length === 0 && <p style={{ color: "var(--texto-suave)", fontSize: 13, margin: 0 }}>No enviaste formularios ese mes.</p>}
+            {delMes.map((x) => <ItemRealizado key={x.e.id} {...x} onVer={onVer} />)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ItemRealizado({ e, fecha, onVer }) {
+  return (
+    <div role={onVer ? "button" : undefined} tabIndex={onVer ? 0 : undefined} onClick={onVer ? () => onVer(e) : undefined}
+      onKeyDown={onVer ? (k) => (k.key === "Enter" || k.key === " ") && onVer(e) : undefined}
+      style={{ border: "1px solid var(--borde)", borderRadius: 10, padding: "9px 12px", marginBottom: 6, background: "#fff", cursor: onVer ? "pointer" : "default" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <strong style={{ fontSize: 13.5 }}>{e.formulario?.nombre || "Formulario"}</strong>
+        <span style={{ fontSize: 12, color: "var(--texto-suave)", whiteSpace: "nowrap" }}>{fecha.split("-").reverse().join("-")}</span>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 2 }}>
+        {e.rutinaNombre || "Sin reunión"}{e.lider ? ` · Líder: ${e.lider}` : ""}
+      </div>
+      {onVer && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--verde-oscuro)", marginTop: 4 }}>Revisar ›</div>}
     </div>
   );
 }

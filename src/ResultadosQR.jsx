@@ -1,11 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { TablaBloques } from "./MisCdR.jsx";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
 import { fechaCdR, claveRutina, norm } from "./estadisticas.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const RANGOS = [["1m", "Mes actual"], ["3m", "3 meses"], ["6m", "6 meses"], ["anio", `Año ${new Date().getFullYear()}`]];
-export const VISTA_RESULTADOS_INICIAL = { rango: "1m", rol: "hice", formularioId: "", reunion: "" };
+export const VISTA_RESULTADOS_INICIAL = { rango: "1m", formularioId: "", reunion: "" };
 
 const fmt = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
 const pct = (n) => (n === null || n === undefined ? "—" : `${fmt(n)}%`);
@@ -61,42 +61,36 @@ function bloquesPromedio(lista) {
 }
 
 /**
- * Resultados (con clave): rango de fechas → formulario → reunión → hoja resumen de esa reunión
- * (promedio, clasificación, nota por bloque y cada CdR, que se puede abrir).
+ * Evaluaciones recibidas (con clave): solo las CdR que le hicieron a esta persona como líder.
+ * Rango de fechas → formulario → reunión → hoja resumen (promedio, evolución de 12 meses, nota por bloque y cada CdR).
  */
 export default function ResultadosQR({ persona, evals, vista, onVista, onVer }) {
-  const { rango, rol, formularioId, reunion } = vista;
+  const { rango, formularioId, reunion } = vista;
   const cambiar = (c) => onVista({ ...vista, ...c });
   const yo = norm(persona.nombreUsuario);
   const desde = inicioDelRango(rango);
 
-  const delRango = useMemo(
-    () => (evals || []).filter((e) => e.estado === "enviada" && !e.anulada && fechaCdR(e) >= desde),
-    [evals, desde]
+  // Todas las recibidas (para el gráfico de 12 meses) y las del rango elegido (para el resto).
+  const recibidas = useMemo(
+    () => (evals || []).filter((e) => e.estado === "enviada" && !e.anulada && norm(e.lider) === yo).sort((a, b) => fechaCdR(b).localeCompare(fechaCdR(a))),
+    [evals, yo]
   );
-  const hice = (e) => e.evaluadorUid === persona.uid || e.registradoPorUid === persona.uid || norm(e.evaluadorNombre) === yo;
-  const meHicieron = (e) => norm(e.lider) === yo;
-  const nHice = delRango.filter(hice).length;
-  const nMeHicieron = delRango.filter(meHicieron).length;
-  const mias = delRango.filter(rol === "hice" ? hice : meHicieron).sort((a, b) => fechaCdR(b).localeCompare(fechaCdR(a)));
+  const mias = recibidas.filter((e) => fechaCdR(e) >= desde);
 
   const formularios = useMemo(() => agrupar(mias, (e) => e.formularioId, (e) => e.formulario?.nombre || "Formulario"), [mias]);
   const delForm = mias.filter((e) => e.formularioId === formularioId);
   const reuniones = useMemo(() => agrupar(delForm, claveRutina, (e) => e.rutinaNombre || "Sin reunión"), [delForm]);
   const deReunion = delForm.filter((e) => claveRutina(e) === reunion);
-  const nombreForm = delForm[0]?.formulario?.nombre || "";
-  const nombreReunion = deReunion[0]?.rutinaNombre || "";
+  const historicoReunion = recibidas.filter((e) => e.formularioId === formularioId && claveRutina(e) === reunion);
+  const nombreForm = (delForm[0] || recibidas.find((e) => e.formularioId === formularioId))?.formulario?.nombre || "";
+  const nombreReunion = (deReunion[0] || historicoReunion[0])?.rutinaNombre || "";
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
         {RANGOS.map(([v, t]) => (
           <button key={v} type="button" style={chip(rango === v)} onClick={() => cambiar({ rango: v })}>{t}</button>
         ))}
-      </div>
-      <div style={segmento}>
-        <button type="button" style={segBtn(rol === "hice")} onClick={() => cambiar({ rol: "hice", formularioId: "", reunion: "" })}>Las que hice ({nHice})</button>
-        <button type="button" style={segBtn(rol === "lider")} onClick={() => cambiar({ rol: "lider", formularioId: "", reunion: "" })}>Me hicieron como líder ({nMeHicieron})</button>
       </div>
 
       {/* Migas */}
@@ -118,16 +112,18 @@ export default function ResultadosQR({ persona, evals, vista, onVista, onVer }) 
 
       {!formularioId && (
         <Lista
-          titulo={`Formularios · ${textoRango(rango)}`}
-          vacio={rol === "hice" ? "No enviaste formularios en este periodo." : "Nadie te evaluó como líder en este periodo."}
+          titulo={`Evaluaciones recibidas · ${textoRango(rango)}`}
+          vacio="Nadie te evaluó como líder en este periodo."
           grupos={formularios}
           onElegir={(g) => cambiar({ formularioId: g.clave })}
         />
       )}
       {formularioId && !reunion && (
-        <Lista titulo="Elige la reunión" vacio="Sin registros de este formulario en el periodo." grupos={reuniones} onElegir={(g) => cambiar({ reunion: g.clave })} />
+        <Lista titulo="Elige la reunión" vacio="Sin evaluaciones de este formulario en el periodo." grupos={reuniones} onElegir={(g) => cambiar({ reunion: g.clave })} />
       )}
-      {formularioId && reunion && <HojaResumen lista={deReunion} rol={rol} rango={rango} nombreForm={nombreForm} nombreReunion={nombreReunion} onVer={onVer} />}
+      {formularioId && reunion && (
+        <HojaResumen lista={deReunion} historico={historicoReunion} rango={rango} nombreForm={nombreForm} nombreReunion={nombreReunion} onVer={onVer} />
+      )}
     </div>
   );
 }
@@ -170,8 +166,8 @@ function Lista({ titulo, vacio, grupos, onElegir }) {
   );
 }
 
-function HojaResumen({ lista, rol, rango, nombreForm, nombreReunion, onVer }) {
-  const u = umbralesDe(lista);
+function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer }) {
+  const u = umbralesDe(lista.length ? lista : historico);
   const prom = promedio(lista);
   const conCritico = lista.filter((e) => (e.resultado?.criticosEnCero || []).length > 0);
   const criticos = [...new Set(conCritico.flatMap((e) => e.resultado.criticosEnCero))].sort();
@@ -194,13 +190,18 @@ function HojaResumen({ lista, rol, rango, nombreForm, nombreReunion, onVer }) {
           {criticos.length > 0 && <span className="ca-pill ca-pill-rojo">Crítico en 0: {criticos.join(", ")}</span>}
         </div>
         <p style={{ ...gris, fontSize: 12.5, margin: "8px 0 0" }}>
-          Promedio de {lista.length} CdR · {textoRango(rango)}
+          {lista.length ? `Promedio de ${lista.length} CdR` : "Sin CdR"} · {textoRango(rango)}
           {conCritico.length > 0 ? ` · ${conCritico.length} con crítico en 0` : ""}
         </p>
+        <Evolucion historico={historico} umbrales={u} />
       </div>
 
-      <p style={{ fontWeight: 800, fontSize: 15, margin: "0 0 8px" }}>Nota por bloque{lista.length > 1 ? " (promedio)" : ""}</p>
-      <TablaBloques bloques={filas} parametros={parametros} indice={prom ?? indice} />
+      {lista.length > 0 && (
+        <>
+          <p style={{ fontWeight: 800, fontSize: 15, margin: "0 0 8px" }}>Nota por bloque{lista.length > 1 ? " (promedio)" : ""}</p>
+          <TablaBloques bloques={filas} parametros={parametros} indice={prom ?? indice} />
+        </>
+      )}
 
       <p style={{ fontWeight: 800, fontSize: 15, margin: "16px 0 8px" }}>CdR del periodo ({lista.length})</p>
       {lista.map((e) => {
@@ -209,7 +210,7 @@ function HojaResumen({ lista, rol, rango, nombreForm, nombreReunion, onVer }) {
           <button key={e.id} type="button" style={fila} onClick={() => onVer(e)}>
             <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
               <div style={{ fontWeight: 700, fontSize: 13.5 }}>{fechaCdR(e).split("-").reverse().join("-")}</div>
-              <div style={{ ...gris, fontSize: 12 }}>{rol === "hice" ? `Líder: ${e.lider || "—"}` : `Evaluó: ${e.evaluadorNombre || "—"}`}</div>
+              <div style={{ ...gris, fontSize: 12 }}>{`Evaluó: ${e.evaluadorNombre || "—"}`}</div>
             </div>
             <span className={`ca-pill ${clasePill(r.clasificacion)}`} style={{ fontSize: 13 }}>{pct(r.indice)}</span>
             <span style={{ ...gris, fontSize: 18 }}>›</span>
@@ -220,13 +221,105 @@ function HojaResumen({ lista, rol, rango, nombreForm, nombreReunion, onVer }) {
   );
 }
 
+/* ─── Evolución por bloque: últimos 12 meses móviles ─────────────────── */
+
+const COLORES_BLOQUE = ["#0f7c74", "#d0821c", "#4f63c9", "#c2457a", "#5a8f2c", "#8a5cc2", "#2b8fbf", "#a8552f"];
+const MESES_CORTOS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
+
+/** Un solo gráfico de líneas: una línea por bloque, nota promedio mes a mes de los últimos 12 meses (no depende del filtro). */
+export function Evolucion({ historico, umbrales, hoy = new Date() }) {
+  const [mesSel, setMesSel] = useState(null);
+  const meses = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - 11 + i, 1);
+    return { clave: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, etiqueta: MESES_CORTOS[d.getMonth()], anio: d.getFullYear(), mes: d.getMonth() };
+  });
+  // Bloques en el orden del formulario más reciente.
+  const nombres = [];
+  [...(historico || [])].forEach((e) => (e.formulario?.bloques || []).forEach((b) => !nombres.includes(b.nombre) && nombres.push(b.nombre)));
+  const series = nombres.map((nombre, k) => ({
+    nombre,
+    color: COLORES_BLOQUE[k % COLORES_BLOQUE.length],
+    valores: meses.map((m) => {
+      const v = (historico || [])
+        .filter((e) => fechaCdR(e).startsWith(m.clave))
+        .map((e) => (e.resultado?.bloques || []).find((b) => b.nombre === nombre)?.puntaje)
+        .filter((x) => typeof x === "number");
+      return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+    }),
+  }));
+  const conDatos = series.some((s) => s.valores.some((v) => v !== null));
+
+  const W = 320, H = 150, iz = 28, de = 8, ar = 8, ab = 22;
+  const x = (i) => iz + (i * (W - iz - de)) / 11;
+  const y = (v) => ar + ((100 - v) * (H - ar - ab)) / 100;
+
+  return (
+    <div style={{ marginTop: 12, borderTop: "1px solid var(--borde)", paddingTop: 10 }}>
+      <p style={{ fontWeight: 700, fontSize: 13, margin: "0 0 4px" }}>Evolución por bloque · últimos 12 meses</p>
+      {!conDatos ? (
+        <p style={{ ...gris, fontSize: 12.5, margin: 0 }}>Aún no hay evaluaciones para mostrar la evolución.</p>
+      ) : (
+        <>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Evolución de la nota por bloque en los últimos 12 meses">
+            {[0, 50, 100].map((v) => (
+              <g key={v}>
+                <line x1={iz} x2={W - de} y1={y(v)} y2={y(v)} stroke="#e3e9e8" strokeWidth="1" />
+                <text x={iz - 4} y={y(v) + 3} textAnchor="end" fontSize="8" fill="#8a9a98">{v}%</text>
+              </g>
+            ))}
+            {[umbrales.efectiva, umbrales.desarrollo].map((v, k) => (
+              <line key={`u${k}`} x1={iz} x2={W - de} y1={y(v)} y2={y(v)} stroke={k === 0 ? "#1b7a46" : "#B5820A"} strokeWidth="0.8" strokeDasharray="3 3" opacity="0.55" />
+            ))}
+            {mesSel !== null && <rect x={x(mesSel) - 9} y={ar} width="18" height={H - ar - ab} fill="#0f7c74" opacity="0.08" rx="3" />}
+            {meses.map((m, i) => (
+              <text key={m.clave} x={x(i)} y={H - 8} textAnchor="middle" fontSize="8" fontWeight={mesSel === i ? 700 : 400} fill={mesSel === i ? "#0f4f4a" : "#8a9a98"}>{m.etiqueta}</text>
+            ))}
+            {series.map((s) => {
+              // Tramos continuos: un mes sin datos corta la línea.
+              const tramos = [];
+              let actual = [];
+              s.valores.forEach((v, i) => {
+                if (v === null) { if (actual.length) tramos.push(actual); actual = []; } else actual.push([x(i), y(v)]);
+              });
+              if (actual.length) tramos.push(actual);
+              return (
+                <g key={s.nombre}>
+                  {tramos.filter((t) => t.length > 1).map((t, k) => (
+                    <polyline key={k} points={t.map((p) => p.join(",")).join(" ")} fill="none" stroke={s.color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+                  ))}
+                  {s.valores.map((v, i) => v !== null && <circle key={i} cx={x(i)} cy={y(v)} r={mesSel === i ? 3.2 : 2.2} fill={s.color} />)}
+                </g>
+              );
+            })}
+            {meses.map((m, i) => (
+              <rect key={`t${m.clave}`} x={x(i) - (W - iz - de) / 22} y={0} width={(W - iz - de) / 11} height={H} fill="transparent" style={{ cursor: "pointer" }} onClick={() => setMesSel(mesSel === i ? null : i)} />
+            ))}
+          </svg>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", marginTop: 4 }}>
+            {series.map((s) => {
+              const v = mesSel !== null ? s.valores[mesSel] : null;
+              return (
+                <span key={s.nombre} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
+                  <span style={{ width: 10, height: 3, borderRadius: 2, background: s.color, display: "inline-block" }} />
+                  {s.nombre}{mesSel !== null && <b>{v === null ? " —" : ` ${fmt(v)}%`}</b>}
+                </span>
+              );
+            })}
+          </div>
+          <p style={{ ...gris, fontSize: 11, margin: "6px 0 0" }}>
+            {mesSel !== null
+              ? `${MESES_CORTOS[meses[mesSel].mes]} ${meses[mesSel].anio}: nota promedio de cada bloque. Toca de nuevo para quitar.`
+              : "Toca un mes para ver la nota de cada bloque. Un corte en la línea es un mes sin evaluaciones."}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 const gris = { color: "var(--texto-suave)" };
 const fila = { display: "flex", alignItems: "center", gap: 10, width: "100%", border: "1px solid var(--borde)", borderRadius: 12, padding: "10px 12px", marginBottom: 8, background: "#fff", cursor: "pointer", fontFamily: "inherit", color: "inherit" };
 const miga = { background: "none", border: "none", padding: 0, color: "var(--verde-oscuro)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, textDecoration: "underline" };
-const segmento = { display: "flex", background: "var(--fondo)", border: "1px solid var(--borde)", borderRadius: 10, padding: 3, gap: 3, marginBottom: 10 };
-function segBtn(sel) {
-  return { flex: 1, border: "none", borderRadius: 8, padding: "7px 6px", fontSize: 12.5, fontWeight: sel ? 700 : 600, background: sel ? "#fff" : "transparent", color: sel ? "var(--verde-oscuro)" : "var(--texto-suave)", boxShadow: sel ? "0 1px 3px rgba(0,0,0,0.08)" : "none", cursor: "pointer", fontFamily: "inherit" };
-}
 function chip(sel) {
   return { padding: "6px 12px", borderRadius: 100, border: `2px solid ${sel ? "var(--verde)" : "var(--borde)"}`, background: sel ? "var(--verde-claro)" : "#fff", color: sel ? "var(--verde-oscuro)" : "var(--texto-suave)", fontWeight: sel ? 700 : 500, cursor: "pointer", fontSize: 13, fontFamily: "inherit" };
 }

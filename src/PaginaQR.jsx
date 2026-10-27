@@ -130,7 +130,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
     return (
       <div className="ca-pagina">
         <div className="ca-contenido cdr-ejecutar">
-          <Ejecutar evaluacionInicial={ejecutando} onCerrar={() => { setEjecutando(null); setPestana(ejecutando.estado === "enviada" ? pestana : "pendientes"); }} textoVolver={pestana === "plan" ? "← Volver al cumplimiento" : pestana === "resultados" ? "← Volver a resultados" : "← Volver a mis pendientes"} />
+          <Ejecutar evaluacionInicial={ejecutando} onCerrar={() => { setEjecutando(null); setPestana(ejecutando.estado === "enviada" ? pestana : "pendientes"); }} textoVolver={pestana === "plan" ? "← Volver al cumplimiento" : pestana === "resultados" ? "← Volver a evaluaciones recibidas" : "← Volver a mis pendientes"} />
         </div>
       </div>
     );
@@ -170,9 +170,9 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
       <Encabezado persona={persona} onCambiar={usuario ? null : cambiarPersona} />
       <div style={pestanas}>
         <button type="button" onClick={() => setPestana("pendientes")} style={pestanaEstilo(pestana === "pendientes")}>Pendientes</button>
-        <button type="button" onClick={() => setPestana("plan")} style={pestanaEstilo(pestana === "plan")}>Cumplimiento Plan</button>
+        <button type="button" onClick={() => setPestana("plan")} style={pestanaEstilo(pestana === "plan")}>Cumplimiento de mi Plan</button>
         <button type="button" onClick={() => setPestana("resultados")} style={pestanaEstilo(pestana === "resultados")}>
-          {desbloqueado ? "Resultados" : "🔒 Resultados"}
+          {desbloqueado ? "Evaluaciones recibidas" : "🔒 Evaluaciones recibidas"}
         </button>
       </div>
 
@@ -377,7 +377,7 @@ function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBor
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 14 }}>{a.reunionNombre || "Sin reunión"}</p>
                       <p style={{ ...gris, fontSize: 12, margin: 0 }}>
-                        {etiquetaCadencia(it.cantidad, it.frecuencia)} · {it.hechasEnPeriodo} de {it.cantidad} {periodo}
+                        {etiquetaCadencia(it.cantidad, it.frecuencia)} · {it.hechasReales} de {it.cantidad} {periodo}
                       </p>
                       {(a.lideres || []).length > 0 && <p style={{ ...gris, fontSize: 12, margin: "2px 0 0" }}>Líder: {a.lideres.join(", ")}</p>}
                     </div>
@@ -423,11 +423,11 @@ function PedirClave({ persona, onOk }) {
   }
   return (
     <form onSubmit={enviar}>
-      <p style={{ fontWeight: 700, fontSize: 15, margin: "0 0 4px" }}>🔒 Tus resultados</p>
-      <p style={{ ...gris, fontSize: 13, margin: "0 0 12px" }}>Para ver los resultados de tus CdR, ingresa tu clave (la misma de las apps).</p>
+      <p style={{ fontWeight: 700, fontSize: 15, margin: "0 0 4px" }}>🔒 Ingresa tu clave</p>
+      <p style={{ ...gris, fontSize: 13, margin: "0 0 12px" }}>Para ver el detalle de tus evaluaciones, ingresa tu clave (la misma de las apps). Con una vez se desbloquea todo.</p>
       <input className="rp-input" type="password" value={clave} onChange={(e) => setClave(e.target.value)} placeholder="Tu clave" autoFocus />
       {error && <p style={{ color: "var(--rojo)", fontSize: 13, margin: "8px 0 0" }}>{error}</p>}
-      <button className="cdr-nav-btn prim" style={{ marginTop: 10, width: "100%" }} disabled={!clave || revisando}>{revisando ? "Revisando…" : "Ver mis resultados"}</button>
+      <button className="cdr-nav-btn prim" style={{ marginTop: 10, width: "100%" }} disabled={!clave || revisando}>{revisando ? "Revisando…" : "Desbloquear"}</button>
     </form>
   );
 }

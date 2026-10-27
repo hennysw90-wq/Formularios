@@ -59,8 +59,8 @@ export default function MiAgenda({ usuario, onIniciar, onIrAMisCdR, compacto = f
                 {!it.empezo
                   ? `Empieza el ${it.desde.split("-").reverse().join("-")}`
                   : it.completa
-                  ? `✓ ${it.hechasEnPeriodo} de ${it.cantidad} ${periodo}`
-                  : `${it.hechasEnPeriodo} de ${it.cantidad} ${periodo} · faltan ${it.pendientes}`}
+                  ? `✓ ${it.hechasReales} de ${it.cantidad} ${periodo}`
+                  : `${it.hechasReales} de ${it.cantidad} ${periodo} · faltan ${it.pendientes}`}
               </div>
               {onIniciar && (
                 <button className={`cdr-nav-btn ${it.pendientes ? "prim" : ""}`} onClick={() => onIniciar(it.formulario, a.reunionId)}>
