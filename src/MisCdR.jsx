@@ -570,7 +570,7 @@ export function AccesoQR({ formularioId, rutinaId = "", onIniciarSesion }) {
 const PASOS = ["Datos", "Notas en terreno", "Rúbrica", "Resultado y feedback", "Compromiso", "Cierre"];
 const PASOS_CORTOS = ["Datos", "Notas", "Rúbrica", "Resultado", "Compromiso", "Cierre"]; // para el celular
 
-export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoVolver = "← Volver a Mis Formularios" }) {
+export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoVolver = "← Volver a Mis Formularios", ocultarEvaluador = false }) {
   const [ev, setEv] = useState(() => clonar(evaluacionInicial));
   const [sucio, setSucio] = useState(false);
   const [estadoGuardado, setEstadoGuardado] = useState("");
@@ -738,7 +738,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
       <div className="cdr-ejecutar" style={{ maxWidth: 900 }}>
         <div style={{ marginBottom: 14 }}><button style={btn} onClick={onCerrar}>{textoVolver}</button></div>
         {recienEnviada && <AvancePlan modo="enviada" formularioId={ev.formularioId} rutinaSesionId={ev.rutinaSesionId} evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />}
-        <ResumenEvaluacion ev={ev} />
+        <ResumenEvaluacion ev={ev} ocultarEvaluador={ocultarEvaluador} />
       </div>
     );
   }
@@ -1379,7 +1379,7 @@ function PasoCierre({ ev, cambiar, anterior, errores, onEnviar, enviando }) {
 
 /* ------------------- Resumen de una CdR enviada -------------------- */
 
-function ResumenEvaluacion({ ev }) {
+function ResumenEvaluacion({ ev, ocultarEvaluador = false }) {
   const f = ev.formulario;
   const r = ev.resultado || { indice: 0, clasificacion: "intervencion", criticosEnCero: [], bloques: [] };
   return (
@@ -1389,7 +1389,7 @@ function ResumenEvaluacion({ ev }) {
           <div style={{ flex: "1 1 260px" }}>
             <div style={{ fontWeight: 800, fontSize: 18 }}>{ev.rutinaNombre}</div>
             <div style={{ fontSize: 13, color: "var(--texto-suave)" }}>
-              {f.nombre} · Líder: {ev.lider} · Evaluó: {ev.evaluadorNombre}{ev.registradoPorNombre && ev.registradoPorNombre !== ev.evaluadorNombre ? ` (registrada por ${ev.registradoPorNombre})` : ""} · {fechaLegible(ev.fechaEnvio)}
+              {f.nombre} · Líder: {ev.lider}{ocultarEvaluador ? "" : <> · Evaluó: {ev.evaluadorNombre}{ev.registradoPorNombre && ev.registradoPorNombre !== ev.evaluadorNombre ? ` (registrada por ${ev.registradoPorNombre})` : ""}</>} · {fechaLegible(ev.fechaEnvio)}
             </div>
           </div>
           <span style={{ fontSize: 34, fontWeight: 800 }}>{fmt(r.indice)}%</span>

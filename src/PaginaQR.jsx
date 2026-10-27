@@ -37,6 +37,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
   const [desbloqueado, setDesbloqueado] = useState(!!usuario); // con sesión iniciada ya se conoce la clave
   const [pestana, setPestana] = useState("pendientes");
   const [ejecutando, setEjecutando] = useState(null);
+  const [anonima, setAnonima] = useState(false); // al abrir una evaluación recibida no se muestra quién evaluó
   const [borrador, setBorrador] = useState(null);
   const [vistaRes, setVistaRes] = useState(VISTA_RESULTADOS_INICIAL);
   const [porVer, setPorVer] = useState(null); // formulario del historial que se abrirá tras ingresar la clave
@@ -130,7 +131,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
     return (
       <div className="ca-pagina">
         <div className="ca-contenido cdr-ejecutar">
-          <Ejecutar evaluacionInicial={ejecutando} onCerrar={() => { setEjecutando(null); setPestana(ejecutando.estado === "enviada" ? pestana : "pendientes"); }} textoVolver={pestana === "plan" ? "← Volver al cumplimiento" : pestana === "resultados" ? "← Volver a evaluaciones recibidas" : "← Volver a mis pendientes"} />
+          <Ejecutar evaluacionInicial={ejecutando} ocultarEvaluador={anonima} onCerrar={() => { setEjecutando(null); setAnonima(false); setPestana(ejecutando.estado === "enviada" ? pestana : "pendientes"); }} textoVolver={pestana === "plan" ? "← Volver al cumplimiento" : pestana === "resultados" ? "← Volver a evaluaciones recibidas" : "← Volver a mis pendientes"} />
         </div>
       </div>
     );
@@ -191,7 +192,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
         ))}
       {pestana === "resultados" &&
         (desbloqueado ? (
-          <ResultadosQR persona={persona} evals={evals} vista={vistaRes} onVista={setVistaRes} onVer={setEjecutando} />
+          <ResultadosQR persona={persona} evals={evals} vista={vistaRes} onVista={setVistaRes} onVer={(e) => { setAnonima(true); setEjecutando(e); }} />
         ) : (
           <PedirClave persona={persona} onOk={() => setDesbloqueado(true)} />
         ))}

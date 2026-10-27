@@ -174,7 +174,6 @@ function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer
   const clas = clasificar(prom, u, conCritico.length > 0);
   const { filas, indice } = bloquesPromedio(lista);
   const lideres = [...new Set(lista.map((e) => e.lider).filter(Boolean))];
-  const evaluadores = [...new Set(lista.map((e) => e.evaluadorNombre).filter(Boolean))];
   const parametros = { umbralEfectiva: u.efectiva, umbralDesarrollo: u.desarrollo };
 
   return (
@@ -182,7 +181,7 @@ function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer
       <div style={{ border: "1px solid var(--borde)", borderRadius: 14, padding: 14, background: "#fff", marginBottom: 14 }}>
         <p style={{ fontWeight: 800, fontSize: 17, margin: 0 }}>{nombreReunion}</p>
         <p style={{ ...gris, fontSize: 12.5, margin: "3px 0 0" }}>
-          {nombreForm} · Líder: {lideres.join(", ") || "—"} · Evaluó: {evaluadores.join(", ") || "—"}
+          {nombreForm} · Líder: {lideres.join(", ") || "—"}
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
           <span style={{ fontSize: 38, fontWeight: 800, lineHeight: 1 }}>{pct(prom)}</span>
@@ -210,7 +209,7 @@ function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer
           <button key={e.id} type="button" style={fila} onClick={() => onVer(e)}>
             <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
               <div style={{ fontWeight: 700, fontSize: 13.5 }}>{fechaCdR(e).split("-").reverse().join("-")}</div>
-              <div style={{ ...gris, fontSize: 12 }}>{`Evaluó: ${e.evaluadorNombre || "—"}`}</div>
+              <div style={{ ...gris, fontSize: 12 }}>{ETIQUETA_CLASIFICACION[r.clasificacion] || ""}</div>
             </div>
             <span className={`ca-pill ${clasePill(r.clasificacion)}`} style={{ fontSize: 13 }}>{pct(r.indice)}</span>
             <span style={{ ...gris, fontSize: 18 }}>›</span>
