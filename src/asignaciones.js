@@ -365,3 +365,61 @@ export function resumenDeFilas(filas) {
   });
   return r;
 }
+
+/* ─── Paso desde el modelo anterior de la CdR ───────────────────────────
+ * Antes, cada formulario traía sus reuniones (rutinas, con sus líderes) y sus evaluadores (asignados),
+ * y cada evaluador podía tener un plan (asignaciones/plan_<uid>, tipo "plan") con las reuniones que le tocaban.
+ * Esto propone una asignación por formulario + reunión que todavía no tenga una, para que el Master la cree
+ * con un clic y después ajuste la cadencia. No modifica ni borra lo anterior.
+ */
+export function listarPlanesAnteriores(callback, onError) {
+  let apagar = () => {};
+  let cancelado = false;
+  asegurarSesionCdR()
+    .then(() => {
+      if (cancelado) return;
+      apagar = onSnapshot(
+        query(collection(db, COLECCION), where("tipo", "==", "plan")),
+        (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+        (e) => (onError ? onError(e) : console.error(e))
+      );
+    })
+    .catch((e) => onError && onError(e));
+  return () => {
+    cancelado = true;
+    apagar();
+  };
+}
+
+export function propuestasDesdeModeloAnterior(formularios, asignaciones, planes = []) {
+  const yaExiste = new Set((asignaciones || []).map((a) => `${a.formularioId}|${a.reunionId}`));
+  const planPorUid = new Map((planes || []).map((p) => [p.uid, p]));
+  const propuestas = [];
+  (formularios || []).forEach((f) => {
+    (f.rutinas || []).forEach((r) => {
+      if (!r.sesionId || yaExiste.has(`${f.id}|${r.sesionId}`)) return;
+      const lideres = (r.lideres || []).map((l) => (typeof l === "string" ? l : l?.nombre || "")).filter(Boolean);
+      // Evaluadores del formulario; si alguien tenía plan con reuniones, solo en esas.
+      const personas = (f.asignados || [])
+        .filter((p) => {
+          const plan = planPorUid.get(p.uid);
+          return !plan || !(plan.rutinas || []).length || plan.rutinas.some((x) => x.sesionId === r.sesionId);
+        })
+        .map((p) => ({ uid: p.uid || "", nombre: p.nombre || "", cantidad: 1, frecuencia: "mensual", desde: "" }));
+      if (!lideres.length || !personas.length) return;
+      propuestas.push({
+        id: nuevoIdAsignacion(),
+        formularioId: f.id,
+        formularioNombre: f.nombre || "",
+        reunionId: r.sesionId,
+        reunionNombre: r.nombre || "",
+        area: r.area || "",
+        horaInicio: r.horaInicio || "",
+        horaFin: r.horaFin || "",
+        lideres,
+        personas,
+      });
+    });
+  });
+  return propuestas;
+}

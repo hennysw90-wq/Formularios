@@ -13,6 +13,8 @@ import {
   filaDeEvaluador,
   resumenDeFilas,
   esLaPersona,
+  listarPlanesAnteriores,
+  propuestasDesdeModeloAnterior,
 } from "./asignaciones.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -51,6 +53,9 @@ export default function PlanEvaluadores({ todas, formularios, usuario, usuarios 
     []
   );
   useEffect(() => listarRutinasAsistencia(setReuniones, () => setReuniones([])), []);
+  const [planesAnteriores, setPlanesAnteriores] = useState([]);
+  useEffect(() => listarPlanesAnteriores(setPlanesAnteriores, () => setPlanesAnteriores([])), []);
+  const [creandoPropuestas, setCreandoPropuestas] = useState(false);
 
   const lista = asignaciones || [];
   const vistaActual = vista || (asignaciones && lista.length === 0 ? "asignaciones" : "cumplimiento");
@@ -60,6 +65,23 @@ export default function PlanEvaluadores({ todas, formularios, usuario, usuarios 
   function nueva() {
     setAviso({ tipo: "", texto: "" });
     setEditando({ id: nuevoIdAsignacion(), esNueva: true, formularioId: "", formularioNombre: "", reunionId: "", reunionNombre: "", area: "", horaInicio: "", horaFin: "", lideres: [], personas: [] });
+  }
+
+  const propuestas = asignaciones ? propuestasDesdeModeloAnterior(formularios, asignaciones, planesAnteriores) : [];
+  async function crearPropuestas() {
+    const detalle = propuestas.map((p) => `• ${p.formularioNombre} → ${p.reunionNombre} (${p.personas.length} evaluador${p.personas.length === 1 ? "" : "es"})`).join("\n");
+    if (!window.confirm(`Se crearán ${propuestas.length} asignaciones con lo que ya estaba configurado en los formularios:\n\n${detalle}\n\nCada evaluador queda con 1 vez al mes desde hoy; después puedes ajustar la cadencia. No se borra nada.`)) return;
+    setCreandoPropuestas(true);
+    try {
+      const creado = new Date().toISOString();
+      for (const p of propuestas) await guardarAsignacion({ ...p, creado });
+      setAviso({ tipo: "ok", texto: `Se crearon ${propuestas.length} asignaciones. Revisa la cadencia de cada evaluador.` });
+      setVista("asignaciones");
+    } catch (e) {
+      setAviso({ tipo: "error", texto: `No se pudieron crear todas (${e.code || e.message}).` });
+    } finally {
+      setCreandoPropuestas(false);
+    }
   }
 
   async function borrar(a) {
@@ -81,6 +103,17 @@ export default function PlanEvaluadores({ todas, formularios, usuario, usuarios 
       {error && <p style={{ color: "var(--rojo)", fontSize: 14 }}>{error}</p>}
       {errorUsuarios && <p style={{ color: "var(--rojo)", fontSize: 14 }}>No se pudo leer el directorio de usuarios.</p>}
       {aviso.texto && <p style={{ fontSize: 14, fontWeight: 600, color: aviso.tipo === "error" ? "var(--rojo)" : "#0f6e56", margin: "0 0 10px" }}>{aviso.texto}</p>}
+
+      {!editando && propuestas.length > 0 && (
+        <div className="ca-card" style={{ marginBottom: 14, borderLeft: "4px solid #ba7517" }}>
+          <p style={{ margin: "0 0 4px", fontWeight: 800 }}>Configuración anterior sin pasar a asignaciones</p>
+          <p style={{ ...ayuda, margin: "0 0 10px" }}>
+            Hay {propuestas.length} reunión{propuestas.length === 1 ? "" : "es"} configurada{propuestas.length === 1 ? "" : "s"} dentro de los formularios (modelo anterior de la CdR) que todavía no tiene{propuestas.length === 1 ? "" : "n"} asignación.
+            Puedes crearlas de una vez con sus líderes y evaluadores; quedan con 1 vez al mes y luego ajustas la cadencia.
+          </p>
+          <button style={btnPrim} disabled={creandoPropuestas} onClick={crearPropuestas}>{creandoPropuestas ? "Creando…" : `Crear ${propuestas.length} asignaci${propuestas.length === 1 ? "ón" : "ones"}`}</button>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <button style={vistaActual === "cumplimiento" ? btnSel : btn} onClick={() => setVista("cumplimiento")}>Cumplimiento</button>
