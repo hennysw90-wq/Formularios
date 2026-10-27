@@ -737,7 +737,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
     return (
       <div className="cdr-ejecutar" style={{ maxWidth: 900 }}>
         <div style={{ marginBottom: 14 }}><button style={btn} onClick={onCerrar}>{textoVolver}</button></div>
-        {recienEnviada && <AvancePlan modo="enviada" formularioId={ev.formularioId} rutinaSesionId={ev.rutinaSesionId} evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />}
+        {recienEnviada && !ocultarEvaluador && <AvancePlan modo="enviada" formularioId={ev.formularioId} rutinaSesionId={ev.rutinaSesionId} evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />}
         <ResumenEvaluacion ev={ev} ocultarEvaluador={ocultarEvaluador} />
       </div>
     );

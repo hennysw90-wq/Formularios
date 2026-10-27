@@ -9,7 +9,6 @@ import Formularios from "./Formularios.jsx";
 import MisCdR from "./MisCdR.jsx";
 import PaginaQR from "./PaginaQR.jsx";
 import Estadisticas from "./Estadisticas.jsx";
-import MiAgenda from "./MiAgenda.jsx";
 import { formularioDesdeUrl, rutinaDesdeUrl } from "./enlaces.js";
 
 export default function App() {
@@ -89,10 +88,9 @@ function Inicio({ usuario, esMaster, onIr }) {
         <p style={{ margin: "6px 0 0", color: "var(--texto-suave)", fontSize: 14 }}>
           {esMaster
             ? "Eres Master: administras quién accede a la CdR, creas los formularios y los asignas en Estadísticas → Plan de evaluadores."
-            : "Aquí ves las CdR que tienes asignadas, cuántas te faltan en el periodo, y das feedback a los líderes."}
+            : "En Mis Formularios ves los formularios que tienes asignados, cuántos te faltan en el periodo, y das feedback a los líderes."}
         </p>
       </div>
-      <MiAgenda usuario={usuario} onIrAMisCdR={() => onIr("mis")} />
       {esMaster && <Diagnostico />}
     </div>
   );
