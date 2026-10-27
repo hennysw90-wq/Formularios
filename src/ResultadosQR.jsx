@@ -228,7 +228,7 @@ const MESES_CORTOS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "S
 
 /** Un solo gráfico de líneas: una línea por bloque, nota promedio mes a mes de los últimos 12 meses (no depende del filtro). */
 export function Evolucion({ historico, umbrales, hoy = new Date() }) {
-  const [mesSel, setMesSel] = useState(null);
+  const [elegido, setElegido] = useState(undefined); // undefined = el último mes con datos; null = ninguno
   const meses = Array.from({ length: 12 }, (_, i) => {
     const d = new Date(hoy.getFullYear(), hoy.getMonth() - 11 + i, 1);
     return { clave: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, etiqueta: MESES_CORTOS[d.getMonth()], anio: d.getFullYear(), mes: d.getMonth() };
@@ -248,8 +248,14 @@ export function Evolucion({ historico, umbrales, hoy = new Date() }) {
     }),
   }));
   const conDatos = series.some((s) => s.valores.some((v) => v !== null));
+  let ultimo = null;
+  meses.forEach((_, i) => { if (series.some((s) => s.valores[i] !== null)) ultimo = i; });
+  const mesSel = elegido === undefined ? ultimo : elegido;
+  const setMesSel = setElegido;
+  // Pequeño corrimiento horizontal por bloque, para que los puntos con la misma nota no se tapen.
+  const corrimiento = (k) => (k - (series.length - 1) / 2) * 3;
 
-  const W = 320, H = 150, iz = 28, de = 8, ar = 8, ab = 22;
+  const W = 320, H = 150, iz = 28, de = 14, ar = 8, ab = 22;
   const x = (i) => iz + (i * (W - iz - de)) / 11;
   const y = (v) => ar + ((100 - v) * (H - ar - ab)) / 100;
 
@@ -274,12 +280,12 @@ export function Evolucion({ historico, umbrales, hoy = new Date() }) {
             {meses.map((m, i) => (
               <text key={m.clave} x={x(i)} y={H - 8} textAnchor="middle" fontSize="8" fontWeight={mesSel === i ? 700 : 400} fill={mesSel === i ? "#0f4f4a" : "#8a9a98"}>{m.etiqueta}</text>
             ))}
-            {series.map((s) => {
+            {series.map((s, k) => {
               // Tramos continuos: un mes sin datos corta la línea.
               const tramos = [];
               let actual = [];
               s.valores.forEach((v, i) => {
-                if (v === null) { if (actual.length) tramos.push(actual); actual = []; } else actual.push([x(i), y(v)]);
+                if (v === null) { if (actual.length) tramos.push(actual); actual = []; } else actual.push([x(i) + corrimiento(k), y(v)]);
               });
               if (actual.length) tramos.push(actual);
               return (
@@ -287,34 +293,44 @@ export function Evolucion({ historico, umbrales, hoy = new Date() }) {
                   {tramos.filter((t) => t.length > 1).map((t, k) => (
                     <polyline key={k} points={t.map((p) => p.join(",")).join(" ")} fill="none" stroke={s.color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
                   ))}
-                  {s.valores.map((v, i) => v !== null && <circle key={i} cx={x(i)} cy={y(v)} r={mesSel === i ? 3.2 : 2.2} fill={s.color} />)}
+                  {s.valores.map((v, i) => v !== null && <circle key={i} cx={x(i) + corrimiento(k)} cy={y(v)} r={mesSel === i ? 3.6 : 2.6} fill={s.color} stroke="#fff" strokeWidth="0.8" />)}
                 </g>
               );
             })}
             {meses.map((m, i) => (
-              <rect key={`t${m.clave}`} x={x(i) - (W - iz - de) / 22} y={0} width={(W - iz - de) / 11} height={H} fill="transparent" style={{ cursor: "pointer" }} onClick={() => setMesSel(mesSel === i ? null : i)} />
+              <rect key={`t${m.clave}`} x={x(i) - (W - iz - de) / 22} y={0} width={(W - iz - de) / 11} height={H} fill="transparent" style={{ cursor: "pointer" }} onClick={() => setMesSel(i)} />
             ))}
           </svg>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", marginTop: 4 }}>
+          <div style={{ marginTop: 6, display: "grid", gap: 4 }}>
+            {mesSel !== null && (
+              <div style={{ display: "flex", justifyContent: "flex-end", fontSize: 10.5, fontWeight: 700, color: "var(--texto-suave)", letterSpacing: 0.3 }}>
+                {MESES_CORTOS[meses[mesSel].mes]} {meses[mesSel].anio}
+              </div>
+            )}
             {series.map((s) => {
               const v = mesSel !== null ? s.valores[mesSel] : null;
               return (
-                <span key={s.nombre} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5 }}>
-                  <span style={{ width: 10, height: 3, borderRadius: 2, background: s.color, display: "inline-block" }} />
-                  {s.nombre}{mesSel !== null && <b>{v === null ? " —" : ` ${fmt(v)}%`}</b>}
-                </span>
+                <div key={s.nombre} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+                  <span style={{ width: 14, height: 4, borderRadius: 2, background: s.color, flex: "0 0 auto" }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>{s.nombre}</span>
+                  {mesSel !== null && (
+                    <b style={{ color: v === null ? "var(--texto-suave)" : colorNota(v, umbrales), whiteSpace: "nowrap" }}>{v === null ? "—" : `${fmt(v)}%`}</b>
+                  )}
+                </div>
               );
             })}
           </div>
-          <p style={{ ...gris, fontSize: 11, margin: "6px 0 0" }}>
-            {mesSel !== null
-              ? `${MESES_CORTOS[meses[mesSel].mes]} ${meses[mesSel].anio}: nota promedio de cada bloque. Toca de nuevo para quitar.`
-              : "Toca un mes para ver la nota de cada bloque. Un corte en la línea es un mes sin evaluaciones."}
+          <p style={{ ...gris, fontSize: 11, margin: "8px 0 0" }}>
+            Toca un mes del gráfico para ver la nota de cada bloque. Un corte en la línea es un mes sin evaluaciones.
           </p>
         </>
       )}
     </div>
   );
+}
+
+function colorNota(v, u) {
+  return v >= u.efectiva ? "#1b7a46" : v >= u.desarrollo ? "#B5820A" : "#b02a26";
 }
 
 const gris = { color: "var(--texto-suave)" };
