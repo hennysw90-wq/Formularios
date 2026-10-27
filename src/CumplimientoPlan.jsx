@@ -109,6 +109,17 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
     );
   }
 
+  // Texto del periodo elegido: "octubre 2026", "agosto – octubre 2026", "enero – octubre 2026"…
+  const ini = columnas[0];
+  const fin = columnas[columnas.length - 1];
+  const textoPeriodo = columnas.length === 1
+    ? `${MESES_LARGOS[ini.mes]} ${ini.anio}`
+    : `${MESES_LARGOS[ini.mes]}${ini.anio !== fin.anio ? ` ${ini.anio}` : ""} – ${MESES_LARGOS[fin.mes]} ${fin.anio}`;
+  const cortoPeriodo = columnas.length === 1
+    ? MESES_CORTOS[ini.mes]
+    : `${MESES_CORTOS[ini.mes]}–${MESES_CORTOS[fin.mes]}`;
+  const total = (h, e) => ({ hechas: h, exigido: e });
+
   return (
     <div>
       {titulo && <p style={{ margin: "0 0 4px", fontWeight: 800, fontSize: compacto ? 15 : 17 }}>{titulo}</p>}
@@ -117,7 +128,7 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: "var(--texto-suave)" }}>Cumplimiento general</div>
           <div style={{ fontSize: 40, fontWeight: 800, lineHeight: 1.1, color: color(granPorcentaje) }}>{granPorcentaje === null ? "—" : `${granPorcentaje}%`}</div>
           <div style={{ fontSize: 13, color: "var(--texto-suave)" }}>
-            {rango === "1m" ? `${MESES_LARGOS[ahora.getMonth()]} ${ahora.getFullYear()}` : rango === "3m" ? "últimos 3 meses" : rango === "6m" ? "últimos 6 meses" : `año ${ahora.getFullYear()}`}
+            {textoPeriodo}
           </div>
           <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 10 }}>
             <div style={cajita}>
@@ -132,7 +143,9 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
         </div>
       )}
       <p style={{ color: "var(--texto-suave)", fontSize: 12.5, margin: "0 0 10px" }}>
-        Cada celda muestra cuántas ejecutaste sobre cuántas se te exigían ese mes, según la cadencia de cada asignación.
+        {compacto
+          ? "Cuántas ejecutaste sobre cuántas se te exigían en el periodo elegido, según la cadencia de cada asignación."
+          : "Cada celda muestra cuántas ejecutaste sobre cuántas se te exigían ese mes, según la cadencia de cada asignación."}
       </p>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
@@ -160,13 +173,22 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
               <th style={{ ...th, textAlign: "left", minWidth: compacto ? 140 : 190 }}>FORMULARIO</th>
               {!compacto && <th style={{ ...th, textAlign: "left", minWidth: 150 }}>REUNIÓN</th>}
               {!compacto && <th style={{ ...th, minWidth: 110 }}>CADENCIA</th>}
-              {columnas.map((c) => (
-                <th key={`${c.anio}-${c.mes}`} style={{ ...th, width: 58 }}>
-                  <div>{MESES_CORTOS[c.mes]}</div>
-                  <div style={{ fontSize: 9, opacity: 0.85 }}>{c.anio}</div>
+              {compacto ? (
+                <th style={{ ...th, width: 84 }}>
+                  <div>{cortoPeriodo}</div>
+                  <div style={{ fontSize: 9, opacity: 0.85 }}>{fin.anio}</div>
                 </th>
-              ))}
-              <th style={{ ...th, width: 64 }}>TOTAL</th>
+              ) : (
+                <>
+                  {columnas.map((c) => (
+                    <th key={`${c.anio}-${c.mes}`} style={{ ...th, width: 58 }}>
+                      <div>{MESES_CORTOS[c.mes]}</div>
+                      <div style={{ fontSize: 9, opacity: 0.85 }}>{c.anio}</div>
+                    </th>
+                  ))}
+                  <th style={{ ...th, width: 64 }}>TOTAL</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -190,12 +212,12 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
                     {f.desde && <div style={{ fontSize: 10, marginTop: 2 }}>desde {f.desde.split("-").reverse().join("-")}</div>}
                   </td>
                 )}
-                {f.celdas.map((c, i) => (
+                {(compacto ? [total(f.totalHecho, f.totalExigido)] : f.celdas).map((c, i) => (
                   <td key={i} style={{ ...td, textAlign: "center", ...fondo(c) }}>
                     {c.exigido === 0 ? <span style={{ color: "#d7e2e0" }}>·</span> : <strong style={{ color: color((c.hechas / c.exigido) * 100) }}>{c.hechas}/{c.exigido}</strong>}
                   </td>
                 ))}
-                <td style={{ ...td, textAlign: "center", fontWeight: 700 }}>{f.totalHecho}/{f.totalExigido}</td>
+                {!compacto && <td style={{ ...td, textAlign: "center", fontWeight: 700 }}>{f.totalHecho}/{f.totalExigido}</td>}
               </tr>
             ))}
           </tbody>
@@ -203,19 +225,19 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
             <tr style={{ borderTop: "2px solid var(--borde)", background: "var(--fondo)" }}>
               <td style={{ ...td, textAlign: "center" }}>{granPorcentaje !== null && <span style={badge(granPorcentaje)}>{granPorcentaje}%</span>}</td>
               <td style={{ ...td, fontWeight: 700 }} colSpan={compacto ? 1 : 3}>TOTAL</td>
-              {totalesColumna.map((c, i) => (
+              {(compacto ? [total(granHecho, granExigido)] : totalesColumna).map((c, i) => (
                 <td key={i} style={{ ...td, textAlign: "center", fontWeight: 700, ...fondo(c) }}>
                   {c.exigido === 0 ? <span style={{ color: "#d7e2e0" }}>·</span> : `${c.hechas}/${c.exigido}`}
                 </td>
               ))}
-              <td style={{ ...td, textAlign: "center", fontWeight: 800 }}>{granHecho}/{granExigido}</td>
+              {!compacto && <td style={{ ...td, textAlign: "center", fontWeight: 800 }}>{granHecho}/{granExigido}</td>}
             </tr>
           </tfoot>
         </table>
       </div>
       <p style={{ color: "var(--texto-suave)", fontSize: 11.5, marginTop: 8 }}>
-        Cada celda es ejecutadas / exigidas en ese mes. El punto gris indica que ese mes no tenía exigencia. Los periodos que
-        aún no empiezan no se cuentan, así el mes en curso no aparece castigado antes de tiempo.
+        {compacto ? `Periodo: ${textoPeriodo}. ` : "Cada celda es ejecutadas / exigidas en ese mes. El punto gris indica que ese mes no tenía exigencia. "}
+        Los periodos que aún no empiezan no se cuentan, así el mes en curso no aparece castigado antes de tiempo.
       </p>
       {conHistorial && (
         <div style={{ marginTop: 16 }}>
