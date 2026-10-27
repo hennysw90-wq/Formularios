@@ -241,14 +241,14 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
       </p>
       {conHistorial && (
         <div style={{ marginTop: 16 }}>
-          <p style={{ margin: "0 0 2px", fontWeight: 800, fontSize: 15 }}>Historial de formularios realizados ({historial.length})</p>
+          <p style={{ margin: "0 0 2px", fontWeight: 800, fontSize: 15 }}>{historial.length > 5 ? "Últimos 5 formularios realizados" : `Historial de formularios realizados (${historial.length})`}</p>
           <p style={{ margin: "0 0 8px", fontSize: 12.5, color: "var(--texto-suave)" }}>
             {granHecho} {granHecho === 1 ? "realizado" : "realizados"} de {granExigido} del plan{onVer && historial.length > 0 ? " · toca uno para revisarlo" : ""}
           </p>
           {historial.length === 0 ? (
             <p style={{ color: "var(--texto-suave)", fontSize: 13, margin: 0 }}>No enviaste formularios en este periodo.</p>
           ) : (
-            historial.map(({ e, fecha }) => (
+            historial.slice(0, 5).map(({ e, fecha }) => (
               <div key={e.id} role={onVer ? "button" : undefined} tabIndex={onVer ? 0 : undefined} onClick={onVer ? () => onVer(e) : undefined}
                 onKeyDown={onVer ? (k) => (k.key === "Enter" || k.key === " ") && onVer(e) : undefined}
                 style={{ border: "1px solid var(--borde)", borderRadius: 10, padding: "9px 12px", marginBottom: 6, background: "#fff", cursor: onVer ? "pointer" : "default" }}>
