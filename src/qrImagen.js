@@ -1,5 +1,5 @@
-// Imagen del QR de una reunión: el código ocupa toda la imagen, en el color de la CdR (el mismo terracota del botón
-// «Confirmación de Rol» de la portada, para que se asocie a esta app), y el nombre de la reunión va en un recuadro
+// Imagen del QR del formulario: el código ocupa toda la imagen, en el color de la CdR (el mismo terracota del botón
+// «Confirmación de Rol» de la portada, para que se asocie a esta app), y el nombre del formulario va en un recuadro
 // redondeado al centro. Se dibuja en un canvas (el QR se pinta módulo a módulo).
 //
 // El recuadro tapa una parte del código, así que se usa el nivel de corrección de errores más alto («H», recupera hasta
