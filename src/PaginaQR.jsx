@@ -378,19 +378,23 @@ function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBor
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 14 }}>{a.reunionNombre || "Sin reunión"}</p>
                       <p style={{ ...gris, fontSize: 12, margin: 0 }}>
-                        {etiquetaCadencia(it.cantidad, it.frecuencia, it.hasta)} · {it.hechasReales} de {it.cantidad} {periodo}
+                        {etiquetaCadencia(it.cantidad, it.frecuencia)} · {it.hechasReales} de {it.cantidad} {periodo}
                       </p>
                       {(a.lideres || []).length > 0 && <p style={{ ...gris, fontSize: 12, margin: "2px 0 0" }}>Líder: {a.lideres.join(", ")}</p>}
                     </div>
-                    {!it.empezo ? (
-                      <span style={chipNeutro}>Desde {it.desde.split("-").reverse().join("-")}</span>
-                    ) : it.completa ? (
-                      <span style={chipOk}>✓ Al día</span>
-                    ) : it.vencida ? (
-                      <span style={chipVencido}>Vencido</span>
-                    ) : (
-                      <span style={chipPendiente}>{it.pendientes} pendiente{it.pendientes === 1 ? "" : "s"}</span>
-                    )}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                      {!it.empezo ? (
+                        <span style={chipNeutro}>Desde {it.desde.split("-").reverse().join("-")}</span>
+                      ) : it.completa ? (
+                        <span style={chipOk}>✓ Al día</span>
+                      ) : it.vencida ? (
+                        <span style={chipVencido}>Vencido</span>
+                      ) : (
+                        <span style={chipPendiente}>{it.pendientes} pendiente{it.pendientes === 1 ? "" : "s"}</span>
+                      )}
+                      {/* "Una sola vez" con plazo: la fecha límite va justo debajo, para ver las dos fechas */}
+                      {it.hasta && <span style={chipNeutro}>Hasta {it.hasta.split("-").reverse().join("-")}</span>}
+                    </div>
                   </div>
                   <button className={`cdr-nav-btn ${it.completa || !it.empezo ? "" : "prim"}`} style={{ marginTop: 10, width: "100%" }} onClick={() => onEjecutar(g.formulario.id, a.reunionId)}>
                     {it.completa ? "Responder otra vez" : "Ejecutar formulario"}
