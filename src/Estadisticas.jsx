@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { listarEvaluacionesEnviadas, anularEvaluacion, restaurarEvaluacion } from "./evaluaciones.js";
+import { listarEvaluacionesEnviadas, anularEvaluacion, restaurarEvaluacion, eliminarEvaluacion } from "./evaluaciones.js";
 import { listarFormularios } from "./formularios.js";
-import { listarUsuarios } from "./auth.js";
+import { listarUsuarios, verificarClave } from "./auth.js";
 import { Ejecutar } from "./MisCdR.jsx";
 import PlanEvaluadores from "./PlanEvaluadores.jsx";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
@@ -79,7 +79,7 @@ export default function Estadisticas({ usuario }) {
   };
 
   const detalle = detalleId ? todas.find((e) => e.id === detalleId) : null;
-  if (detalle) return <DetalleCdR ev={detalle} onVolver={() => setDetalleId(null)} />;
+  if (detalle) return <DetalleCdR ev={detalle} usuario={usuario} onVolver={() => setDetalleId(null)} />;
 
   function descargar() {
     const blob = new Blob([aCSV(lista)], { type: "text/csv;charset=utf-8" });
@@ -262,7 +262,8 @@ function Registros({ lista, orden, onOrden, limite, onMas, onVer, onDescargar, u
 
 /* ------------------------- Detalle de una CdR ----------------------- */
 
-function DetalleCdR({ ev, onVolver }) {
+function DetalleCdR({ ev, usuario, onVolver }) {
+  const [borrando, setBorrando] = useState(false);
   async function anular() {
     const motivo = window.prompt("Motivo para anular esta CdR (por ejemplo: prueba). No se borra: deja de contar en las estadísticas y se puede restaurar.", "Prueba");
     if (motivo === null) return;
@@ -288,8 +289,57 @@ function DetalleCdR({ ev, onVolver }) {
       )}
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
         {ev.anulada ? <button key="restaurar" style={btn} onClick={restaurar}>Restaurar esta CdR</button> : <button key="anular" style={btnPel} onClick={anular}>Anular esta CdR</button>}
+        {usuario?.rol === "master" && <button key="eliminar" style={{ ...btnPel, marginLeft: 8, background: "#fbeae5" }} onClick={() => setBorrando(true)}>Eliminar definitivamente</button>}
       </div>
       <Ejecutar key={ev.id} evaluacionInicial={ev} onCerrar={onVolver} textoVolver="← Volver a Estadísticas" />
+      {borrando && <EliminarConClave ev={ev} usuario={usuario} onCancelar={() => setBorrando(false)} onEliminada={onVolver} />}
+    </div>
+  );
+}
+
+/** Confirmación para borrar una CdR: el Master escribe su clave (la misma de las apps). */
+function EliminarConClave({ ev, usuario, onCancelar, onEliminada }) {
+  const [clave, setClave] = useState("");
+  const [error, setError] = useState("");
+  const [trabajando, setTrabajando] = useState(false);
+  async function confirmar(e) {
+    e.preventDefault();
+    setError("");
+    setTrabajando(true);
+    try {
+      if (!(await verificarClave(usuario.uid, clave))) {
+        setError("Clave incorrecta.");
+        setTrabajando(false);
+        return;
+      }
+      await eliminarEvaluacion(ev.id);
+      onEliminada();
+    } catch (err) {
+      setError(
+        err.code === "permission-denied"
+          ? "La base todavía no permite borrar CdR: falta publicar las reglas nuevas de Firestore (archivo firestore.rules)."
+          : `No se pudo eliminar (${err.code || err.message}).`
+      );
+      setTrabajando(false);
+    }
+  }
+  const fecha = fechaCdR(ev).split("-").reverse().join("-");
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(20,20,18,.5)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 16px" }} onClick={onCancelar}>
+      <form className="ca-card" style={{ maxWidth: 420, width: "100%" }} onClick={(e) => e.stopPropagation()} onSubmit={confirmar}>
+        <p style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 16, color: "var(--rojo)" }}>Eliminar esta CdR para siempre</p>
+        <p style={{ margin: "0 0 10px", fontSize: 13.5, color: "var(--texto-suave)" }}>
+          {ev.rutinaNombre || "Sin reunión"} · {fecha} · Líder: {ev.lider || "—"} · Evaluó: {ev.evaluadorNombre || "—"}
+          <br />Se borra de la base y no se puede recuperar. Si solo quieres que no cuente, usa «Anular».
+        </p>
+        <label className="ca-label">Escribe tu clave para confirmar</label>
+        <input className="rp-input" type="password" aria-label="Clave para eliminar" value={clave} onChange={(e) => setClave(e.target.value)} autoFocus />
+        {error && <p style={{ color: "var(--rojo)", fontSize: 13, margin: "8px 0 0" }}>{error}</p>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+          <button type="button" style={btn} onClick={onCancelar}>Cancelar</button>
+          <button type="submit" style={{ ...btnPel, background: "var(--rojo)", color: "#fff", borderColor: "var(--rojo)" }} disabled={!clave || trabajando}>{trabajando ? "Eliminando…" : "Eliminar"}</button>
+        </div>
+      </form>
     </div>
   );
 }

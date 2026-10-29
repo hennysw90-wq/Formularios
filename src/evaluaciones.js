@@ -1,5 +1,5 @@
 // Acceso a "formularios publicados" y "evaluaciones" en la base propia de la CdR.
-import { collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { db, asegurarSesionCdR } from "./firebase.js";
 import { elegirCompromisoAnterior } from "./compromisos.js";
 
@@ -98,6 +98,12 @@ export async function obtenerEvaluacion(id) {
   await asegurarSesionCdR();
   const snap = await getDoc(doc(db, "cdrEvaluaciones", id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/** Elimina una CdR para siempre (solo el Master, después de confirmar su clave). No se puede deshacer. */
+export async function eliminarEvaluacion(id) {
+  await asegurarSesionCdR();
+  await deleteDoc(doc(db, "cdrEvaluaciones", id));
 }
 
 /** Todas las CdR enviadas (para Excelencia Operacional: registros y estadísticas). */

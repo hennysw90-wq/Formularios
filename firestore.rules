@@ -19,15 +19,15 @@ service cloud.firestore {
     match /cdrAsignaciones/{id} { allow read, write: if true; }
     match /cdrCompromisos/{id}  { allow read, write: if true; }
 
-    // Una CdR enviada queda bloqueada: no se puede editar ni borrar. Lo único
-    // que se permite sobre una enviada es anularla o restaurarla (los tres
-    // campos "anulada*"), para que una prueba deje de contar sin perderse.
+    // Una CdR enviada queda bloqueada: no se puede editar. Sobre una enviada solo
+    // se permite anularla o restaurarla (los tres campos "anulada*"). Borrarla lo
+    // hace solo el Master desde la app, después de confirmar su clave.
     match /cdrEvaluaciones/{id} {
       allow read, create: if true;
       allow update: if resource.data.estado != 'enviada'
         || request.resource.data.diff(resource.data).affectedKeys()
              .hasOnly(['anulada', 'anuladaMotivo', 'anuladaFecha']);
-      allow delete: if false;
+      allow delete: if true;
     }
   }
 }
