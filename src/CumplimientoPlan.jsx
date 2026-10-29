@@ -50,11 +50,12 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
         const frecuencia = p.frecuencia || "semanal";
         const desde = desdeEfectivo(a, p);
         const hechas = hechasEnAsignacion(a, p, evals || [], frecuencia);
-        const celdas = columnas.map(({ anio, mes }) => celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahora));
+        const hasta = frecuencia === "unica" ? p.hasta || "" : "";
+        const celdas = columnas.map(({ anio, mes }) => celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahora, hasta));
         const totalExigido = celdas.reduce((s, c) => s + c.exigido, 0);
         const totalHecho = celdas.reduce((s, c) => s + c.hechas, 0);
         const totalReal = celdas.reduce((s, c) => s + (c.reales ?? c.hechas), 0);
-        return { asignacion: a, cantidad, frecuencia, desde, celdas, totalExigido, totalHecho, totalReal, porcentaje: totalExigido > 0 ? Math.round((totalHecho / totalExigido) * 100) : null };
+        return { asignacion: a, cantidad, frecuencia, desde, hasta, celdas, totalExigido, totalHecho, totalReal, porcentaje: totalExigido > 0 ? Math.round((totalHecho / totalExigido) * 100) : null };
       })
       .sort((x, y) => (x.porcentaje ?? 999) - (y.porcentaje ?? 999));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -87,7 +88,7 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
       f.porcentaje === null ? "" : `${f.porcentaje}%`,
       f.asignacion.formularioNombre || "",
       f.asignacion.reunionNombre || "",
-      etiquetaCadencia(f.cantidad, f.frecuencia),
+      etiquetaCadencia(f.cantidad, f.frecuencia, f.hasta),
       ...f.celdas.map((c) => (c.exigido === 0 ? "" : `${c.reales ?? c.hechas}/${c.exigido}`)),
       `${f.totalReal}/${f.totalExigido}`,
     ])];
@@ -203,14 +204,14 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
                   {f.asignacion.formularioNombre || "—"}
                   {compacto && (
                     <div style={{ fontWeight: 400, fontSize: 11.5, color: "var(--texto-suave)" }}>
-                      {f.asignacion.reunionNombre} · {etiquetaCadencia(f.cantidad, f.frecuencia)}
+                      {f.asignacion.reunionNombre} · {etiquetaCadencia(f.cantidad, f.frecuencia, f.hasta)}
                     </div>
                   )}
                 </td>
                 {!compacto && <td style={td}>{f.asignacion.reunionNombre || "—"}</td>}
                 {!compacto && (
                   <td style={{ ...td, textAlign: "center", color: "var(--texto-suave)", fontSize: 12 }}>
-                    {etiquetaCadencia(f.cantidad, f.frecuencia)}
+                    {etiquetaCadencia(f.cantidad, f.frecuencia, f.hasta)}
                     {f.desde && <div style={{ fontSize: 10, marginTop: 2 }}>desde {f.desde.split("-").reverse().join("-")}</div>}
                   </td>
                 )}

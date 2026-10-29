@@ -28,7 +28,9 @@ export default function AvancePlan({ evaluador, formularioId, rutinaSesionId, mo
   const periodo = TEXTO_PERIODO[it.frecuencia] || "";
   const lleva = it.hechasReales;
   let mensaje;
-  if (modo === "enviada") {
+  if (it.vencida) {
+    mensaje = <>{a.reunionNombre}: el plazo venció el <b>{it.hasta.split("-").reverse().join("-")}</b> ({lleva} de {it.cantidad}). Esta CdR queda registrada, pero no cuenta para el plan.</>;
+  } else if (modo === "enviada") {
     mensaje = it.completa
       ? <>¡Cumpliste lo de {periodo}! Llevas <b>{lleva} de {it.cantidad}</b> en {a.reunionNombre}.</>
       : <>Con esta CdR llevas <b>{lleva} de {it.cantidad}</b> {periodo} en {a.reunionNombre}. Te {it.pendientes === 1 ? "falta" : "faltan"} {it.pendientes}.</>;

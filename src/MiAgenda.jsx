@@ -51,13 +51,15 @@ export default function MiAgenda({ usuario, onIniciar, onIrAMisCdR, compacto = f
               <div style={{ flex: "1 1 240px", minWidth: 0 }}>
                 <div style={{ fontWeight: 700 }}>{a.reunionNombre}</div>
                 <div style={{ fontSize: 12.5, color: "var(--texto-suave)" }}>
-                  {a.formularioNombre || it.formulario.nombre} · {etiquetaCadencia(it.cantidad, it.frecuencia)}
+                  {a.formularioNombre || it.formulario.nombre} · {etiquetaCadencia(it.cantidad, it.frecuencia, it.hasta)}
                   {(a.lideres || []).length ? ` · Líder: ${a.lideres.join(", ")}` : ""}
                 </div>
               </div>
-              <div style={{ flex: "0 0 auto", fontSize: 13.5, fontWeight: 700, color: !it.empezo ? "var(--texto-suave)" : it.completa ? "#0f6e56" : "#ba7517" }}>
+              <div style={{ flex: "0 0 auto", fontSize: 13.5, fontWeight: 700, color: !it.empezo ? "var(--texto-suave)" : it.completa ? "#0f6e56" : it.vencida ? "#993c1d" : "#ba7517" }}>
                 {!it.empezo
                   ? `Empieza el ${it.desde.split("-").reverse().join("-")}`
+                  : it.vencida
+                  ? `Vencido el ${it.hasta.split("-").reverse().join("-")} · ${it.hechasReales} de ${it.cantidad}`
                   : it.completa
                   ? `✓ ${it.hechasReales} de ${it.cantidad} ${periodo}`
                   : `${it.hechasReales} de ${it.cantidad} ${periodo} · faltan ${it.pendientes}`}

@@ -21,11 +21,13 @@ export function etiquetaFrecuencia(valor) {
   return FRECUENCIAS.find((f) => f.valor === valor)?.etiqueta || valor;
 }
 
-/** "2 veces a la semana", "1 vez al día", "Una sola vez". */
-export function etiquetaCadencia(cantidad, frecuencia) {
+const ddmmaaaa = (iso) => String(iso || "").slice(0, 10).split("-").reverse().join("-");
+
+/** "2 veces a la semana", "1 vez al día", "Una sola vez", "Una sola vez · hasta 15-11-2026". */
+export function etiquetaCadencia(cantidad, frecuencia, hasta = "") {
   const n = Number(cantidad) || 1;
   const veces = n === 1 ? "1 vez" : `${n} veces`;
-  if (frecuencia === "unica") return n === 1 ? "Una sola vez" : `${veces} en total`;
+  if (frecuencia === "unica") return (n === 1 ? "Una sola vez" : `${veces} en total`) + (hasta ? ` · hasta ${ddmmaaaa(hasta)}` : "");
   return `${veces} ${etiquetaFrecuencia(frecuencia).toLowerCase()}`;
 }
 
@@ -77,6 +79,20 @@ export function periodoDentroDelControl(periodoCierra, desde) {
   return periodoCierra >= new Date(a, m - 1, d);
 }
 
+/** Fecha local de hoy como "AAAA-MM-DD". */
+export function hoyLocalISO(ahora = new Date()) {
+  return `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}-${String(ahora.getDate()).padStart(2, "0")}`;
+}
+
+/** "Una sola vez" con plazo: solo cuentan las CdR hechas entre "desde" y "hasta" (ambos incluidos). */
+export function dentroDelPlazo(fechaIso, desde, hasta) {
+  const f = String(fechaIso || "").slice(0, 10);
+  if (!f) return false;
+  if (desde && f < desde) return false;
+  if (hasta && f > hasta) return false;
+  return true;
+}
+
 /** "AAAA-MM-DD" → fecha local a mediodía (evita saltos por zona horaria). */
 export function fechaLocal(iso) {
   const [a, m, d] = String(iso || "").slice(0, 10).split("-").map(Number);
@@ -89,11 +105,21 @@ export function fechaLocal(iso) {
  *   exigidoVencido → solo los periodos que ya cerraron (lo que ya se debe)
  * `hechas` = lista de { periodo, fecha } (una por CdR enviada).
  */
-export function celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahora = new Date()) {
+export function celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahora = new Date(), hasta = "") {
   const lista = hechas || [];
   const periodos = periodosDelMes(frecuencia, anio, mes);
 
-  // "Una sola vez": se cuenta lo ejecutado en el mes contra la cantidad pedida.
+  // "Una sola vez" con plazo: se exige en el mes en que vence el plazo, contando lo hecho dentro del rango.
+  // Mientras el plazo no termina no cuenta como atraso.
+  if (periodos.length === 0 && hasta) {
+    const h = fechaLocal(hasta);
+    if (!h || h.getFullYear() !== anio || h.getMonth() !== mes) return { hechas: 0, reales: 0, exigido: 0, exigidoVencido: 0 };
+    const n = lista.filter((r) => dentroDelPlazo(r.fecha, desde, hasta)).length;
+    const vencido = hoyLocalISO(ahora) > hasta;
+    return { hechas: Math.min(n, cantidad), reales: n, exigido: cantidad, exigidoVencido: vencido ? cantidad : 0 };
+  }
+
+  // "Una sola vez" sin plazo (asignaciones antiguas): se cuenta lo ejecutado en el mes contra la cantidad pedida.
   if (periodos.length === 0) {
     const n = lista.filter((r) => {
       const f = fechaLocal(r.fecha);
@@ -195,6 +221,7 @@ export async function guardarAsignacion(a) {
       cantidad: Math.max(1, Math.floor(Number(p.cantidad)) || 1),
       frecuencia: p.frecuencia || "semanal",
       desde: p.desde || "",
+      hasta: (p.frecuencia === "unica" && p.hasta) || "",
     })),
     lideres: (resto.lideres || []).map((l) => String(l).trim()).filter(Boolean),
     actualizado: new Date().toISOString(),
@@ -303,17 +330,25 @@ export function agendaDePersona(asignaciones, usuario, evals, ahora = new Date()
       const empezo = !desde || (fechaLocal(desde) || ahora) <= ahora;
       const hechas = hechasEnAsignacion(a, p, evals, frecuencia);
       const periodo = periodoVigente(frecuencia, ahora);
-      const enPeriodo = frecuencia === "unica" ? hechas.length : hechas.filter((h) => h.periodo === periodo).length;
+      const hasta = frecuencia === "unica" ? p.hasta || "" : "";
+      const enPeriodo =
+        frecuencia === "unica"
+          ? hasta ? hechas.filter((h) => dentroDelPlazo(h.fecha, desde, hasta)).length : hechas.length
+          : hechas.filter((h) => h.periodo === periodo).length;
+      const plazoTerminado = !!hasta && hoyLocalISO(ahora) > hasta;
+      const completa = enPeriodo >= cantidad;
       return {
         asignacion: a,
         cantidad,
         frecuencia,
         desde,
+        hasta,
         empezo,
         hechasEnPeriodo: Math.min(enPeriodo, cantidad),
         hechasReales: enPeriodo,
-        pendientes: empezo ? Math.max(0, cantidad - enPeriodo) : 0,
-        completa: enPeriodo >= cantidad,
+        pendientes: empezo && !plazoTerminado ? Math.max(0, cantidad - enPeriodo) : 0,
+        completa,
+        vencida: plazoTerminado && !completa,
         hechas,
       };
     })
@@ -327,13 +362,18 @@ export function filaDeEvaluador(persona, asignaciones, evals, anio, mes, ahora =
     const cantidad = Math.max(1, Number(p.cantidad) || 1);
     const frecuencia = p.frecuencia || "semanal";
     const hechas = hechasEnAsignacion(a, p, evals, frecuencia);
-    const c = celdaDelMes(frecuencia, cantidad, desdeEfectivo(a, p), hechas, anio, mes, ahora);
+    const hasta = frecuencia === "unica" ? p.hasta || "" : "";
+    const c = celdaDelMes(frecuencia, cantidad, desdeEfectivo(a, p), hechas, anio, mes, ahora, hasta);
     const periodo = periodoVigente(frecuencia, ahora);
-    const enCurso = frecuencia === "unica" ? hechas.length : hechas.filter((h) => h.periodo === periodo).length;
+    const enCurso =
+      frecuencia === "unica"
+        ? hasta ? hechas.filter((h) => dentroDelPlazo(h.fecha, desdeEfectivo(a, p), hasta)).length : hechas.length
+        : hechas.filter((h) => h.periodo === periodo).length;
     return {
       asignacion: a,
       cantidad,
       frecuencia,
+      hasta,
       desde: desdeEfectivo(a, p),
       ...c,
       estado: estadoDelPlan({ ...c, anio, mes, ahora }),

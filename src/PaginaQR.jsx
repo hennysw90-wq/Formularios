@@ -378,7 +378,7 @@ function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBor
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 14 }}>{a.reunionNombre || "Sin reunión"}</p>
                       <p style={{ ...gris, fontSize: 12, margin: 0 }}>
-                        {etiquetaCadencia(it.cantidad, it.frecuencia)} · {it.hechasReales} de {it.cantidad} {periodo}
+                        {etiquetaCadencia(it.cantidad, it.frecuencia, it.hasta)} · {it.hechasReales} de {it.cantidad} {periodo}
                       </p>
                       {(a.lideres || []).length > 0 && <p style={{ ...gris, fontSize: 12, margin: "2px 0 0" }}>Líder: {a.lideres.join(", ")}</p>}
                     </div>
@@ -386,6 +386,8 @@ function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBor
                       <span style={chipNeutro}>Desde {it.desde.split("-").reverse().join("-")}</span>
                     ) : it.completa ? (
                       <span style={chipOk}>✓ Al día</span>
+                    ) : it.vencida ? (
+                      <span style={chipVencido}>Vencido</span>
                     ) : (
                       <span style={chipPendiente}>{it.pendientes} pendiente{it.pendientes === 1 ? "" : "s"}</span>
                     )}
@@ -481,6 +483,7 @@ const filaPersona = { display: "flex", flexDirection: "column", alignItems: "fle
 const etiquetaParecido = { fontSize: 10, fontWeight: 700, color: "#8a5a00", background: "#fbe8c8", borderRadius: 100, padding: "1px 7px" };
 const chipOk = { fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100, background: "var(--verde-claro)", color: "var(--verde-oscuro)", whiteSpace: "nowrap" };
 const chipPendiente = { fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100, background: "#fbe8c8", color: "#8a5a00", whiteSpace: "nowrap" };
+const chipVencido = { fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100, background: "#fbeae5", color: "#993c1d", whiteSpace: "nowrap" };
 const chipNeutro = { fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100, border: "1px solid var(--borde)", color: "var(--texto-suave)", whiteSpace: "nowrap" };
 const cajaTotal = { textAlign: "center", background: "var(--fondo)", border: "1px solid var(--borde)", borderRadius: 12, padding: "14px 12px", marginBottom: 12 };
 const tarjetaDim = { border: "1px solid var(--borde)", borderRadius: 12, padding: 12, marginBottom: 8, background: "#fff" };

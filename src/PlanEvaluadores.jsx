@@ -206,7 +206,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNu
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                           {(a.personas || []).map((p) => (
                             <span key={p.uid || p.nombre} className="ca-chip" style={{ fontWeight: 600 }} title={p.desde ? `Se controla desde ${p.desde}` : ""}>
-                              {p.nombre} · {etiquetaCadencia(p.cantidad, p.frecuencia)}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}
+                              {p.nombre} · {etiquetaCadencia(p.cantidad, p.frecuencia, p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}
                             </span>
                           ))}
                           {!(a.personas || []).length && <span style={{ fontSize: 13, color: "var(--rojo)" }}>Sin evaluadores</span>}
@@ -290,6 +290,10 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     if (!(a.personas || []).length) return setError("Agrega al menos un evaluador.");
     for (const p of a.personas) {
       if (!(Number(p.cantidad) >= 1)) return setError(`Pon una cantidad válida para ${p.nombre}.`);
+      if (p.frecuencia === "unica") {
+        if (!p.hasta) return setError(`Pon hasta qué fecha tiene ${p.nombre} para ejecutarlo (plazo).`);
+        if (p.desde && p.hasta < p.desde) return setError(`El plazo de ${p.nombre} termina antes de empezar: revisa "desde" y "hasta".`);
+      }
     }
     setGuardando(true);
     try {
@@ -383,11 +387,20 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
                   </select>
                 </div>
                 <div style={{ flex: "0 0 160px" }}>
-                  <label style={mini}>Controlar desde</label>
-                  <input className="rp-input" type="date" value={p.desde || ""} title="Vacío = desde que se crea la asignación" onChange={(e) => cambiarPersona(p.uid, "desde", e.target.value)} />
+                  <label style={mini}>{p.frecuencia === "unica" ? "Ejecutar desde" : "Controlar desde"}</label>
+                  <input className="rp-input" type="date" value={p.desde || ""} title="Vacío = desde que se crea la asignación" onChange={(e) => cambiarPersona(p.uid, "desde", e.target.value)} aria-label={`Desde de ${p.nombre}`} />
                 </div>
+                {p.frecuencia === "unica" && (
+                  <div style={{ flex: "0 0 160px" }}>
+                    <label style={mini}>Hasta (plazo) *</label>
+                    <input className="rp-input" type="date" value={p.hasta || ""} min={p.desde || undefined} onChange={(e) => cambiarPersona(p.uid, "hasta", e.target.value)} aria-label={`Hasta de ${p.nombre}`} />
+                  </div>
+                )}
               </div>
-              <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>{etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal")}</div>
+              <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>
+                {etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}
+                {p.frecuencia === "unica" && <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · solo cuentan las CdR hechas {p.desde ? `entre el ${p.desde.split("-").reverse().join("-")}` : "desde que se crea la asignación"}{p.hasta ? ` y el ${p.hasta.split("-").reverse().join("-")}` : " y la fecha de plazo"}</span>}
+              </div>
             </div>
           );
         })}
@@ -524,7 +537,7 @@ function Cumplimiento({ asignaciones, todas, directorio, cargandoDirectorio, onI
                         {f.detalle.map((d) => (
                           <div key={d.asignacion.id} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline", fontSize: 13.5 }}>
                             <b style={{ flex: "1 1 220px" }}>{d.asignacion.reunionNombre}<span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · {d.asignacion.formularioNombre}</span></b>
-                            <span style={{ flex: "0 0 auto", color: "var(--texto-suave)" }}>{etiquetaCadencia(d.cantidad, d.frecuencia)}</span>
+                            <span style={{ flex: "0 0 auto", color: "var(--texto-suave)" }}>{etiquetaCadencia(d.cantidad, d.frecuencia, d.hasta)}</span>
                             <span style={{ flex: "0 0 90px" }}>{d.exigido > 0 ? `${d.reales} / ${d.exigido}` : "—"}</span>
                             {esMesActual && <span style={{ flex: "0 0 auto", color: d.pendienteAhora ? "#ba7517" : "#0f6e56", fontWeight: 700 }}>{d.pendienteAhora ? `Le falta ${d.pendienteAhora} este periodo` : "✓ al día este periodo"}</span>}
                             <span className={`ca-pill ${PILL_ESTADO[d.estado]}`}>{ETIQUETA_ESTADO[d.estado]}</span>
