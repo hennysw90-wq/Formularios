@@ -100,8 +100,26 @@ export function evaluacionesRecibidas(evals, usuario) {
  * estado: "ejecutado" (lo cerró el líder) · "vencido" (pasó la fecha) · "pendiente".
  */
 export function compromisosRecibidos(evals, usuario, cierres) {
+  return armarCompromisos(evaluacionesRecibidas(evals, usuario), cierres);
+}
+
+/** Los que entregó esta persona como evaluadora (para ver si el líder los cerró). */
+export function compromisosEntregados(evals, usuario, cierres) {
+  const yo = norm(usuario?.nombreUsuario);
+  const mias = (evals || []).filter(
+    (e) => e.estado === "enviada" && !e.anulada && ((usuario?.uid && (e.evaluadorUid === usuario.uid || e.registradoPorUid === usuario.uid)) || (yo && norm(e.evaluadorNombre) === yo))
+  );
+  return armarCompromisos(mias, cierres);
+}
+
+/** Todos los compromisos de todos los líderes (para el Master). */
+export function todosLosCompromisos(evals, cierres) {
+  return armarCompromisos((evals || []).filter((e) => e.estado === "enviada" && !e.anulada), cierres);
+}
+
+function armarCompromisos(lista, cierres) {
   const hoy = hoyLocal();
-  return evaluacionesRecibidas(evals, usuario)
+  return lista
     .filter((e) => (e.feedback?.compromiso?.accion || "").trim())
     .map((e) => {
       const c = e.feedback.compromiso;

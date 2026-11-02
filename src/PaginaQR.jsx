@@ -15,6 +15,8 @@ import {
 } from "./asignaciones.js";
 import { Ejecutar, nuevaEvaluacion } from "./MisCdR.jsx";
 import { TEXTO_PERIODO } from "./MiAgenda.jsx";
+import CompromisosMejora from "./CompromisosMejora.jsx";
+import { listarCierres, compromisosRecibidos, compromisosEntregados } from "./compromisosLider.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -40,6 +42,9 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
   const [anonima, setAnonima] = useState(false); // al abrir una evaluación recibida no se muestra quién evaluó
   const [borrador, setBorrador] = useState(null);
   const [vistaRes, setVistaRes] = useState(VISTA_RESULTADOS_INICIAL);
+  const [cierres, setCierres] = useState(new Map());
+  // Los cierres de compromisos solo se leen una vez ingresada la clave.
+  useEffect(() => (desbloqueado ? listarCierres(setCierres, () => {}) : undefined), [desbloqueado]);
   const [porVer, setPorVer] = useState(null); // formulario del historial que se abrirá tras ingresar la clave
 
   useEffect(() => {
@@ -175,6 +180,9 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
         <button type="button" onClick={() => setPestana("resultados")} style={pestanaEstilo(pestana === "resultados")}>
           {desbloqueado ? "Evaluaciones recibidas" : "🔒 Evaluaciones recibidas"}
         </button>
+        <button type="button" onClick={() => setPestana("compromisos")} style={pestanaEstilo(pestana === "compromisos")}>
+          {desbloqueado ? "Compromisos" : "🔒 Compromisos"}
+        </button>
       </div>
 
       {pestana === "pendientes" && (
@@ -193,6 +201,17 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
       {pestana === "resultados" &&
         (desbloqueado ? (
           <ResultadosQR persona={persona} evals={evals} vista={vistaRes} onVista={setVistaRes} onVer={(e) => { setAnonima(true); setEjecutando(e); }} />
+        ) : (
+          <PedirClave persona={persona} onOk={() => setDesbloqueado(true)} />
+        ))}
+      {pestana === "compromisos" &&
+        (desbloqueado ? (
+          <CompromisosMejora
+            compacto
+            recibidos={compromisosRecibidos(evals, persona, cierres)}
+            entregados={compromisosEntregados(evals, persona, cierres)}
+            usuario={{ uid: persona.uid, nombreUsuario: persona.nombreUsuario }}
+          />
         ) : (
           <PedirClave persona={persona} onOk={() => setDesbloqueado(true)} />
         ))}
@@ -491,21 +510,25 @@ const chipVencido = { fontSize: 11, fontWeight: 700, padding: "3px 10px", border
 const chipNeutro = { fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100, border: "1px solid var(--borde)", color: "var(--texto-suave)", whiteSpace: "nowrap" };
 const cajaTotal = { textAlign: "center", background: "var(--fondo)", border: "1px solid var(--borde)", borderRadius: 12, padding: "14px 12px", marginBottom: 12 };
 const tarjetaDim = { border: "1px solid var(--borde)", borderRadius: 12, padding: 12, marginBottom: 8, background: "#fff" };
-const pestanas = { display: "flex", gap: 6, marginBottom: 14, borderBottom: "1px solid var(--borde)" };
+const pestanas = { display: "flex", gap: 2, marginBottom: 14, borderBottom: "1px solid var(--borde)" };
 
 function tarjeta(completa) {
   return { border: `1px solid ${completa ? "var(--borde)" : "var(--verde)"}`, borderRadius: 12, padding: 12, marginBottom: 10, background: completa ? "var(--fondo)" : "#fff" };
 }
 function pestanaEstilo(activa) {
   return {
-    flex: 1,
+    flex: "1 1 0",
+    minWidth: 0,
+    hyphens: "auto",
+    WebkitHyphens: "auto",
+    lineHeight: 1.25,
     background: "none",
     border: "none",
     borderBottom: `2px solid ${activa ? "var(--verde)" : "transparent"}`,
     color: activa ? "var(--verde-oscuro)" : "var(--texto-suave)",
     fontWeight: activa ? 700 : 600,
-    fontSize: 13,
-    padding: "8px 4px",
+    fontSize: 11.5,
+    padding: "8px 0",
     cursor: "pointer",
     fontFamily: "inherit",
   };

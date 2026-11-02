@@ -8,7 +8,7 @@ import Administracion from "./Administracion.jsx";
 import Formularios from "./Formularios.jsx";
 import MisCdR, { Ejecutar } from "./MisCdR.jsx";
 import CompromisosMejora, { TarjetaCompromiso, EvaluacionesRecibidas } from "./CompromisosMejora.jsx";
-import { listarCierres, compromisosRecibidos, evaluacionesRecibidas, estaCerrado } from "./compromisosLider.js";
+import { listarCierres, compromisosRecibidos, compromisosEntregados, todosLosCompromisos, evaluacionesRecibidas, estaCerrado } from "./compromisosLider.js";
 import { listarEvaluacionesEnviadas } from "./evaluaciones.js";
 import ResultadosQR, { VISTA_RESULTADOS_INICIAL } from "./ResultadosQR.jsx";
 import PaginaQR from "./PaginaQR.jsx";
@@ -37,6 +37,8 @@ export default function App() {
   }, [conSesion]);
   const recibidas = useMemo(() => (usuario ? evaluacionesRecibidas(enviadas || [], usuario) : []), [enviadas, usuario]);
   const misCompromisos = useMemo(() => (usuario ? compromisosRecibidos(enviadas || [], usuario, cierres) : []), [enviadas, cierres, usuario]);
+  const misEntregados = useMemo(() => (usuario ? compromisosEntregados(enviadas || [], usuario, cierres) : []), [enviadas, cierres, usuario]);
+  const todosCompromisos = useMemo(() => (usuario?.rol === "master" ? todosLosCompromisos(enviadas || [], cierres) : null), [enviadas, cierres, usuario]);
 
   useEffect(() => {
     (async () => {
@@ -83,7 +85,7 @@ export default function App() {
       </div>
     );
   }
-  const abiertos = misCompromisos.filter((c) => !estaCerrado(c)).length;
+  const abiertos = (todosCompromisos || misCompromisos).filter((c) => !estaCerrado(c)).length;
 
   return (
     <div className="ca-pagina">
@@ -91,9 +93,9 @@ export default function App() {
 
       <div className={`ca-contenido ${vista === "admin" || vista === "formularios" || vista === "mis" || vista === "estadisticas" ? "ca-ancho" : ""}`}>
         {vista === "inicio" && (
-          <Inicio usuario={usuario} esMaster={esMaster} onIr={setVista} compromisos={misCompromisos} recibidas={recibidas} cargando={enviadas === null} onVerRecibida={setVerRecibida} />
+          <Inicio usuario={usuario} esMaster={esMaster} onIr={setVista} compromisos={todosCompromisos || misCompromisos} recibidas={recibidas} cargando={enviadas === null} onVerRecibida={setVerRecibida} />
         )}
-        {vista === "compromisos" && <CompromisosMejora compromisos={misCompromisos} usuario={usuario} cargando={enviadas === null} />}
+        {vista === "compromisos" && <CompromisosMejora recibidos={misCompromisos} entregados={misEntregados} todos={todosCompromisos} usuario={usuario} cargando={enviadas === null} />}
         {vista === "resultados" && (
           <div className="ca-card">
             <p style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 18 }}>Mis resultados</p>
@@ -125,6 +127,7 @@ function Molde({ titulo, texto }) {
 
 function Inicio({ usuario, esMaster, onIr, compromisos = [], recibidas = [], cargando, onVerRecibida }) {
   const abiertos = compromisos.filter((c) => !estaCerrado(c));
+  const LIMITE = 5;
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div className="ca-card">
@@ -137,12 +140,15 @@ function Inicio({ usuario, esMaster, onIr, compromisos = [], recibidas = [], car
       </div>
       <div className="ca-card">
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-          <p style={{ margin: 0, fontWeight: 800, fontSize: 16, flex: 1 }}>Compromisos de mejora pendientes ({cargando ? "…" : abiertos.length})</p>
+          <p style={{ margin: 0, fontWeight: 800, fontSize: 16, flex: 1 }}>{esMaster ? "Compromisos de mejora pendientes de todos los líderes" : "Compromisos de mejora pendientes"} ({cargando ? "…" : abiertos.length})</p>
           <button className="cdr-nav-btn" onClick={() => onIr("compromisos")}>Ver todos</button>
         </div>
         {cargando ? <p style={{ color: "var(--texto-suave)", margin: 0 }}>Cargando…</p>
           : abiertos.length === 0 ? <p style={{ color: "var(--texto-suave)", fontSize: 13.5, margin: 0 }}>No tienes compromisos de mejora pendientes.</p>
-          : abiertos.map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} />)}
+          : <>
+              {abiertos.slice(0, LIMITE).map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} mostrarLider={esMaster} />)}
+              {abiertos.length > LIMITE && <button className="cdr-nav-btn" onClick={() => onIr("compromisos")}>Ver los {abiertos.length}</button>}
+            </>}
       </div>
       <div className="ca-card">
         <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 16 }}>CdR que me han realizado ({cargando ? "…" : recibidas.length})</p>

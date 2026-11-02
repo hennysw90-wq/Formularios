@@ -10,7 +10,7 @@ const PILL_RES = { efectiva: "ca-pill-verde", desarrollo: "ca-pill-ambar", inter
 const fmt = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
 
 /** Un compromiso de mejora, con su comentario y el botón para marcarlo como ejecutado (o reabrirlo). */
-export function TarjetaCompromiso({ c, usuario }) {
+export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLider = false }) {
   const [comentario, setComentario] = useState(c.cierre?.comentario || "");
   const [trabajando, setTrabajando] = useState("");
   const [error, setError] = useState("");
@@ -41,6 +41,7 @@ export function TarjetaCompromiso({ c, usuario }) {
             {c.ev.formulario?.nombre || "Formulario"} · {c.ev.rutinaNombre || "Sin reunión"} · CdR del {ddmm(fechaCdR(c.ev))}
             {c.responsable ? ` · Responsable: ${c.responsable}` : ""}
           </div>
+          {mostrarLider && <div style={{ fontSize: 12.5, marginTop: 2 }}>Líder: <b>{c.ev.lider || "—"}</b>{c.cierre?.cerradoPorNombre && c.cierre.cerradoPorNombre !== c.ev.lider ? ` · cerrado por ${c.cierre.cerradoPorNombre}` : ""}</div>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
           <span className={`ca-pill ${PILL[c.estado]}`}>{TEXTO[c.estado]}</span>
@@ -53,7 +54,12 @@ export function TarjetaCompromiso({ c, usuario }) {
             ? <span style={{ color: "#5b6472", fontWeight: 700, display: "block" }}>✕ Rechazado el {ddmm(c.cierre.cerradoFecha)} · {MOTIVOS_RECHAZO[c.cierre.motivoRechazo] || "Sin motivo"}</span>
             : <span style={{ color: "#0f6e56", fontWeight: 700, display: "block" }}>✓ Ejecutado el {ddmm(c.cierre.cerradoFecha)}</span>}
           {c.cierre.comentario && <div style={{ marginTop: 4, background: "var(--fondo)", borderRadius: 8, padding: "6px 10px", whiteSpace: "pre-wrap" }}>{c.cierre.comentario}</div>}
-          <button className="cdr-nav-btn" style={{ marginTop: 8 }} disabled={!!trabajando} onClick={() => hacer("reabrir")}>{trabajando === "reabrir" ? "Reabriendo…" : "Reabrir"}</button>
+          {!soloLectura && <button className="cdr-nav-btn" style={{ marginTop: 8 }} disabled={!!trabajando} onClick={() => hacer("reabrir")}>{trabajando === "reabrir" ? "Reabriendo…" : "Reabrir"}</button>}
+        </div>
+      ) : soloLectura ? (
+        <div style={{ marginTop: 8, fontSize: 13, color: "var(--texto-suave)" }}>
+          El líder aún no lo cierra.
+          {c.cierre?.comentario && <div style={{ marginTop: 4, background: "var(--fondo)", borderRadius: 8, padding: "6px 10px", whiteSpace: "pre-wrap", color: "var(--texto)" }}>Comentario del líder: {c.cierre.comentario}</div>}
         </div>
       ) : (
         <div style={{ marginTop: 10 }}>
@@ -88,33 +94,56 @@ export function TarjetaCompromiso({ c, usuario }) {
   );
 }
 
-/** Pestaña exclusiva: todos los compromisos de mejora que recibí, para comentarlos y cerrarlos. */
-export default function CompromisosMejora({ compromisos, usuario, cargando }) {
+/**
+ * Compromisos de mejora: "Recibidos" (los que acordaron conmigo, para comentarlos y cerrarlos), "Entregados"
+ * (los que acordé yo como evaluador, solo para ver si el líder los cerró) y, para el Master, "Todos".
+ */
+export default function CompromisosMejora({ recibidos = [], entregados = [], todos = null, usuario, cargando, compacto = false }) {
+  const [grupo, setGrupo] = useState(todos ? "todos" : "recibidos");
   const [filtro, setFiltro] = useState("abiertos");
-  const n = (e) => compromisos.filter((c) => c.estado === e).length;
-  const vistos = filtro === "abiertos" ? compromisos.filter((c) => !estaCerrado(c)) : filtro === "cerrados" ? compromisos.filter(estaCerrado) : compromisos;
+  const [lider, setLider] = useState("");
+  const base = grupo === "todos" ? todos || [] : grupo === "entregados" ? entregados : recibidos;
+  const lideres = grupo === "todos" ? [...new Set(base.map((c) => c.ev.lider).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")) : [];
+  const delLider = lider && grupo === "todos" ? base.filter((c) => c.ev.lider === lider) : base;
+  const n = (e) => delLider.filter((c) => c.estado === e).length;
+  const vistos = filtro === "abiertos" ? delLider.filter((c) => !estaCerrado(c)) : filtro === "cerrados" ? delLider.filter(estaCerrado) : delLider;
+  const grupos = [["recibidos", `Recibidos (${recibidos.length})`], ["entregados", `Entregados (${entregados.length})`], ...(todos ? [["todos", `Todos (${todos.length})`]] : [])];
+  const textos = {
+    recibidos: "Los que acordaron contigo en las CdR que te hicieron. Cuando lo cumplas, márcalo como ejecutado y deja un comentario; si no corresponde, recházalo.",
+    entregados: "Los que acordaste tú como evaluador con cada líder: aquí ves si ya los cerró y su comentario.",
+    todos: "Todos los compromisos de todos los líderes. Como Master puedes comentarlos, cerrarlos, rechazarlos o reabrirlos.",
+  };
   return (
     <div>
-      <div className="ca-card" style={{ marginBottom: 14 }}>
-        <p style={{ margin: 0, fontWeight: 800, fontSize: 18 }}>Compromisos de mejora</p>
-        <p style={{ margin: "6px 0 10px", color: "var(--texto-suave)", fontSize: 14 }}>
-          Los compromisos que acordaron contigo en las CdR que te hicieron. Cuando lo cumplas, márcalo como ejecutado y deja un comentario.
-        </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div className={compacto ? "" : "ca-card"} style={{ marginBottom: 14 }}>
+        {!compacto && <p style={{ margin: 0, fontWeight: 800, fontSize: 18 }}>Compromisos de mejora</p>}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: compacto ? "0 0 8px" : "10px 0 8px" }}>
+          {grupos.map(([v, t]) => (
+            <button key={v} className={`cdr-nav-btn ${grupo === v ? "prim" : ""}`} onClick={() => { setGrupo(v); setLider(""); }}>{t}</button>
+          ))}
+        </div>
+        <p style={{ margin: "0 0 10px", color: "var(--texto-suave)", fontSize: 13.5 }}>{textos[grupo]}</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span className="ca-pill ca-pill-rojo">Vencidos: {n("vencido")}</span>
           <span className="ca-pill ca-pill-ambar">Pendientes: {n("pendiente")}</span>
           <span className="ca-pill ca-pill-verde">Ejecutados: {n("ejecutado")}</span>
           <span className="ca-pill">Rechazados: {n("rechazado")}</span>
+          {grupo === "todos" && (
+            <select className="rp-select" aria-label="Filtrar por líder" style={{ maxWidth: 240, marginLeft: "auto" }} value={lider} onChange={(e) => setLider(e.target.value)}>
+              <option value="">Todos los líderes</option>
+              {lideres.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          )}
         </div>
       </div>
       <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-        {[["abiertos", "Por cerrar"], ["cerrados", "Ejecutados y rechazados"], ["todos", "Todos"]].map(([v, t]) => (
+        {[["abiertos", "Por cerrar"], ["cerrados", "Cerrados"], ["todos", "Todos"]].map(([v, t]) => (
           <button key={v} className={`cdr-nav-btn ${filtro === v ? "prim" : ""}`} onClick={() => setFiltro(v)}>{t}</button>
         ))}
       </div>
       {cargando ? <p style={{ color: "var(--texto-suave)" }}>Cargando…</p>
-        : vistos.length === 0 ? <div className="cdr-molde"><b>{filtro === "cerrados" ? "Aún no cierras compromisos" : "No tienes compromisos de mejora por cerrar"}</b>Aparecen cuando en una CdR que te hicieron se acuerda un compromiso contigo.</div>
-        : vistos.map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} />)}
+        : vistos.length === 0 ? <div className="cdr-molde"><b>{filtro === "cerrados" ? "No hay compromisos cerrados" : "No hay compromisos por cerrar"}</b>{grupo === "entregados" ? "Aparecen cuando en una CdR que hiciste acuerdas un compromiso con el líder." : "Aparecen cuando en una CdR se acuerda un compromiso con el líder."}</div>
+        : vistos.map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} soloLectura={grupo === "entregados"} mostrarLider={grupo !== "recibidos"} />)}
     </div>
   );
 }
