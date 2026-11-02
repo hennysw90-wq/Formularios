@@ -8,7 +8,7 @@ import Administracion from "./Administracion.jsx";
 import Formularios from "./Formularios.jsx";
 import MisCdR, { Ejecutar } from "./MisCdR.jsx";
 import CompromisosMejora, { TarjetaCompromiso, EvaluacionesRecibidas } from "./CompromisosMejora.jsx";
-import { listarCierres, compromisosRecibidos, evaluacionesRecibidas } from "./compromisosLider.js";
+import { listarCierres, compromisosRecibidos, evaluacionesRecibidas, estaCerrado } from "./compromisosLider.js";
 import { listarEvaluacionesEnviadas } from "./evaluaciones.js";
 import ResultadosQR, { VISTA_RESULTADOS_INICIAL } from "./ResultadosQR.jsx";
 import PaginaQR from "./PaginaQR.jsx";
@@ -83,7 +83,7 @@ export default function App() {
       </div>
     );
   }
-  const abiertos = misCompromisos.filter((c) => c.estado !== "ejecutado").length;
+  const abiertos = misCompromisos.filter((c) => !estaCerrado(c)).length;
 
   return (
     <div className="ca-pagina">
@@ -124,7 +124,7 @@ function Molde({ titulo, texto }) {
 }
 
 function Inicio({ usuario, esMaster, onIr, compromisos = [], recibidas = [], cargando, onVerRecibida }) {
-  const abiertos = compromisos.filter((c) => c.estado !== "ejecutado");
+  const abiertos = compromisos.filter((c) => !estaCerrado(c));
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div className="ca-card">

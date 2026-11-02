@@ -4,7 +4,7 @@ import { listarFormularios } from "./formularios.js";
 import { listarUsuarios, verificarClave } from "./auth.js";
 import { Ejecutar } from "./MisCdR.jsx";
 import PlanEvaluadores from "./PlanEvaluadores.jsx";
-import { listarCierres } from "./compromisosLider.js";
+import { listarCierres, MOTIVOS_RECHAZO } from "./compromisosLider.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
 import { FILTROS_VACIOS, filtrar, ordenar, opciones, kpis, distribucion, tendencia, promedioPor, porBloque, porCriterio, compromisos, cobertura, rangoPreset, aCSV, hoyISO, fechaCdR } from "./estadisticas.js";
@@ -519,6 +519,8 @@ function Compromisos({ lista }) {
   const todos = compromisos(lista).map((c) => {
     const ci = cierres.get(c.id);
     if (ci?.estado === "ejecutado" && (c.estado === "Pendiente" || c.estado === "Vencido")) return { ...c, estado: "Ejecutado", comentario: ci.comentario || "", cerrado: ci.cerradoFecha || "" };
+    if (ci?.estado === "rechazado" && (c.estado === "Pendiente" || c.estado === "Vencido"))
+      return { ...c, estado: "Rechazado", comentario: [MOTIVOS_RECHAZO[ci.motivoRechazo], ci.comentario].filter(Boolean).join(" · "), cerrado: ci.cerradoFecha || "" };
     return { ...c, comentario: ci?.comentario || "" };
   });
   const cuenta = (e) => todos.filter((c) => c.estado === e).length;
@@ -530,10 +532,11 @@ function Compromisos({ lista }) {
         <span className="ca-pill ca-pill-rojo">Vencidos: {cuenta("Vencido")}</span>
         <span className="ca-pill ca-pill-ambar">Pendientes: {cuenta("Pendiente")}</span>
         <span className="ca-pill ca-pill-verde">Ejecutados por el líder: {cuenta("Ejecutado")}</span>
+        <span className="ca-pill">Rechazados por el líder: {cuenta("Rechazado")}</span>
         <span className="ca-pill ca-pill-verde">Cumplidos: {cuenta("Cumplido")}</span>
         <select className="rp-select" style={{ maxWidth: 200, marginLeft: "auto" }} value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="">Todos los estados</option>
-          {["Vencido", "Pendiente", "Ejecutado", "Cumplido", "Parcial", "No cumplido", "Revisado"].map((e) => <option key={e} value={e}>{e}</option>)}
+          {["Vencido", "Pendiente", "Ejecutado", "Rechazado", "Cumplido", "Parcial", "No cumplido", "Revisado"].map((e) => <option key={e} value={e}>{e}</option>)}
         </select>
       </div>
       <table className="ca-tabla cdr-apilada">

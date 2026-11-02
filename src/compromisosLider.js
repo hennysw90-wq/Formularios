@@ -63,6 +63,22 @@ export async function cerrarCompromiso(ev, usuario, comentario) {
   }, { merge: true });
 }
 
+export const MOTIVOS_RECHAZO = { na: "No aplica (N/A)", no_coordinado: "No se coordinó conmigo" };
+
+/** El líder rechaza el compromiso: no aplica, o no se coordinó con él. */
+export async function rechazarCompromiso(ev, usuario, motivo, comentario) {
+  await asegurarSesionCdR();
+  await setDoc(doc(db, COLECCION, ev.id), {
+    ...base(ev),
+    estado: "rechazado",
+    motivoRechazo: motivo,
+    comentario: String(comentario || "").trim(),
+    cerradoPorUid: usuario.uid || "",
+    cerradoPorNombre: usuario.nombreUsuario || "",
+    cerradoFecha: new Date().toISOString(),
+  }, { merge: true });
+}
+
 /** Vuelve a dejarlo pendiente (por si se marcó por error). */
 export async function reabrirCompromiso(ev, usuario) {
   await asegurarSesionCdR();
@@ -90,15 +106,20 @@ export function compromisosRecibidos(evals, usuario, cierres) {
     .map((e) => {
       const c = e.feedback.compromiso;
       const cierre = cierres?.get ? cierres.get(e.id) : null;
-      const ejecutado = cierre?.estado === "ejecutado";
+      const cerrado = cierre?.estado === "ejecutado" || cierre?.estado === "rechazado" ? cierre.estado : "";
       return {
         ev: e,
         accion: c.accion,
         responsable: c.responsable || e.lider || "",
         fecha: c.fecha || "",
         cierre,
-        estado: ejecutado ? "ejecutado" : c.fecha && c.fecha < hoy ? "vencido" : "pendiente",
+        estado: cerrado || (c.fecha && c.fecha < hoy ? "vencido" : "pendiente"),
       };
     })
-    .sort((a, b) => (a.estado === "ejecutado") - (b.estado === "ejecutado") || (a.fecha || "9999").localeCompare(b.fecha || "9999"));
+    .sort((a, b) => estaCerrado(a) - estaCerrado(b) || (a.fecha || "9999").localeCompare(b.fecha || "9999"));
+}
+
+/** Ejecutado o rechazado: ya no está pendiente. */
+export function estaCerrado(c) {
+  return c.estado === "ejecutado" || c.estado === "rechazado";
 }
