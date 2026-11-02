@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { recuperarSesion, cerrarSesion } from "./auth.js";
 import { db, asegurarSesionCdR } from "./firebase.js";
@@ -6,7 +6,11 @@ import Login from "./Login.jsx";
 import Cabecera from "./Cabecera.jsx";
 import Administracion from "./Administracion.jsx";
 import Formularios from "./Formularios.jsx";
-import MisCdR from "./MisCdR.jsx";
+import MisCdR, { Ejecutar } from "./MisCdR.jsx";
+import CompromisosMejora, { TarjetaCompromiso, EvaluacionesRecibidas } from "./CompromisosMejora.jsx";
+import { listarCierres, compromisosRecibidos, evaluacionesRecibidas } from "./compromisosLider.js";
+import { listarEvaluacionesEnviadas } from "./evaluaciones.js";
+import ResultadosQR, { VISTA_RESULTADOS_INICIAL } from "./ResultadosQR.jsx";
 import PaginaQR from "./PaginaQR.jsx";
 import Estadisticas from "./Estadisticas.jsx";
 import { formularioDesdeUrl, rutinaDesdeUrl } from "./enlaces.js";
@@ -18,6 +22,21 @@ export default function App() {
   // Se conserva mientras inicia sesión y se quita de la barra de direcciones al usarlo.
   const [formularioDirecto, setFormularioDirecto] = useState(() => formularioDesdeUrl(window.location.search));
   const [rutinaDirecta, setRutinaDirecta] = useState(() => rutinaDesdeUrl(window.location.search)); // la reunión del QR (una sola)
+
+  // CdR que le han realizado a la persona y sus compromisos de mejora (para Inicio y la pestaña Compromisos).
+  const [enviadas, setEnviadas] = useState(null);
+  const [cierres, setCierres] = useState(new Map());
+  const [verRecibida, setVerRecibida] = useState(null);
+  const [vistaResultados, setVistaResultados] = useState(VISTA_RESULTADOS_INICIAL);
+  const conSesion = !!usuario && !formularioDirecto;
+  useEffect(() => {
+    if (!conSesion) return undefined;
+    const a = listarEvaluacionesEnviadas(setEnviadas, () => setEnviadas([]));
+    const b = listarCierres(setCierres, () => {});
+    return () => { a(); b(); };
+  }, [conSesion]);
+  const recibidas = useMemo(() => (usuario ? evaluacionesRecibidas(enviadas || [], usuario) : []), [enviadas, usuario]);
+  const misCompromisos = useMemo(() => (usuario ? compromisosRecibidos(enviadas || [], usuario, cierres) : []), [enviadas, cierres, usuario]);
 
   useEffect(() => {
     (async () => {
@@ -55,12 +74,36 @@ export default function App() {
     setVista("inicio");
   }
 
+  if (verRecibida) {
+    return (
+      <div className="ca-pagina">
+        <div className="ca-contenido cdr-ejecutar">
+          <Ejecutar evaluacionInicial={verRecibida} onCerrar={() => setVerRecibida(null)} textoVolver="← Volver" ocultarEvaluador />
+        </div>
+      </div>
+    );
+  }
+  const abiertos = misCompromisos.filter((c) => c.estado !== "ejecutado").length;
+
   return (
     <div className="ca-pagina">
-      <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} />
+      <Cabecera usuario={usuario} vista={vista} onCambiarVista={setVista} onSalir={salir} compromisosAbiertos={abiertos} />
 
       <div className={`ca-contenido ${vista === "admin" || vista === "formularios" || vista === "mis" || vista === "estadisticas" ? "ca-ancho" : ""}`}>
-        {vista === "inicio" && <Inicio usuario={usuario} esMaster={esMaster} onIr={setVista} />}
+        {vista === "inicio" && (
+          <Inicio usuario={usuario} esMaster={esMaster} onIr={setVista} compromisos={misCompromisos} recibidas={recibidas} cargando={enviadas === null} onVerRecibida={setVerRecibida} />
+        )}
+        {vista === "compromisos" && <CompromisosMejora compromisos={misCompromisos} usuario={usuario} cargando={enviadas === null} />}
+        {vista === "resultados" && (
+          <div className="ca-card">
+            <p style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 18 }}>Mis resultados</p>
+            <p style={{ margin: "0 0 12px", color: "var(--texto-suave)", fontSize: 14 }}>
+              Las CdR que te han realizado como líder, en todos los formularios: elige el periodo, el formulario y la reunión para ver tu hoja resumen.
+            </p>
+            {enviadas === null ? <p style={{ color: "var(--texto-suave)" }}>Cargando…</p>
+              : <ResultadosQR persona={{ uid: usuario.uid, nombreUsuario: usuario.nombreUsuario }} evals={enviadas} vista={vistaResultados} onVista={setVistaResultados} onVer={setVerRecibida} />}
+          </div>
+        )}
 
         {vista === "mis" && <MisCdR usuario={usuario} formularioDirecto={formularioDirecto} rutinaDirecta={rutinaDirecta} onDirectoAtendido={directoAtendido} />}
         {vista === "formularios" && esMaster && <Formularios usuario={usuario} />}
@@ -80,7 +123,8 @@ function Molde({ titulo, texto }) {
   );
 }
 
-function Inicio({ usuario, esMaster, onIr }) {
+function Inicio({ usuario, esMaster, onIr, compromisos = [], recibidas = [], cargando, onVerRecibida }) {
+  const abiertos = compromisos.filter((c) => c.estado !== "ejecutado");
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div className="ca-card">
@@ -90,6 +134,19 @@ function Inicio({ usuario, esMaster, onIr }) {
             ? "Eres Master: administras quién accede a la CdR, creas los formularios y los asignas en Estadísticas → Plan de evaluadores."
             : "En Mis Formularios ves los formularios que tienes asignados, cuántos te faltan en el periodo, y das feedback a los líderes."}
         </p>
+      </div>
+      <div className="ca-card">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+          <p style={{ margin: 0, fontWeight: 800, fontSize: 16, flex: 1 }}>Compromisos de mejora pendientes ({cargando ? "…" : abiertos.length})</p>
+          <button className="cdr-nav-btn" onClick={() => onIr("compromisos")}>Ver todos</button>
+        </div>
+        {cargando ? <p style={{ color: "var(--texto-suave)", margin: 0 }}>Cargando…</p>
+          : abiertos.length === 0 ? <p style={{ color: "var(--texto-suave)", fontSize: 13.5, margin: 0 }}>No tienes compromisos de mejora pendientes.</p>
+          : abiertos.map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} />)}
+      </div>
+      <div className="ca-card">
+        <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 16 }}>CdR que me han realizado ({cargando ? "…" : recibidas.length})</p>
+        {cargando ? <p style={{ color: "var(--texto-suave)", margin: 0 }}>Cargando…</p> : <EvaluacionesRecibidas lista={recibidas} onVer={onVerRecibida} limite={10} />}
       </div>
       {esMaster && <Diagnostico />}
     </div>

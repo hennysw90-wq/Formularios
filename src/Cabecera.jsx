@@ -1,7 +1,7 @@
 import logoOems from "./assets/logo-oems.png";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 
-export default function Cabecera({ usuario, vista, onCambiarVista, onSalir }) {
+export default function Cabecera({ usuario, vista, onCambiarVista, onSalir, compromisosAbiertos = 0 }) {
   const esMaster = usuario.rol === "master";
   const Link = ({ id, children }) => (
     <button className={`ca-nav-link ${vista === id ? "activo" : ""}`} onClick={() => onCambiarVista(id)}>
@@ -14,12 +14,17 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir }) {
         <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
         <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
       </div>
-      <p className="ca-eyebrow">Formularios · v0.6.8 · Henny</p>
+      <p className="ca-eyebrow">Formularios · v0.7.0 · Henny</p>
       <p className="ca-titulo">Formularios</p>
 
       <div className="ca-nav">
         <Link id="inicio">Inicio</Link>
         <Link id="mis">Mis Formularios</Link>
+        <Link id="resultados">Mis resultados</Link>
+        <Link id="compromisos">
+          Compromisos de mejora
+          {compromisosAbiertos > 0 && <span style={{ marginLeft: 6, background: "#ba7517", color: "#fff", borderRadius: 100, padding: "1px 7px", fontSize: 11.5, fontWeight: 700 }}>{compromisosAbiertos}</span>}
+        </Link>
         {esMaster && <Link id="formularios">Formularios</Link>}
         {esMaster && <Link id="estadisticas">Estadísticas</Link>}
         {esMaster && <Link id="admin">Administración</Link>}

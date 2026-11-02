@@ -4,6 +4,7 @@ import { listarFormularios } from "./formularios.js";
 import { listarUsuarios, verificarClave } from "./auth.js";
 import { Ejecutar } from "./MisCdR.jsx";
 import PlanEvaluadores from "./PlanEvaluadores.jsx";
+import { listarCierres } from "./compromisosLider.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
 import { FILTROS_VACIOS, filtrar, ordenar, opciones, kpis, distribucion, tendencia, promedioPor, porBloque, porCriterio, compromisos, cobertura, rangoPreset, aCSV, hoyISO, fechaCdR } from "./estadisticas.js";
@@ -508,11 +509,18 @@ function GraficoTendencia({ puntos, umbrales }) {
 
 /* ----------------------------- Compromisos ------------------------- */
 
-const CLASE_ESTADO = { Vencido: "ca-pill-rojo", Pendiente: "ca-pill-ambar", Cumplido: "ca-pill-verde", Parcial: "ca-pill-ambar", "No cumplido": "ca-pill-rojo", Revisado: "" };
+const CLASE_ESTADO = { Vencido: "ca-pill-rojo", Pendiente: "ca-pill-ambar", Ejecutado: "ca-pill-verde", Cumplido: "ca-pill-verde", Parcial: "ca-pill-ambar", "No cumplido": "ca-pill-rojo", Revisado: "" };
 
 function Compromisos({ lista }) {
   const [estado, setEstado] = useState("");
-  const todos = compromisos(lista);
+  const [cierres, setCierres] = useState(new Map());
+  useEffect(() => listarCierres(setCierres, () => {}), []);
+  // Si el líder lo marcó como ejecutado (y aún no hay seguimiento en una CdR posterior), se muestra así.
+  const todos = compromisos(lista).map((c) => {
+    const ci = cierres.get(c.id);
+    if (ci?.estado === "ejecutado" && (c.estado === "Pendiente" || c.estado === "Vencido")) return { ...c, estado: "Ejecutado", comentario: ci.comentario || "", cerrado: ci.cerradoFecha || "" };
+    return { ...c, comentario: ci?.comentario || "" };
+  });
   const cuenta = (e) => todos.filter((c) => c.estado === e).length;
   const vistos = estado ? todos.filter((c) => c.estado === estado) : todos;
   if (!todos.length) return <div className="cdr-molde"><b>No hay compromisos de mejora en este período</b>Aparecen cuando una CdR enviada registra un compromiso con el líder.</div>;
@@ -521,14 +529,15 @@ function Compromisos({ lista }) {
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
         <span className="ca-pill ca-pill-rojo">Vencidos: {cuenta("Vencido")}</span>
         <span className="ca-pill ca-pill-ambar">Pendientes: {cuenta("Pendiente")}</span>
+        <span className="ca-pill ca-pill-verde">Ejecutados por el líder: {cuenta("Ejecutado")}</span>
         <span className="ca-pill ca-pill-verde">Cumplidos: {cuenta("Cumplido")}</span>
         <select className="rp-select" style={{ maxWidth: 200, marginLeft: "auto" }} value={estado} onChange={(e) => setEstado(e.target.value)}>
           <option value="">Todos los estados</option>
-          {["Vencido", "Pendiente", "Cumplido", "Parcial", "No cumplido", "Revisado"].map((e) => <option key={e} value={e}>{e}</option>)}
+          {["Vencido", "Pendiente", "Ejecutado", "Cumplido", "Parcial", "No cumplido", "Revisado"].map((e) => <option key={e} value={e}>{e}</option>)}
         </select>
       </div>
       <table className="ca-tabla cdr-apilada">
-        <thead><tr><th>Rutina</th><th>Líder</th><th>Compromiso</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Rutina</th><th>Líder</th><th>Compromiso</th><th>Responsable</th><th>Fecha límite</th><th>Estado</th><th>Comentario del líder</th></tr></thead>
         <tbody>
           {vistos.map((c) => (
             <tr key={c.id}>
@@ -537,7 +546,8 @@ function Compromisos({ lista }) {
               <td className="cdr-libre" data-label="Compromiso" style={{ whiteSpace: "pre-wrap" }}>{c.accion}</td>
               <td data-label="Responsable">{c.responsable}</td>
               <td data-label="Fecha límite">{c.fecha ? fechaCorta(c.fecha) : "—"}</td>
-              <td data-label="Estado"><span className={`ca-pill ${CLASE_ESTADO[c.estado] || ""}`}>{c.estado}</span></td>
+              <td data-label="Estado"><span className={`ca-pill ${CLASE_ESTADO[c.estado] || ""}`}>{c.estado}</span>{c.cerrado ? <div style={{ fontSize: 11.5, color: "var(--texto-suave)" }}>{fechaCorta(c.cerrado.slice(0, 10))}</div> : null}</td>
+              <td className="cdr-libre" data-label="Comentario del líder" style={{ whiteSpace: "pre-wrap", fontSize: 13 }}>{c.comentario || "—"}</td>
             </tr>
           ))}
         </tbody>
