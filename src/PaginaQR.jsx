@@ -180,8 +180,10 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
         <button type="button" onClick={() => setPestana("resultados")} style={pestanaEstilo(pestana === "resultados")}>
           {desbloqueado ? "Evaluaciones recibidas" : "🔒 Evaluaciones recibidas"}
         </button>
+      </div>
+      <div style={{ ...pestanas, marginTop: -14 }}>
         <button type="button" onClick={() => setPestana("compromisos")} style={pestanaEstilo(pestana === "compromisos")}>
-          {desbloqueado ? "Compromisos" : "🔒 Compromisos"}
+          {desbloqueado ? "Compromisos de mejora" : "🔒 Compromisos de mejora"}
         </button>
       </div>
 
@@ -510,25 +512,21 @@ const chipVencido = { fontSize: 11, fontWeight: 700, padding: "3px 10px", border
 const chipNeutro = { fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100, border: "1px solid var(--borde)", color: "var(--texto-suave)", whiteSpace: "nowrap" };
 const cajaTotal = { textAlign: "center", background: "var(--fondo)", border: "1px solid var(--borde)", borderRadius: 12, padding: "14px 12px", marginBottom: 12 };
 const tarjetaDim = { border: "1px solid var(--borde)", borderRadius: 12, padding: 12, marginBottom: 8, background: "#fff" };
-const pestanas = { display: "flex", gap: 2, marginBottom: 14, borderBottom: "1px solid var(--borde)" };
+const pestanas = { display: "flex", gap: 6, marginBottom: 14, borderBottom: "1px solid var(--borde)" };
 
 function tarjeta(completa) {
   return { border: `1px solid ${completa ? "var(--borde)" : "var(--verde)"}`, borderRadius: 12, padding: 12, marginBottom: 10, background: completa ? "var(--fondo)" : "#fff" };
 }
 function pestanaEstilo(activa) {
   return {
-    flex: "1 1 0",
-    minWidth: 0,
-    hyphens: "auto",
-    WebkitHyphens: "auto",
-    lineHeight: 1.25,
+    flex: 1,
     background: "none",
     border: "none",
     borderBottom: `2px solid ${activa ? "var(--verde)" : "transparent"}`,
     color: activa ? "var(--verde-oscuro)" : "var(--texto-suave)",
     fontWeight: activa ? 700 : 600,
-    fontSize: 11.5,
-    padding: "8px 0",
+    fontSize: 13,
+    padding: "8px 4px",
     cursor: "pointer",
     fontFamily: "inherit",
   };
