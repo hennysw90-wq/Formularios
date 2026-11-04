@@ -18,8 +18,13 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
   const [motivo, setMotivo] = useState("");
   const ej = estaCerrado(c);
   async function hacer(tipo) {
-    setTrabajando(tipo);
     setError("");
+    // Para marcarlo ejecutado o rechazarlo hay que dejar un comentario.
+    if ((tipo === "cerrar" || tipo === "rechazar") && !comentario.trim()) {
+      setError(tipo === "cerrar" ? "Escribe un comentario: qué hiciste para cumplirlo." : "Escribe un comentario explicando el rechazo.");
+      return;
+    }
+    setTrabajando(tipo);
     try {
       if (tipo === "cerrar") await cerrarCompromiso(c.ev, usuario, comentario);
       else if (tipo === "rechazar") { await rechazarCompromiso(c.ev, usuario, motivo, comentario); setRechazando(false); }
@@ -61,7 +66,7 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
         </div>
       ) : (
         <div style={{ marginTop: 10 }}>
-          <textarea className="rp-textarea" rows={2} value={comentario} aria-label="Comentario del compromiso" placeholder="Comentario (opcional): qué hiciste…" onChange={(e) => setComentario(e.target.value)} />
+          <textarea className="rp-textarea" rows={2} value={comentario} aria-label="Comentario del compromiso" placeholder="Comentario (obligatorio): qué hiciste…" onChange={(e) => setComentario(e.target.value)} />
           {/* Dos opciones: el comentario se guarda junto con la que se elija. */}
           <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
             <button className="cdr-nav-btn prim" style={{ flex: "1 1 0", minWidth: 0 }} disabled={!!trabajando} onClick={() => hacer("cerrar")}>{trabajando === "cerrar" ? "Guardando…" : "✓ Ejecutado"}</button>
@@ -81,7 +86,7 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
                 </button>
                 <button className="cdr-nav-btn" onClick={() => setRechazando(false)}>Cancelar</button>
               </div>
-              <div style={{ fontSize: 11.5, color: "var(--texto-suave)", marginTop: 4 }}>El comentario de arriba se guarda junto con el rechazo.</div>
+              <div style={{ fontSize: 11.5, color: "var(--texto-suave)", marginTop: 4 }}>El comentario de arriba es obligatorio y se guarda junto con el rechazo.</div>
             </div>
           )}
         </div>
