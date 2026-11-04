@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { cerrarCompromiso, comentarCompromiso, reabrirCompromiso, rechazarCompromiso, estaCerrado, MOTIVOS_RECHAZO } from "./compromisosLider.js";
+import { cerrarCompromiso, reabrirCompromiso, rechazarCompromiso, estaCerrado, MOTIVOS_RECHAZO } from "./compromisosLider.js";
 import { fechaCdR } from "./estadisticas.js";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
 
@@ -23,7 +23,6 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
     try {
       if (tipo === "cerrar") await cerrarCompromiso(c.ev, usuario, comentario);
       else if (tipo === "rechazar") { await rechazarCompromiso(c.ev, usuario, motivo, comentario); setRechazando(false); }
-      else if (tipo === "comentar") await comentarCompromiso(c.ev, usuario, comentario);
       else await reabrirCompromiso(c.ev, usuario);
     } catch (e) {
       setError(e.code === "permission-denied" ? "La base no permite guardar compromisos: revisa las reglas de Firestore." : `No se pudo guardar (${e.code || e.message}).`);
@@ -31,11 +30,10 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
       setTrabajando("");
     }
   }
-  const cambio = comentario.trim() !== (c.cierre?.comentario || "").trim();
   return (
     <div className="ca-card" style={{ marginBottom: 10, padding: 14, borderLeft: `4px solid ${c.estado === "ejecutado" ? "#0f6e56" : c.estado === "rechazado" ? "#8992a0" : c.estado === "vencido" ? "#993c1d" : "#ba7517"}` }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+      <div>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 14.5, whiteSpace: "pre-wrap" }}>{c.accion}</div>
           <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginTop: 3 }}>
             {c.ev.formulario?.nombre || "Formulario"} · {c.ev.rutinaNombre || "Sin reunión"} · CdR del {ddmm(fechaCdR(c.ev))}
@@ -43,7 +41,7 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
           </div>
           {mostrarLider && <div style={{ fontSize: 12.5, marginTop: 2 }}>Líder: <b>{c.ev.lider || "—"}</b>{c.cierre?.cerradoPorNombre && c.cierre.cerradoPorNombre !== c.ev.lider ? ` · cerrado por ${c.cierre.cerradoPorNombre}` : ""}</div>}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
           <span className={`ca-pill ${PILL[c.estado]}`}>{TEXTO[c.estado]}</span>
           <span style={{ fontSize: 12, color: c.estado === "vencido" ? "#993c1d" : "var(--texto-suave)", fontWeight: 600 }}>Plazo: {ddmm(c.fecha)}</span>
         </div>
@@ -63,11 +61,11 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
         </div>
       ) : (
         <div style={{ marginTop: 10 }}>
-          <textarea className="rp-textarea" rows={2} value={comentario} aria-label="Comentario del compromiso" placeholder="Comentario: qué hiciste o cómo vas…" onChange={(e) => setComentario(e.target.value)} />
-          <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-            <button className="cdr-nav-btn prim" disabled={!!trabajando} onClick={() => hacer("cerrar")}>{trabajando === "cerrar" ? "Guardando…" : "✓ Marcar como ejecutado"}</button>
-            <button className="cdr-nav-btn" disabled={!!trabajando || !cambio || !comentario.trim()} onClick={() => hacer("comentar")}>{trabajando === "comentar" ? "Guardando…" : "Guardar comentario"}</button>
-            <button className="cdr-nav-btn" style={{ color: "var(--rojo)" }} disabled={!!trabajando} onClick={() => { setRechazando(!rechazando); setMotivo(""); }}>Rechazar</button>
+          <textarea className="rp-textarea" rows={2} value={comentario} aria-label="Comentario del compromiso" placeholder="Comentario (opcional): qué hiciste…" onChange={(e) => setComentario(e.target.value)} />
+          {/* Dos opciones: el comentario se guarda junto con la que se elija. */}
+          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            <button className="cdr-nav-btn prim" style={{ flex: "1 1 0", minWidth: 0 }} disabled={!!trabajando} onClick={() => hacer("cerrar")}>{trabajando === "cerrar" ? "Guardando…" : "✓ Ejecutado"}</button>
+            <button className={`cdr-nav-btn ${rechazando ? "prim" : ""}`} style={{ flex: "1 1 0", minWidth: 0, ...(rechazando ? { background: "var(--rojo)", borderColor: "var(--rojo)", color: "#fff" } : { color: "var(--rojo)" }) }} disabled={!!trabajando} onClick={() => { setRechazando(!rechazando); setMotivo(""); }}>✕ Rechazar</button>
           </div>
           {rechazando && (
             <div style={{ marginTop: 8, background: "var(--fondo)", borderRadius: 8, padding: "8px 10px" }}>
@@ -83,10 +81,9 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
                 </button>
                 <button className="cdr-nav-btn" onClick={() => setRechazando(false)}>Cancelar</button>
               </div>
-              <div style={{ fontSize: 11.5, color: "var(--texto-suave)", marginTop: 4 }}>El comentario que escribas arriba se guarda junto con el rechazo.</div>
+              <div style={{ fontSize: 11.5, color: "var(--texto-suave)", marginTop: 4 }}>El comentario de arriba se guarda junto con el rechazo.</div>
             </div>
           )}
-          {c.cierre?.comentadoFecha && !cambio && <div style={{ fontSize: 11.5, color: "var(--texto-suave)", marginTop: 4 }}>Comentario guardado el {ddmm(c.cierre.comentadoFecha)}</div>}
         </div>
       )}
       {error && <p style={{ color: "var(--rojo)", fontSize: 13, margin: "6px 0 0" }}>{error}</p>}
