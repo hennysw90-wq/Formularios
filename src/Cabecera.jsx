@@ -14,13 +14,13 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir, comp
         <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
         <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
       </div>
-      <p className="ca-eyebrow">Formularios · v0.7.5 · Henny</p>
+      <p className="ca-eyebrow">Formularios · v0.8.0 · Henny</p>
       <p className="ca-titulo">Formularios</p>
 
       <div className="ca-nav">
         <Link id="inicio">Inicio</Link>
         <Link id="mis">Mis Formularios</Link>
-        <Link id="resultados">Mis resultados</Link>
+        <Link id="resultados">Evaluaciones recibidas</Link>
         <Link id="compromisos">
           Compromisos de mejora
           {compromisosAbiertos > 0 && <span style={{ marginLeft: 6, background: "#ba7517", color: "#fff", borderRadius: 100, padding: "1px 7px", fontSize: 11.5, fontWeight: 700 }}>{compromisosAbiertos}</span>}

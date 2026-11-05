@@ -38,10 +38,31 @@ export default function MiAgenda({ usuario, onIniciar, onIrAMisCdR, compacto = f
     <div className="ca-card" style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
         <p style={{ margin: 0, fontWeight: 800, fontSize: compacto ? 15 : 16 }}>Mis formularios asignados</p>
-        <span className={`ca-pill ${pendientes ? "ca-pill-ambar" : "ca-pill-verde"}`}>
-          {pendientes ? `${pendientes} pendiente${pendientes === 1 ? "" : "s"}` : "✓ Todo al día"}
-        </span>
+        <PildoraPendientes items={items} />
       </div>
+      <ListaAgenda items={items} onIniciar={onIniciar} />
+      {onIrAMisCdR && pendientes > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <button className="cdr-nav-btn prim" onClick={onIrAMisCdR}>Ir a hacer mis CdR →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "2 pendientes" o "✓ Todo al día". */
+export function PildoraPendientes({ items }) {
+  const pendientes = (items || []).reduce((s, it) => s + it.pendientes, 0);
+  return (
+    <span className={`ca-pill ${pendientes ? "ca-pill-ambar" : "ca-pill-verde"}`}>
+      {pendientes ? `${pendientes} pendiente${pendientes === 1 ? "" : "s"}` : "✓ Todo al día"}
+    </span>
+  );
+}
+
+/** Las asignaciones de la persona, cada una con lo que lleva y el botón para iniciar la CdR con la reunión ya puesta. */
+export function ListaAgenda({ items, onIniciar }) {
+  return (
       <div style={{ display: "grid", gap: 8 }}>
         {items.map((it) => {
           const a = it.asignacion;
@@ -66,18 +87,12 @@ export default function MiAgenda({ usuario, onIniciar, onIrAMisCdR, compacto = f
               </div>
               {onIniciar && (
                 <button className={`cdr-nav-btn ${it.pendientes ? "prim" : ""}`} onClick={() => onIniciar(it.formulario, a.reunionId)}>
-                  Completar
+                  Iniciar
                 </button>
               )}
             </div>
           );
         })}
       </div>
-      {onIrAMisCdR && pendientes > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <button className="cdr-nav-btn prim" onClick={onIrAMisCdR}>Ir a hacer mis CdR →</button>
-        </div>
-      )}
-    </div>
   );
 }

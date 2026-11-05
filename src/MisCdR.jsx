@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
-import MiAgenda from "./MiAgenda.jsx";
+import { useAgenda, ListaAgenda, PildoraPendientes } from "./MiAgenda.jsx";
 import CumplimientoPlan from "./CumplimientoPlan.jsx";
 import { listarAsignaciones, proyectarFormulario, asignacionesDeFormulario, asignacionesDe } from "./asignaciones.js";
 import AvancePlan from "./AvancePlan.jsx";
@@ -242,6 +242,8 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
   const [error, setError] = useState("");
   const [ejecutando, setEjecutando] = useState(null);
   const [asignaciones, setAsignaciones] = useState([]);
+  const agenda = useAgenda(usuario);
+  const [subAsignados, setSubAsignados] = useState("asignaciones");
   const esMaster = usuario.rol === "master";
 
   useEffect(() => {
@@ -294,10 +296,25 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
     <div className="cdr-ejecutar" style={{ maxWidth: 900 }}>
       {error && <p style={{ color: "var(--rojo)", fontSize: 14 }}>{error}</p>}
 
-      <MiAgenda usuario={usuario} compacto onIniciar={(f, reunionId) => setEjecutando(nuevaEvaluacion(f, usuario, reunionId))} />
-      {asignacionesDe(asignaciones, usuario).length > 0 && (
+      {/* Mis formularios asignados: Asignaciones (para iniciar cada una) y Cumplimiento Asignaciones. */}
+      {((agenda && agenda.length > 0) || asignacionesDe(asignaciones, usuario).length > 0) && (
         <div className="ca-card" style={{ marginBottom: 14 }}>
-          <CumplimientoPlan persona={{ uid: usuario.uid, nombreUsuario: usuario.nombreUsuario, nombre: usuario.nombreUsuario }} asignaciones={asignaciones} evals={evals || []} />
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <p style={{ margin: 0, fontWeight: 800, fontSize: 16 }}>Mis formularios asignados</p>
+            {agenda && agenda.length > 0 && <PildoraPendientes items={agenda} />}
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0 12px" }}>
+            {[["asignaciones", "Asignaciones"], ["cumplimiento", "Cumplimiento Asignaciones"]].map(([v, t]) => (
+              <button key={v} type="button" className={`cdr-nav-btn ${subAsignados === v ? "prim" : ""}`} onClick={() => setSubAsignados(v)}>{t}</button>
+            ))}
+          </div>
+          {subAsignados === "asignaciones" ? (
+            agenda && agenda.length > 0
+              ? <ListaAgenda items={agenda} onIniciar={(f, reunionId) => setEjecutando(nuevaEvaluacion(f, usuario, reunionId))} />
+              : <p style={ayuda}>{agenda === null ? "Cargando…" : "No tienes asignaciones vigentes."}</p>
+          ) : (
+            <CumplimientoPlan titulo="" persona={{ uid: usuario.uid, nombreUsuario: usuario.nombreUsuario, nombre: usuario.nombreUsuario }} asignaciones={asignaciones} evals={evals || []} />
+          )}
         </div>
       )}
 

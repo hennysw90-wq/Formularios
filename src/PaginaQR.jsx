@@ -16,7 +16,7 @@ import {
 import { Ejecutar, nuevaEvaluacion } from "./MisCdR.jsx";
 import { TEXTO_PERIODO } from "./MiAgenda.jsx";
 import CompromisosMejora from "./CompromisosMejora.jsx";
-import { listarCierres, compromisosRecibidos, compromisosEntregados } from "./compromisosLider.js";
+import { listarCierres, compromisosRecibidos, compromisosEntregados, estaCerrado } from "./compromisosLider.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -28,7 +28,8 @@ const desde = () => new Date(Date.now() - 370 * 86400000).toISOString().slice(0,
  * Para ver el plan y responder basta con elegir tu nombre; los resultados piden tu clave.
  * Si ya hay sesión iniciada en el dispositivo, entra directo como esa persona.
  */
-export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, onIrALaApp }) {
+// Al entrar por QR no se ofrece "Ir a la app": la página del QR es todo lo que se usa desde ahí.
+export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }) {
   const [form, setForm] = useState(undefined); // undefined = cargando, null = no existe
   const [asignaciones, setAsignaciones] = useState([]); // todas: para "mis formularios asignados" y "mi cumplimiento"
   const [publicados, setPublicados] = useState([]);
@@ -43,8 +44,9 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
   const [borrador, setBorrador] = useState(null);
   const [vistaRes, setVistaRes] = useState(VISTA_RESULTADOS_INICIAL);
   const [cierres, setCierres] = useState(new Map());
-  // Los cierres de compromisos solo se leen una vez ingresada la clave.
-  useEffect(() => (desbloqueado ? listarCierres(setCierres, () => {}) : undefined), [desbloqueado]);
+  // Los cierres de compromisos se leen apenas se sabe quién es, para mostrar cuántos tiene abiertos junto al
+  // título de la pestaña; el detalle sigue pidiendo la clave.
+  useEffect(() => listarCierres(setCierres, () => {}), []);
   const [porVer, setPorVer] = useState(null); // formulario del historial que se abrirá tras ingresar la clave
 
   useEffect(() => {
@@ -157,7 +159,6 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
           <p style={{ fontWeight: 700, marginTop: 8 }}>Formulario no disponible</p>
           <p style={{ ...gris, fontSize: 14 }}>Puede que todavía no esté publicado. Consulta con un administrador.</p>
         </div>
-        <PieApp usuario={usuario} onIrALaApp={onIrALaApp} />
       </Envoltorio>
     );
   }
@@ -169,6 +170,12 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
       </Envoltorio>
     );
   }
+
+  // Compromisos que le acordaron y todavía no cierra (pendientes o vencidos).
+  const abiertos = compromisosRecibidos(evals, persona, cierres).filter((c) => !estaCerrado(c));
+  const compromisosAbiertos = abiertos.length;
+  // Rojo si alguno ya venció; verde si todos están dentro de plazo.
+  const hayVencidos = abiertos.some((c) => c.estado === "vencido");
 
   return (
     <Envoltorio titulo={form.nombre} descripcion={form.descripcion}>
@@ -184,6 +191,9 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
       <div style={{ ...pestanas, marginTop: -14 }}>
         <button type="button" onClick={() => setPestana("compromisos")} style={pestanaEstilo(pestana === "compromisos")}>
           {desbloqueado ? "Compromisos de mejora" : "🔒 Compromisos de mejora"}
+          {compromisosAbiertos > 0 && (
+            <span aria-label={`${compromisosAbiertos} compromisos abiertos`} data-vencidos={hayVencidos ? "si" : "no"} style={{ ...numerito, background: hayVencidos ? "#c0392b" : "#0f6e56" }}>{compromisosAbiertos}</span>
+          )}
         </button>
       </div>
 
@@ -218,7 +228,6 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null, 
           <PedirClave persona={persona} onOk={() => setDesbloqueado(true)} />
         ))}
       </div>
-      <PieApp usuario={usuario} onIrALaApp={onIrALaApp} />
     </Envoltorio>
   );
 }
@@ -462,15 +471,6 @@ function PedirClave({ persona, onOk }) {
 
 /* ─── Marco ────────────────────────────────────────────────────────────── */
 
-function PieApp({ usuario, onIrALaApp }) {
-  if (!usuario || !onIrALaApp) return null;
-  return (
-    <p style={{ textAlign: "center", margin: "14px 0 0" }}>
-      <button className="ca-btn-texto" style={{ fontSize: 12, width: "auto" }} onClick={onIrALaApp}>Ir a la app →</button>
-    </p>
-  );
-}
-
 function Envoltorio({ titulo, descripcion, children }) {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 16px" }}>
@@ -512,6 +512,12 @@ const chipVencido = { fontSize: 11, fontWeight: 700, padding: "3px 10px", border
 const chipNeutro = { fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100, border: "1px solid var(--borde)", color: "var(--texto-suave)", whiteSpace: "nowrap" };
 const cajaTotal = { textAlign: "center", background: "var(--fondo)", border: "1px solid var(--borde)", borderRadius: 12, padding: "14px 12px", marginBottom: 12 };
 const tarjetaDim = { border: "1px solid var(--borde)", borderRadius: 12, padding: 12, marginBottom: 8, background: "#fff" };
+// Numerito junto al título de una pestaña (compromisos abiertos): rojo si hay vencidos, verde si no.
+const numerito = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, padding: "0 5px",
+  marginLeft: 6, borderRadius: 9, background: "#c0392b", color: "#fff", fontSize: 11, fontWeight: 700, verticalAlign: "middle",
+};
+
 const pestanas = { display: "flex", gap: 6, marginBottom: 14, borderBottom: "1px solid var(--borde)" };
 
 function tarjeta(completa) {
