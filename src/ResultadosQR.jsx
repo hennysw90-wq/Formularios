@@ -63,8 +63,11 @@ function bloquesPromedio(lista) {
 /**
  * Evaluaciones recibidas (con clave): solo las CdR que le hicieron a esta persona como líder.
  * Rango de fechas → formulario → reunión → hoja resumen (promedio, evolución de 12 meses, nota por bloque y cada CdR).
+ * Con modo="realizadas" es la misma vista desde el punto de vista de quien evalúa: las CdR que esta persona hizo
+ * ("Resultados asignaciones"), con el líder de cada una.
  */
-export default function ResultadosQR({ persona, evals, vista, onVista, onVer }) {
+export default function ResultadosQR({ persona, evals, vista, onVista, onVer, modo = "recibidas" }) {
+  const realizadas = modo === "realizadas";
   const { rango, formularioId, reunion } = vista;
   const cambiar = (c) => onVista({ ...vista, ...c });
   const yo = norm(persona.nombreUsuario);
@@ -72,8 +75,12 @@ export default function ResultadosQR({ persona, evals, vista, onVista, onVer }) 
 
   // Todas las recibidas (para el gráfico de 12 meses) y las del rango elegido (para el resto).
   const recibidas = useMemo(
-    () => (evals || []).filter((e) => e.estado === "enviada" && !e.anulada && norm(e.lider) === yo).sort((a, b) => fechaCdR(b).localeCompare(fechaCdR(a))),
-    [evals, yo]
+    () =>
+      (evals || [])
+        .filter((e) => e.estado === "enviada" && !e.anulada)
+        .filter((e) => (realizadas ? (e.registradoPorUid || e.evaluadorUid) === persona.uid || e.evaluadorUid === persona.uid : norm(e.lider) === yo))
+        .sort((a, b) => fechaCdR(b).localeCompare(fechaCdR(a))),
+    [evals, yo, realizadas, persona.uid]
   );
   const mias = recibidas.filter((e) => fechaCdR(e) >= desde);
 
@@ -112,8 +119,8 @@ export default function ResultadosQR({ persona, evals, vista, onVista, onVer }) 
 
       {!formularioId && (
         <Lista
-          titulo={`Evaluaciones recibidas · ${textoRango(rango)}`}
-          vacio="Nadie te evaluó como líder en este periodo."
+          titulo={`${realizadas ? "Resultados asignaciones" : "Evaluaciones recibidas"} · ${textoRango(rango)}`}
+          vacio={realizadas ? "No realizaste CdR en este periodo." : "Nadie te evaluó como líder en este periodo."}
           grupos={formularios}
           onElegir={(g) => cambiar({ formularioId: g.clave })}
         />
@@ -122,7 +129,7 @@ export default function ResultadosQR({ persona, evals, vista, onVista, onVer }) 
         <Lista titulo="Elige la reunión" vacio="Sin evaluaciones de este formulario en el periodo." grupos={reuniones} onElegir={(g) => cambiar({ reunion: g.clave })} />
       )}
       {formularioId && reunion && (
-        <HojaResumen lista={deReunion} historico={historicoReunion} rango={rango} nombreForm={nombreForm} nombreReunion={nombreReunion} onVer={onVer} />
+        <HojaResumen lista={deReunion} historico={historicoReunion} rango={rango} nombreForm={nombreForm} nombreReunion={nombreReunion} onVer={onVer} conLider={realizadas} />
       )}
     </div>
   );
@@ -166,7 +173,7 @@ function Lista({ titulo, vacio, grupos, onElegir }) {
   );
 }
 
-function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer }) {
+function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer, conLider = false }) {
   const u = umbralesDe(lista.length ? lista : historico);
   const prom = promedio(lista);
   const conCritico = lista.filter((e) => (e.resultado?.criticosEnCero || []).length > 0);
@@ -209,7 +216,10 @@ function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer
           <button key={e.id} type="button" style={fila} onClick={() => onVer(e)}>
             <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
               <div style={{ fontWeight: 700, fontSize: 13.5 }}>{fechaCdR(e).split("-").reverse().join("-")}</div>
-              <div style={{ ...gris, fontSize: 12 }}>{ETIQUETA_CLASIFICACION[r.clasificacion] || ""}</div>
+              <div style={{ ...gris, fontSize: 12 }}>
+                {conLider && e.lider ? `Líder: ${e.lider} · ` : ""}
+                {ETIQUETA_CLASIFICACION[r.clasificacion] || ""}
+              </div>
             </div>
             <span className={`ca-pill ${clasePill(r.clasificacion)}`} style={{ fontSize: 13 }}>{pct(r.indice)}</span>
             <span style={{ ...gris, fontSize: 18 }}>›</span>

@@ -3,6 +3,7 @@ import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, 
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import { useAgenda, ListaAgenda, PildoraPendientes } from "./MiAgenda.jsx";
 import CumplimientoPlan from "./CumplimientoPlan.jsx";
+import ResultadosQR, { VISTA_RESULTADOS_INICIAL } from "./ResultadosQR.jsx";
 import { listarAsignaciones, proyectarFormulario, asignacionesDeFormulario, asignacionesDe } from "./asignaciones.js";
 import AvancePlan from "./AvancePlan.jsx";
 import logoOems from "./assets/logo-oems.png";
@@ -244,6 +245,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
   const [asignaciones, setAsignaciones] = useState([]);
   const agenda = useAgenda(usuario);
   const [subAsignados, setSubAsignados] = useState("asignaciones");
+  const [vistaRealizadas, setVistaRealizadas] = useState(VISTA_RESULTADOS_INICIAL);
   const esMaster = usuario.rol === "master";
 
   useEffect(() => {
@@ -304,7 +306,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
             {agenda && agenda.length > 0 && <PildoraPendientes items={agenda} />}
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0 12px" }}>
-            {[["asignaciones", "Asignaciones"], ["cumplimiento", "Cumplimiento Asignaciones"]].map(([v, t]) => (
+            {[["asignaciones", "Asignaciones"], ["cumplimiento", "Cumplimiento Asignaciones"], ["resultados", "Resultados Asignaciones"]].map(([v, t]) => (
               <button key={v} type="button" className={`cdr-nav-btn ${subAsignados === v ? "prim" : ""}`} onClick={() => setSubAsignados(v)}>{t}</button>
             ))}
           </div>
@@ -312,8 +314,19 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
             agenda && agenda.length > 0
               ? <ListaAgenda items={agenda} onIniciar={(f, reunionId) => setEjecutando(nuevaEvaluacion(f, usuario, reunionId))} />
               : <p style={ayuda}>{agenda === null ? "Cargando…" : "No tienes asignaciones vigentes."}</p>
-          ) : (
+          ) : subAsignados === "cumplimiento" ? (
             <CumplimientoPlan titulo="" persona={{ uid: usuario.uid, nombreUsuario: usuario.nombreUsuario, nombre: usuario.nombreUsuario }} asignaciones={asignaciones} evals={evals || []} />
+          ) : (
+            // Las CdR que realizó como evaluador, con la misma vista que "Evaluaciones recibidas" (periodo →
+            // formulario → reunión → hoja resumen con gráfico), pero desde el punto de vista de quien evalúa.
+            <ResultadosQR
+              modo="realizadas"
+              persona={{ uid: usuario.uid, nombreUsuario: usuario.nombreUsuario }}
+              evals={hechas}
+              vista={vistaRealizadas}
+              onVista={setVistaRealizadas}
+              onVer={(e) => setEjecutando(e)}
+            />
           )}
         </div>
       )}
@@ -371,27 +384,6 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
         </>
       )}
 
-      {hechas.length > 0 && (
-        <>
-          <Titulo t={`Realizadas (${hechas.length})`} />
-          <table className="ca-tabla cdr-apilada">
-            <thead><tr><th>Rutina</th><th>Líder</th><th>Evaluador</th><th>Fecha</th><th>Índice</th><th>Resultado</th><th></th></tr></thead>
-            <tbody>
-              {hechas.map((e) => (
-                <tr key={e.id}>
-                  <td><b>{e.rutinaNombre}</b></td>
-                  <td data-label="Líder">{e.lider}</td>
-                  <td data-label="Evaluador">{e.evaluadorNombre}</td>
-                  <td data-label="Fecha">{fechaLegible(e.fechaEnvio)}</td>
-                  <td data-label="Índice"><b>{fmt(e.resultado?.indice ?? 0)}%</b></td>
-                  <td data-label="Resultado"><span className={`ca-pill ${CLASE_RESULTADO[e.resultado?.clasificacion] || ""}`}>{ETIQUETA_CLASIFICACION[e.resultado?.clasificacion] || "—"}</span></td>
-                  <td style={{ textAlign: "right" }}><button style={btn} onClick={() => setEjecutando(e)}>Ver</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
     </div>
   );
 }
