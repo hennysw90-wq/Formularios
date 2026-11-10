@@ -3,7 +3,7 @@ import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { obtenerFormulario, obtenerEvaluacion, listarEvaluacionesDesde, listarFormulariosPublicados, guardarEvaluacion } from "./evaluaciones.js";
 import CumplimientoPlan from "./CumplimientoPlan.jsx";
 import ResultadosQR, { VISTA_RESULTADOS_INICIAL } from "./ResultadosQR.jsx";
-import { listarUsuarios, verificarClave } from "./auth.js";
+import { listarUsuarios, verificarClave, cerrarSesion } from "./auth.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
 import {
   listarAsignaciones,
@@ -126,7 +126,12 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
       window.alert(`No se pudo borrar (${e.code || e.message}).`);
     }
   }
+  // "No soy yo": vuelve a pedir el nombre. Si el celular tenía una sesión iniciada en la app, se cierra,
+  // así la persona siguiente no entra con el usuario anterior (y Evaluaciones recibidas vuelve a pedir clave).
   function cambiarPersona() {
+    if (usuario) {
+      try { cerrarSesion(); } catch { /* sin almacenamiento local */ }
+    }
     setPersona(null);
     setDesbloqueado(false);
     setPestana("pendientes");
@@ -180,7 +185,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
   return (
     <Envoltorio titulo={form.nombre} descripcion={form.descripcion}>
       <div className="ca-card">
-      <Encabezado persona={persona} onCambiar={usuario ? null : cambiarPersona} />
+      <Encabezado persona={persona} onCambiar={cambiarPersona} />
       <div style={pestanas}>
         <button type="button" onClick={() => setPestana("pendientes")} style={pestanaEstilo(pestana === "pendientes")}>Pendientes</button>
         <button type="button" onClick={() => setPestana("plan")} style={pestanaEstilo(pestana === "plan")}>Cumplimiento de mi Plan</button>
