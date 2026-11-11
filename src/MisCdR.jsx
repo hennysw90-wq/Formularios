@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import BuscarOpcion from "./BuscarOpcion.jsx";
 import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import { useAgenda, ListaAgenda, PildoraPendientes } from "./MiAgenda.jsx";
@@ -887,6 +888,9 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
               {c.tipo === "numero" && <input className="rp-input" type="number" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "fecha" && <input className="rp-input" type="date" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "hora" && <input className="rp-input" type="time" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
+              {c.tipo === "busqueda" && (
+                <BuscarOpcion opciones={c.opciones || []} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura} onCambiar={(v) => cambiar((x) => (x.datos[c.id] = v))} />
+              )}
               {c.tipo === "seleccion" && (
                 <select className="rp-select" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))}>
                   <option value="">Elige…</option>

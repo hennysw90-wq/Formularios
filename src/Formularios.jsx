@@ -510,6 +510,7 @@ const TIPOS_A = [
   ["hora", "Hora"],
   ["numero", "Número"],
   ["seleccion", "Lista de opciones"],
+  ["busqueda", "Lista con búsqueda (escribe y elige)"],
 ];
 
 function TabA({ form, cambiar }) {
@@ -536,6 +537,14 @@ function TabA({ form, cambiar }) {
               </select>
             )}
           </div>
+          {c.tipo === "busqueda" && (
+            <div style={{ flex: "2 1 260px" }}>
+              <textarea className="rp-textarea" rows={4} defaultValue={(c.opciones || []).join("\n")} placeholder={"Opciones, una por línea (puedes pegar una lista larga)"}
+                aria-label="Opciones de la lista con búsqueda"
+                onBlur={(e) => cambiar((f) => (f.seccionA[i].opciones = [...new Set(e.target.value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean))]))} />
+              <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>{(c.opciones || []).length} opciones · quien responde escribe parte del texto y elige.</div>
+            </div>
+          )}
           {c.tipo === "seleccion" && (
             <div style={{ flex: "2 1 220px" }}>
               <input className="rp-input" defaultValue={(c.opciones || []).join(", ")} placeholder="Opciones separadas por coma"
@@ -838,6 +847,7 @@ function CampoPrevio({ c, form }) {
     );
   }
   if (c.tipo === "lider") return <input {...base} readOnly value="(según la rutina; si tiene varios líderes, eliges quién lideró)" />;
+  if (c.tipo === "busqueda") return <input {...base} readOnly placeholder={`Escribe para buscar (${(c.opciones || []).length} opciones)`} />;
   if (c.tipo === "seleccion") return <select className="rp-select" disabled><option>{(c.opciones || []).join(" / ") || "Opciones…"}</option></select>;
   if (c.tipo === "fecha") return <input type="date" {...base} />;
   if (c.tipo === "hora") return <input type="time" {...base} />;
