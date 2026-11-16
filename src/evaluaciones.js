@@ -3,6 +3,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, setDoc,
 import { db, asegurarSesionCdR } from "./firebase.js";
 import { elegirCompromisoAnterior } from "./compromisos.js";
 import { valorAsignado } from "./referencia.js";
+import { escucharCompartido } from "./compartir.js";
 
 function escuchar(consulta, callback, onError, etiqueta) {
   let apagar = () => {};
@@ -30,7 +31,7 @@ function escuchar(consulta, callback, onError, etiqueta) {
 }
 
 export function listarFormulariosPublicados(callback, onError) {
-  return escuchar(() => query(collection(db, "cdrFormularios"), where("estado", "==", "publicado")), callback, onError, "formularios");
+  return escucharCompartido("formulariosPublicados", (ok, mal) => escuchar(() => query(collection(db, "cdrFormularios"), where("estado", "==", "publicado")), ok, mal, "formularios"), callback, onError);
 }
 
 /**
@@ -127,7 +128,8 @@ export async function eliminarEvaluacion(id) {
 
 /** Todas las CdR enviadas (para Excelencia Operacional: registros y estadísticas). */
 export function listarEvaluacionesEnviadas(callback, onError) {
-  return escuchar(() => query(collection(db, "cdrEvaluaciones"), where("estado", "==", "enviada")), callback, onError, "evaluaciones");
+  // Una sola escucha para toda la app (inicio, estadísticas, agenda, QR, avance del plan…).
+  return escucharCompartido("enviadas", (ok, mal) => escuchar(() => query(collection(db, "cdrEvaluaciones"), where("estado", "==", "enviada")), ok, mal, "evaluaciones"), callback, onError);
 }
 
 /**
@@ -150,5 +152,6 @@ export async function restaurarEvaluacion(id) {
  * no necesita índice especial.
  */
 export function listarEvaluacionesDesde(desdeIso, callback, onError) {
-  return escuchar(() => query(collection(db, "cdrEvaluaciones"), where("fechaEnvio", ">=", desdeIso)), callback, onError, "evaluaciones");
+  // Usa la misma escucha compartida de las enviadas y filtra por fecha aquí (las enviadas son las que tienen fechaEnvio).
+  return listarEvaluacionesEnviadas((lista) => callback(lista.filter((e) => (e.fechaEnvio || "") >= desdeIso)), onError);
 }

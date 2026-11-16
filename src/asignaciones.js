@@ -7,6 +7,7 @@ import { collection, deleteDoc, doc, getDocs, onSnapshot, query, setDoc, where }
 import { db, asegurarSesionCdR } from "./firebase.js";
 import { mismaPersona } from "./compromisos.js";
 import { fechaCdR } from "./estadisticas.js";
+import { escucharCompartido } from "./compartir.js";
 
 // ─── Frecuencias ────────────────────────────────────────────────────────────
 export const FRECUENCIAS = [
@@ -181,6 +182,9 @@ export function nuevoIdAsignacion() {
 
 /** Todas las asignaciones, en vivo. */
 export function listarAsignaciones(callback, onError) {
+  return escucharCompartido("asignaciones", (ok, mal) => abrirAsignaciones(ok, mal), callback, onError);
+}
+function abrirAsignaciones(callback, onError) {
   let apagar = () => {};
   let cancelado = false;
   asegurarSesionCdR()

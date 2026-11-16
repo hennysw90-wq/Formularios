@@ -4,6 +4,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, onSnapshot } from "firebase/firestore";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { escucharCompartido } from "./compartir.js";
 
 const configPortalEO = {
   apiKey: "AIzaSyCI8oXECFRvZLev2__iMGggeAAs4VSjDms",
@@ -45,6 +46,9 @@ export const textoEstandar = (e) => [String(e.codigo || "").trim(), String(e.nom
  * { id, nombre, opciones: ["código · nombre", …], subareas: { opción: área }, sincronizado: true }.
  */
 export function escucharListadoPortalEO(callback, onError) {
+  return escucharCompartido("portalEO", (ok, mal) => abrirListadoPortalEO(ok, mal), callback, onError);
+}
+function abrirListadoPortalEO(callback, onError) {
   let apagar = () => {};
   let cancelado = false;
   const { db, sesion } = conexion();

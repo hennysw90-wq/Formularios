@@ -6,10 +6,14 @@ import { useEffect, useState } from "react";
 import { db, asegurarSesionCdR } from "./firebase.js";
 import { COLECCION_FORMULARIOS, nuevoId } from "./formularios.js";
 import { escucharListadoPortalEO } from "./firebasePortalEO.js";
+import { escucharCompartido } from "./compartir.js";
 
 export const ID_DOC_LISTADOS = "__listados";
 
 export function escucharListados(callback, onError) {
+  return escucharCompartido("listados", (ok, mal) => abrirListados(ok, mal), callback, onError);
+}
+function abrirListados(callback, onError) {
   let apagar = () => {};
   let cancelado = false;
   asegurarSesionCdR()

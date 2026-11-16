@@ -1,18 +1,19 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { recuperarSesion, cerrarSesion } from "./auth.js";
 import { db, asegurarSesionCdR } from "./firebase.js";
 import Login from "./Login.jsx";
 import Cabecera from "./Cabecera.jsx";
-import Administracion from "./Administracion.jsx";
-import Formularios from "./Formularios.jsx";
+// Pantallas del Master: se cargan solo cuando se abren (la app y el QR parten más rápido).
+const Administracion = lazy(() => import("./Administracion.jsx"));
+const Formularios = lazy(() => import("./Formularios.jsx"));
 import MisCdR, { Ejecutar } from "./MisCdR.jsx";
 import CompromisosMejora, { TarjetaCompromiso, EvaluacionesRecibidas } from "./CompromisosMejora.jsx";
 import { listarCierres, compromisosRecibidos, compromisosEntregados, todosLosCompromisos, evaluacionesRecibidas, estaCerrado } from "./compromisosLider.js";
 import { listarEvaluacionesEnviadas } from "./evaluaciones.js";
 import ResultadosQR, { VISTA_RESULTADOS_INICIAL } from "./ResultadosQR.jsx";
 import PaginaQR from "./PaginaQR.jsx";
-import Estadisticas from "./Estadisticas.jsx";
+const Estadisticas = lazy(() => import("./Estadisticas.jsx"));
 import { formularioDesdeUrl, rutinaDesdeUrl } from "./enlaces.js";
 
 export default function App() {
@@ -108,9 +109,11 @@ export default function App() {
         )}
 
         {vista === "mis" && <MisCdR usuario={usuario} formularioDirecto={formularioDirecto} rutinaDirecta={rutinaDirecta} onDirectoAtendido={directoAtendido} />}
-        {vista === "formularios" && esMaster && <Formularios usuario={usuario} />}
-        {vista === "estadisticas" && esMaster && <Estadisticas usuario={usuario} />}
-        {vista === "admin" && esMaster && <Administracion usuarioActual={usuario} />}
+        <Suspense fallback={<p style={{ color: "var(--texto-suave)", fontSize: 14 }}>Cargando…</p>}>
+          {vista === "formularios" && esMaster && <Formularios usuario={usuario} />}
+          {vista === "estadisticas" && esMaster && <Estadisticas usuario={usuario} />}
+          {vista === "admin" && esMaster && <Administracion usuarioActual={usuario} />}
+        </Suspense>
       </div>
     </div>
   );
