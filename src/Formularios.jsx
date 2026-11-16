@@ -544,6 +544,7 @@ const TIPOS_A = [
   ["lider", "Líder (automático: de la asignación)"],
   ["evaluador", "Evaluador (automático: quien evalúa)"],
   ["texto", "Texto"],
+  ["usuario", "Usuario (del directorio; se puede crear)"],
   ["fecha", "Fecha"],
   ["hora", "Hora"],
   ["numero", "Número"],
@@ -560,7 +561,7 @@ function TabA({ form, cambiar, enUso, listados }) {
       </p>
       {enUso ? (
         <p style={{ ...E.ayuda, background: "var(--fondo)", borderRadius: 8, padding: "8px 10px" }}>
-          🔒 Este formulario ya tiene asignaciones o evaluaciones: los datos automáticos (reunión, líder y evaluador) no se cambian. Si necesitas otra dinámica, crea un formulario nuevo o usa «Duplicar».
+          🔒 Este formulario ya tiene asignaciones o evaluaciones: los datos automáticos (reunión, líder y evaluador) no se cambian{form.seccionA.some((x) => x.asignable) ? " (como se asigna por listado, «Reunión» y «Líder» sí se pueden quitar)" : ""}. Si necesitas otra dinámica, crea un formulario nuevo o usa «Duplicar».
         </p>
       ) : (
         <p style={{ ...E.ayuda, background: "#E1F5EE", borderRadius: 8, padding: "8px 10px" }}>
@@ -626,7 +627,7 @@ function TabA({ form, cambiar, enUso, listados }) {
           <label style={E.check}>
             <input type="checkbox" checked={!!c.obligatorio} onChange={(e) => cambiar((f) => (f.seccionA[i].obligatorio = e.target.checked))} /> Obligatorio
           </label>
-          <BotonesFila i={i} n={n} onMover={(d) => cambiar((f) => mover(f.seccionA, i, d))} onBorrar={TIPOS_AUTOMATICOS.includes(c.tipo) && enUso ? null : () => {
+          <BotonesFila i={i} n={n} onMover={(d) => cambiar((f) => mover(f.seccionA, i, d))} onBorrar={TIPOS_AUTOMATICOS.includes(c.tipo) && enUso && !(c.tipo !== "evaluador" && form.seccionA.some((x) => x.asignable)) ? null : () => {
             if (TIPOS_AUTOMATICOS.includes(c.tipo) && !window.confirm(AVISO_QUITAR_AUTOMATICO[c.tipo])) return;
             cambiar((f) => f.seccionA.splice(i, 1));
           }} />

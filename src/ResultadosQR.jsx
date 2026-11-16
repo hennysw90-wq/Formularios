@@ -188,7 +188,7 @@ function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer
       <div style={{ border: "1px solid var(--borde)", borderRadius: 14, padding: 14, background: "#fff", marginBottom: 14 }}>
         <p style={{ fontWeight: 800, fontSize: 17, margin: 0 }}>{nombreReunion}</p>
         <p style={{ ...gris, fontSize: 12.5, margin: "3px 0 0" }}>
-          {nombreForm} · Líder: {lideres.join(", ") || "—"}
+          {nombreForm}{lideres.length || lista.some((e) => (e.formulario?.seccionA || []).some((c) => c.tipo === "lider")) ? ` · Líder: ${lideres.join(", ") || "—"}` : ""}
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
           <span style={{ fontSize: 38, fontWeight: 800, lineHeight: 1 }}>{pct(prom)}</span>

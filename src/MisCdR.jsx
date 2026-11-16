@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import BuscarOpcion from "./BuscarOpcion.jsx";
+import SelectorUsuario from "./SelectorUsuario.jsx";
 import FotoRespaldo, { pesoFotos } from "./FotoRespaldo.jsx";
 import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, opcionesDelAlcance, numeroDePeriodo } from "./listados.js";
 import { listarEvaluacionesDesde, listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
@@ -903,7 +904,6 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
   const cambioSugerido = porAlcance && valorAsig && !tocan.includes(valorAsig);
   // Asignado por listado: no hay líderes en la asignación, así que el evaluador indica quién lidera la actividad.
   const liderLibre = !!campoAsig && esAsignacionPorValor(ev.rutinaSesionId) && lideres.length === 0;
-  const opcionesLider = (personas || []).map((p) => ({ nombre: p.nombre, grupo: "Personas (Control de Asistencia)" }));
   const etiquetaPeriodo = { diaria: "hoy", semanal: "esta semana", quincenal: "esta quincena", mensual: "este mes", unica: "en esta asignación" }[yoEnAsig?.frecuencia] || "en este periodo";
   function elegirRutina(id) {
     const r = f.rutinas.find((x) => x.sesionId === id);
@@ -945,8 +945,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
               )}
               {c.tipo === "lider" && liderLibre && (
                 soloLectura ? <div className="rp-input" style={{ background: "var(--fondo)" }}>{ev.lider || "—"}</div>
-                : <ComboEvaluador valor={ev.lider || ""} opciones={opcionesLider} personas={personas} errorPersonas={errorPersonas} placeholder="Escribe para buscar el nombre…" quien="el nombre"
-                    onTexto={(t) => cambiar((x) => { x.lider = t; })} onElegir={(o) => cambiar((x) => { x.lider = o.nombre; })} />
+                : <SelectorUsuario valor={ev.lider || ""} etiqueta={c.etiqueta} onCambiar={(n, uid) => cambiar((x) => { x.lider = n; x.liderUid = uid || ""; })} />
               )}
               {c.tipo === "lider" && !liderLibre && (
                 !ev.rutinaSesionId ? <input className="rp-input" disabled value="Primero elige la reunión" readOnly />
@@ -961,6 +960,10 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
               )}
               {c.tipo === "lider" && !soloLectura && <UltimaDelLider ev={ev} />}
               {c.tipo === "evaluador" && campoEvaluador}
+              {c.tipo === "usuario" && (
+                <SelectorUsuario valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura}
+                  onCambiar={(n, uid) => cambiar((x) => { x.datos[c.id] = n; x.usuariosElegidos = { ...(x.usuariosElegidos || {}), [c.id]: uid || "" }; })} />
+              )}
               {c.tipo === "texto" && <input className="rp-input" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "numero" && <input className="rp-input" type="number" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "fecha" && <input className="rp-input" type="date" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}

@@ -202,6 +202,31 @@ export async function crearUsuario(nombreUsuario, password, rol, area = "", carg
   return { uid: ref.id, fusionado: false, nombreUsuario: datosNuevos.nombreUsuario };
 }
 
+// Cualquiera que evalúa puede crear una persona nueva desde un campo «Usuario» (ej. «Líder de la actividad»),
+// dando nombre, área y cargo. Queda "pendiente" hasta que un administrador la valide en Administración (le fija
+// contraseña y rol) — mientras tanto no puede iniciar sesión, pero sí se la puede elegir en las evaluaciones.
+// Si ya existe con ese nombre, se usa la existente (sin duplicar).
+export async function crearUsuarioPendiente(nombreUsuario, area = "", cargo = "") {
+  const nombreLimpio = normalizarUsuario(nombreUsuario);
+  if (!nombreLimpio) throw new Error("Escribe un nombre.");
+  const yaExiste = await buscarUsuarioPorNombre(nombreUsuario);
+  if (yaExiste) return { uid: yaExiste.id, existia: true, ...yaExiste.data() };
+  const ref = doc(collection(db, "usuarios"));
+  const datos = {
+    nombreUsuario: nombreLimpio,
+    password: "",
+    rol: "usuario",
+    area: area || "",
+    cargo: String(cargo || "").trim(),
+    correo: correoPorDefecto(nombreLimpio),
+    estado: "pendiente",
+    apps: [APP_ACTUAL_ID],
+    creado: new Date().toISOString(),
+  };
+  await setDoc(ref, datos);
+  return { uid: ref.id, existia: false, ...datos };
+}
+
 // El administrador valida una persona pendiente (o corrige un usuario
 // activo): puede cambiar cualquier campo. Si no manda una contraseña
 // nueva, se conserva la que la persona escribió al autorregistrarse. Si
