@@ -2,6 +2,8 @@
 import { collection, doc, onSnapshot, setDoc, deleteDoc } from "firebase/firestore";
 import { db, asegurarSesionCdR } from "./firebase.js";
 
+export const COLECCION_FORMULARIOS = "cdrFormularios";
+
 export function nuevoId(prefijo = "f") {
   return `${prefijo}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
@@ -16,6 +18,7 @@ export function listarFormularios(callback, onError) {
         collection(db, "cdrFormularios"),
         (snap) => {
           const lista = snap.docs
+            .filter((d) => d.id !== "__listados") // documento de Listados, no es un formulario
             .map((d) => ({ id: d.id, ...d.data() }))
             .sort((a, b) => (b.actualizado || "").localeCompare(a.actualizado || ""));
           callback(lista);

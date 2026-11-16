@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import BuscarOpcion from "./BuscarOpcion.jsx";
+import { useListados, opcionesDePregunta } from "./listados.js";
 import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import { useAgenda, ListaAgenda, PildoraPendientes } from "./MiAgenda.jsx";
@@ -812,6 +813,7 @@ function OpcionesLider({ lideres, valor, area, onElegir }) {
 
 function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
   const f = ev.formulario;
+  const listados = useListados();
   const rutina = f.rutinas.find((r) => r.sesionId === ev.rutinaSesionId);
   // Evaluador: con sesión iniciada eres tú, fijo. Por QR (sin sesión), uno de los evaluadores asignados a esta
   // reunión, que siempre son personas con usuario. Nunca se escribe a mano.
@@ -889,12 +891,12 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
               {c.tipo === "fecha" && <input className="rp-input" type="date" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "hora" && <input className="rp-input" type="time" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "busqueda" && (
-                <BuscarOpcion opciones={c.opciones || []} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura} onCambiar={(v) => cambiar((x) => (x.datos[c.id] = v))} />
+                <BuscarOpcion opciones={opcionesDePregunta(c, listados)} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura} onCambiar={(v) => cambiar((x) => (x.datos[c.id] = v))} />
               )}
               {c.tipo === "seleccion" && (
                 <select className="rp-select" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))}>
                   <option value="">Elige…</option>
-                  {(c.opciones || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                  {opcionesDePregunta(c, listados).map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               )}
             </div>

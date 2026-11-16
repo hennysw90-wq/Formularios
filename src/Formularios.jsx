@@ -4,6 +4,8 @@ import { listarFormularios, guardarFormulario, eliminarFormulario, nuevoId, cont
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { PLANTILLA_PAUTA_V3, formularioEnBlanco } from "./plantillas.js";
 import ModalQR from "./ModalQR.jsx";
+import ListadosAdmin from "./ListadosAdmin.jsx";
+import { useListados, opcionesDePregunta } from "./listados.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { contarEvaluacionesDeFormulario } from "./evaluaciones.js";
 import {
@@ -58,6 +60,7 @@ const fmt = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
 
 export default function Formularios({ usuario }) {
   const [lista, setLista] = useState(null);
+  const listados = useListados();
   const [error, setError] = useState("");
   const [usuarios, setUsuarios] = useState([]);
   const [rutinasAsistencia, setRutinasAsistencia] = useState(null);
@@ -244,6 +247,8 @@ export default function Formularios({ usuario }) {
 
       {qrDe && <ModalQR form={qrDe} onCerrar={() => setQrDe(null)} />}
 
+      <ListadosAdmin listados={listados} formularios={lista || []} usuario={usuario} />
+
       {modalNuevo && (
         <Modal titulo="Nuevo formulario" onCerrar={() => setModalNuevo(false)}>
           <div style={{ display: "grid", gap: 10 }}>
@@ -336,6 +341,7 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, onCerrar }) {
   const [guardando, setGuardando] = useState(false);
   const [verQr, setVerQr] = useState(false);
   const [aviso, setAviso] = useState({ tipo: "", texto: "" });
+  const listados = useListados();
   // ¿El formulario ya está en uso (tiene asignaciones o evaluaciones)? Mientras se averigua, se trata como en uso.
   const [evaluacionesDelForm, setEvaluacionesDelForm] = useState(esNuevo ? 0 : null);
   useEffect(() => {
@@ -393,7 +399,9 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, onCerrar }) {
       f.estado = estadoNuevo || f.estado || "borrador";
       f.version = yaGuardado ? (f.version || 1) + 1 : f.version || 1;
       f.actualizado = new Date().toISOString();
-      f.seccionA.forEach((c) => (c.opciones = (c.opciones || []).filter(Boolean)));
+      // Si la pregunta usa un listado, se guarda además una copia de sus opciones (respaldo si el listado se borra
+      // o si el formulario se exporta a otro ambiente).
+      f.seccionA.forEach((c) => (c.opciones = (c.listadoId ? opcionesDePregunta(c, listados) : c.opciones || []).filter(Boolean)));
       f.seccionB.puntos = f.seccionB.puntos.filter((p) => (p.texto || "").trim());
       await guardarFormulario(f);
       setForm(f);
@@ -450,12 +458,12 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, onCerrar }) {
       </div>
 
       {tab === "general" && <TabGeneral form={form} cambiar={cambiar} />}
-      {tab === "a" && <TabA form={form} cambiar={cambiar} enUso={enUso} />}
+      {tab === "a" && <TabA form={form} cambiar={cambiar} enUso={enUso} listados={listados} />}
       {tab === "b" && <TabB form={form} cambiar={cambiar} />}
       {tab === "c" && <TabC form={form} cambiar={cambiar} />}
       {tab === "d" && <TabD form={form} />}
       {tab === "e" && <TabE form={form} cambiar={cambiar} />}
-      {tab === "previa" && <VistaPrevia form={form} />}
+      {tab === "previa" && <VistaPrevia form={form} listados={listados} />}
     </div>
   );
 }
@@ -531,7 +539,7 @@ const TIPOS_A = [
   ["busqueda", "Lista con búsqueda (escribe y elige)"],
 ];
 
-function TabA({ form, cambiar, enUso }) {
+function TabA({ form, cambiar, enUso, listados }) {
   const n = form.seccionA.length;
   return (
     <div style={{ maxWidth: 980 }}>
@@ -567,7 +575,17 @@ function TabA({ form, cambiar, enUso }) {
               </select>
             )}
           </div>
-          {c.tipo === "busqueda" && (
+          {(c.tipo === "busqueda" || c.tipo === "seleccion") && (
+            <div style={{ flex: "1 1 200px" }}>
+              <select className="rp-select" value={c.listadoId || ""} aria-label={`Origen de las opciones de ${c.etiqueta}`} onChange={(e) => cambiar((f) => { f.seccionA[i].listadoId = e.target.value || null; })}>
+                <option value="">Opciones propias (escribirlas aquí)</option>
+                {(listados || []).map((l) => <option key={l.id} value={l.id}>Listado: {l.nombre} ({(l.opciones || []).length})</option>)}
+                {c.listadoId && !(listados || []).some((l) => l.id === c.listadoId) && <option value={c.listadoId}>Listado no encontrado (usa la copia guardada)</option>}
+              </select>
+              {c.listadoId && <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>{opcionesDePregunta(c, listados).length} opciones · se editan en Formularios → Listados.</div>}
+            </div>
+          )}
+          {c.tipo === "busqueda" && !c.listadoId && (
             <div style={{ flex: "2 1 260px" }}>
               <textarea className="rp-textarea" rows={4} defaultValue={(c.opciones || []).join("\n")} placeholder={"Opciones, una por línea (puedes pegar una lista larga)"}
                 aria-label="Opciones de la lista con búsqueda"
@@ -575,7 +593,7 @@ function TabA({ form, cambiar, enUso }) {
               <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>{(c.opciones || []).length} opciones · quien responde escribe parte del texto y elige.</div>
             </div>
           )}
-          {c.tipo === "seleccion" && (
+          {c.tipo === "seleccion" && !c.listadoId && (
             <div style={{ flex: "2 1 220px" }}>
               <input className="rp-input" defaultValue={(c.opciones || []).join(", ")} placeholder="Opciones separadas por coma"
                 onBlur={(e) => cambiar((f) => (f.seccionA[i].opciones = e.target.value.split(",").map((s) => s.trim()).filter(Boolean)))} />
@@ -896,7 +914,7 @@ function CampoPrevio({ c, form }) {
   return <input type="text" {...base} />;
 }
 
-function VistaPrevia({ form }) {
+function VistaPrevia({ form, listados }) {
   const p = form.parametros;
   return (
     <div style={{ maxWidth: 980 }}>
@@ -911,7 +929,7 @@ function VistaPrevia({ form }) {
         {form.seccionA.map((c) => (
           <div key={c.id}>
             <label className="ca-label">{c.etiqueta || "(sin etiqueta)"}{c.obligatorio ? " *" : ""}</label>
-            <CampoPrevio c={c} form={form} />
+            <CampoPrevio c={{ ...c, opciones: opcionesDePregunta(c, listados) }} form={form} />
           </div>
         ))}
       </div>

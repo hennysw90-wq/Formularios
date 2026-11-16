@@ -169,7 +169,7 @@ function Diagnostico() {
       try {
         await asegurarSesionCdR();
         const snap = await getDocs(collection(db, "cdrFormularios"));
-        setEstado({ ok: true, formularios: snap.size });
+        setEstado({ ok: true, formularios: snap.docs.filter((d) => d.id !== "__listados").length });
       } catch (e) {
         console.error("Diagnóstico CdR:", e);
         setEstado({ ok: false, mensaje: e.code || e.message || String(e) });
