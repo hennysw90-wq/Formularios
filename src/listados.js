@@ -5,6 +5,7 @@ import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { db, asegurarSesionCdR } from "./firebase.js";
 import { COLECCION_FORMULARIOS, nuevoId } from "./formularios.js";
+import { escucharListadoPortalEO } from "./firebasePortalEO.js";
 
 export const ID_DOC_LISTADOS = "__listados";
 
@@ -33,13 +34,25 @@ export function escucharListados(callback, onError) {
 /** Los listados vigentes (null mientras cargan). */
 export function useListados() {
   const [listados, setListados] = useState(null);
+  // Listado sincronizado (solo lectura) con los estándares del Portal EO; se agrega al final si se pudo leer.
+  const [portal, setPortal] = useState(null);
   useEffect(() => escucharListados(setListados, () => setListados([])), []);
-  return listados;
+  useEffect(() => escucharListadoPortalEO(setPortal, () => setPortal({ error: true })), []);
+  if (listados === null) return null;
+  return portal && !portal.error ? [...listados, portal] : listados;
+}
+
+/** ¿Se pudo leer el Portal EO? (para avisarlo en Administración) */
+export function useEstadoPortalEO() {
+  const [estado, setEstado] = useState("cargando");
+  useEffect(() => escucharListadoPortalEO(() => setEstado("ok"), () => setEstado("error")), []);
+  return estado;
 }
 
 export async function guardarListados(listados, usuario) {
   await asegurarSesionCdR();
-  const limpios = listados.map((l) => ({
+  // Los listados sincronizados (Portal EO) no se guardan aquí: se editan en su origen.
+  const limpios = listados.filter((l) => !l.sincronizado).map((l) => ({
     id: l.id || nuevoId("l"),
     nombre: String(l.nombre || "").trim(),
     opciones: [...new Set((l.opciones || []).map((o) => String(o).trim()).filter(Boolean))],

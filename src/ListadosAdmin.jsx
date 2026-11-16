@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { guardarListados, usosDeListados, lineasDeListado, parsearLineasListado } from "./listados.js";
+import { guardarListados, usosDeListados, lineasDeListado, parsearLineasListado, useEstadoPortalEO } from "./listados.js";
+import { NOMBRE_LISTADO_PORTAL } from "./firebasePortalEO.js";
 import { nuevoId } from "./formularios.js";
 
 // Formularios → Listados: listas reutilizables (ej. Estándares, Equipos) para las preguntas "Lista con búsqueda" y
@@ -7,6 +8,38 @@ import { nuevoId } from "./formularios.js";
 
 const btn = { border: "1px solid var(--borde, #D3D1C7)", background: "#fff", borderRadius: 8, padding: "7px 12px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
 const btnPrim = { ...btn, background: "var(--verde, #009899)", borderColor: "var(--verde, #009899)", color: "#fff" };
+
+// Listado sincronizado con el Portal EO: solo lectura (se edita en el Portal, en "Gestionar Estándares").
+function TarjetaSincronizada({ l, usos, estado }) {
+  const [abierto, setAbierto] = useState(false);
+  const subs = [...new Set(Object.values(l?.subareas || {}))].sort((a, b) => a.localeCompare(b, "es"));
+  return (
+    <div className="ca-card" style={{ marginBottom: 10, padding: 14, borderLeft: "4px solid #0F6E56" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <button style={{ ...btn, border: "none", padding: "2px 6px" }} onClick={() => setAbierto(!abierto)} aria-label={`${abierto ? "Cerrar" : "Abrir"} listado ${NOMBRE_LISTADO_PORTAL}`}>{abierto ? "▾" : "▸"}</button>
+        <b style={{ fontSize: 15 }}>{NOMBRE_LISTADO_PORTAL}</b>
+        <span className="ca-pill ca-pill-verde">🔄 Sincronizado</span>
+        <span style={{ fontSize: 13, color: "var(--texto-suave)" }}>
+          {estado === "error" ? "No se pudo leer el Portal EO" : !l ? "Leyendo el Portal EO…" : `${l.opciones.length} estándares · ${subs.length} área${subs.length === 1 ? "" : "s"}`}
+        </span>
+        <span style={{ fontSize: 12.5, color: "var(--texto-suave)" }}>{usos.length ? `· Lo usa: ${usos.join(", ")}` : "· Ningún formulario lo usa todavía"}</span>
+      </div>
+      <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginTop: 6 }}>
+        Se actualiza solo con el Portal EO (Gestionar Estándares): cada opción es «código · nombre» y su sub área es el área del estándar. Para cambiarlo, edítalo en el Portal.
+      </div>
+      {abierto && l && (
+        <div style={{ marginTop: 8, maxHeight: 260, overflowY: "auto", border: "1px solid #EEECE6", borderRadius: 8 }}>
+          {l.opciones.map((o) => (
+            <div key={o} style={{ display: "flex", gap: 8, padding: "5px 10px", fontSize: 13, borderBottom: "1px solid #F3F1EC" }}>
+              <span style={{ flex: 1 }}>{o}</span>
+              <span style={{ color: "var(--texto-suave)" }}>{l.subareas?.[o] || "Sin área"}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function TarjetaListado({ l, usos, onGuardar, onEliminar }) {
   const [abierto, setAbierto] = useState(!l.opciones?.length);
@@ -85,7 +118,9 @@ export default function ListadosAdmin({ listados, formularios, usuario }) {
       setError(`No se pudo guardar (${e.code || e.message}).`);
     }
   }
-  const lista = listados || [];
+  const estadoPortal = useEstadoPortalEO();
+  const sincronizado = (listados || []).find((l) => l.sincronizado) || null;
+  const lista = (listados || []).filter((l) => !l.sincronizado);
   return (
     <div style={{ marginTop: 28 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
@@ -109,6 +144,7 @@ export default function ListadosAdmin({ listados, formularios, usuario }) {
       {error && <p style={{ color: "var(--rojo, #993C1D)", fontSize: 13.5 }}>{error}</p>}
       {listados === null && <p style={{ color: "var(--texto-suave)" }}>Cargando listados…</p>}
       {listados !== null && lista.length === 0 && <p style={{ color: "var(--texto-suave)", fontSize: 14 }}>Todavía no hay listados. Crea uno con «+ Nuevo listado».</p>}
+      <TarjetaSincronizada l={sincronizado} usos={usos[sincronizado?.id] || []} estado={estadoPortal} />
       {lista.map((l) => (
         <TarjetaListado
           key={l.id + l.nombre + (l.opciones || []).length}
