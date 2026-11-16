@@ -490,6 +490,18 @@ function TabGeneral({ form, cambiar }) {
       <Campo etiqueta="Descripción / a quién aplica">
         <textarea className="rp-textarea" rows={3} value={form.descripcion || ""} onChange={(e) => cambiar((f) => (f.descripcion = e.target.value))} />
       </Campo>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <Campo etiqueta="Cómo se llama cada evaluación (sigla)">
+          <input className="rp-input" style={{ width: 200 }} value={form.sigla || ""} placeholder="CdR" aria-label="Sigla de la evaluación" onChange={(e) => cambiar((f) => (f.sigla = e.target.value))} />
+        </Campo>
+        <Campo etiqueta="Qué se evalúa (palabra)">
+          <input className="rp-input" style={{ width: 200 }} value={form.objeto || ""} placeholder="rutina" aria-label="Qué se evalúa" onChange={(e) => cambiar((f) => (f.objeto = e.target.value))} />
+        </Campo>
+      </div>
+      <p style={{ fontSize: 12.5, color: "var(--texto-suave)", margin: "-6px 0 12px" }}>
+        Se usan en los textos al evaluar, ej. «Es la primera {form.sigla?.trim() || "CdR"} registrada para esta {form.objeto?.trim() || "rutina"}» o «Se revisará en la próxima {form.sigla?.trim() || "CdR"}…». Vacío = CdR / rutina.
+        El nombre del líder (ej. «Líder de la actividad») se cambia en A · Datos generales.
+      </p>
       <p style={{ fontWeight: 800, margin: "18px 0 8px" }}>Rangos del resultado</p>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
         <Campo etiqueta="Rutina efectiva desde (%)">

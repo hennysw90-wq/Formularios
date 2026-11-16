@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import BuscarOpcion from "./BuscarOpcion.jsx";
 import FotoRespaldo, { pesoFotos } from "./FotoRespaldo.jsx";
 import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, opcionesDelAlcance, numeroDePeriodo } from "./listados.js";
-import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
+import { listarEvaluacionesDesde, listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import { useAgenda, ListaAgenda, PildoraPendientes } from "./MiAgenda.jsx";
 import CumplimientoPlan from "./CumplimientoPlan.jsx";
 import ResultadosQR, { VISTA_RESULTADOS_INICIAL } from "./ResultadosQR.jsx";
-import { listarAsignaciones, proyectarFormulario, asignacionesDeFormulario, asignacionesDe } from "./asignaciones.js";
+import { listarAsignaciones, proyectarFormulario, asignacionesDeFormulario, asignacionesDe, periodoVigente, fechaLocal } from "./asignaciones.js";
+import { fechaCdR } from "./estadisticas.js";
+import { mismaPersona } from "./compromisos.js";
 import AvancePlan from "./AvancePlan.jsx";
 import logoOems from "./assets/logo-oems.png";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
@@ -35,7 +37,10 @@ function instantanea(f) {
 }
 
 // Los formularios tipo CdR (con dato «Líder») mantienen sus textos de siempre; los demás usan "evaluación".
-const nombreEval = (f) => ((f?.seccionA || []).some((c) => c.tipo === "lider") ? "CdR" : "evaluación");
+// Cómo se llama cada evaluación y lo que se evalúa: personalizable por formulario (General → Nombres).
+// Sin personalizar se mantiene lo de siempre: "CdR" y "rutina" en formularios con líder.
+const nombreEval = (f) => String(f?.sigla || "").trim() || ((f?.seccionA || []).some((c) => c.tipo === "lider") ? "CdR" : "evaluación");
+const objetoEval = (f) => String(f?.objeto || "").trim() || "rutina";
 
 const horarioDeReunion = (r) => (r && r.horaInicio ? (r.horaFin ? `${r.horaInicio} – ${r.horaFin}` : r.horaInicio) : "");
 
@@ -209,7 +214,7 @@ function opcionesEvaluador(ev, personas) {
 }
 
 /** Campo de texto con lista desplegable que se filtra al escribir. Acepta también un nombre que no esté en la lista. */
-function ComboEvaluador({ valor, opciones, onTexto, onElegir, personas, errorPersonas }) {
+function ComboEvaluador({ valor, opciones, onTexto, onElegir, personas, errorPersonas, placeholder = "Escribe para buscar tu nombre…", quien = "tu nombre" }) {
   const [abierto, setAbierto] = useState(false);
   const q = norm(valor);
   const filtradas = opciones.filter((o) => !q || norm(o.nombre).includes(q)).slice(0, 40);
@@ -221,7 +226,7 @@ function ComboEvaluador({ valor, opciones, onTexto, onElegir, personas, errorPer
         className="rp-input"
         value={valor}
         autoComplete="off"
-        placeholder="Escribe para buscar tu nombre…"
+        placeholder={placeholder}
         onFocus={() => setAbierto(true)}
         onBlur={() => setTimeout(() => setAbierto(false), 180)}
         onChange={(e) => {
@@ -247,9 +252,9 @@ function ComboEvaluador({ valor, opciones, onTexto, onElegir, personas, errorPer
         </div>
       )}
       <div style={{ fontSize: 12, marginTop: 4, color: valor && !coincide ? "var(--ambar)" : "var(--texto-suave)" }}>
-        {errorPersonas ? "No se pudo cargar la lista de asistentes de Asistencia: escribe tu nombre."
+        {errorPersonas ? `No se pudo cargar la lista de asistentes de Asistencia: escribe ${quien}.`
           : valor ? (coincide ? "✓ Está en la lista" : "No está en la lista; se guardará tal como lo escribiste.")
-          : personas === null ? "Cargando la lista de asistentes…" : "Elige tu nombre de la lista de asistentes."}
+          : personas === null ? "Cargando la lista de asistentes…" : `Elige ${quien} de la lista de asistentes, o escríbelo.`}
       </div>
     </div>
   );
@@ -735,7 +740,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
       setErroresEnvio(errores);
       return;
     }
-    if (!window.confirm("Al enviar, la CdR queda bloqueada y no se podrá modificar. ¿Enviar ahora?")) return;
+    if (!window.confirm(`Al enviar, la ${nombreEval(ev.formulario)} queda bloqueada y no se podrá modificar. ¿Enviar ahora?`)) return;
     bloqueoRef.current = true;
     clearTimeout(timerRef.current);
     setEnviando(true);
@@ -873,16 +878,32 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
     ? opcionesQueTocan({ asignacionId: yoEnAsig.asignacionId || ev.rutinaSesionId, persona: yoEnAsig, alcance: yoEnAsig.alcance, datos: datosDePregunta(campoAsig, listados), frecuencia: yoEnAsig.frecuencia, cantidad: yoEnAsig.cantidad, fecha: fechaEval })
     : [];
   const valorAsig = campoAsig ? ev.datos[campoAsig.id] || "" : "";
+  // Lo que ya evaluó en este periodo (para sugerir primero lo que le falta).
+  const [enviadasRecientes, setEnviadasRecientes] = useState(null);
+  useEffect(() => {
+    if (!porAlcance || soloLectura) return undefined;
+    return listarEvaluacionesDesde(new Date(Date.now() - 40 * 86400000).toISOString().slice(0, 10), setEnviadasRecientes, () => setEnviadasRecientes([]));
+  }, [porAlcance, soloLectura]);
+  const periodoActual = yoEnAsig ? periodoVigente(yoEnAsig.frecuencia || "semanal", fechaEval) : "";
+  const yaEvaluadas = (enviadasRecientes || [])
+    .filter((e) => e.id !== ev.id && e.estado === "enviada" && !e.anulada && e.formularioId === ev.formularioId && e.rutinaSesionId === ev.rutinaSesionId
+      && mismaPersona({ uid: e.evaluadorUid, personaId: e.evaluadorPersonaId, nombre: e.evaluadorNombre }, { uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre })
+      && (() => { const fl = fechaLocal(fechaCdR(e)); return fl && periodoVigente(yoEnAsig.frecuencia || "semanal", fl) === periodoActual; })())
+    .map((e) => e.datos?.[campoAsig.id]).filter(Boolean);
+  const proximaSugerida = tocan.find((o) => !yaEvaluadas.includes(o)) || tocan[0] || "";
   // El evaluador puede cambiar lo sugerido por otra opción de SU alcance (sub áreas / opciones asignadas).
   const delAlcance = yoEnAsig ? opcionesDelAlcance(yoEnAsig.alcance, datosDePregunta(campoAsig, listados)) : [];
   const ordenAlcance = [...tocan, ...delAlcance.filter((o) => !tocan.includes(o))];
   useEffect(() => {
-    if (!porAlcance || soloLectura) return;
-    const nuevo = delAlcance.includes(valorAsig) ? valorAsig : tocan.length === 1 ? tocan[0] : "";
+    if (!porAlcance || soloLectura || (tocan.length > 1 && enviadasRecientes === null)) return;
+    const nuevo = delAlcance.includes(valorAsig) ? valorAsig : proximaSugerida;
     const sugerido = tocan.join(" · ");
     if (nuevo !== valorAsig || (ev.asignacionSugerida || "") !== sugerido) cambiar((c) => { c.datos[campoAsig.id] = nuevo; c.asignacionSugerida = sugerido; });
-  }, [porAlcance, soloLectura, tocan.join("|"), delAlcance.join("|"), valorAsig]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [porAlcance, soloLectura, tocan.join("|"), delAlcance.join("|"), valorAsig, proximaSugerida, enviadasRecientes === null]); // eslint-disable-line react-hooks/exhaustive-deps
   const cambioSugerido = porAlcance && valorAsig && !tocan.includes(valorAsig);
+  // Asignado por listado: no hay líderes en la asignación, así que el evaluador indica quién lidera la actividad.
+  const liderLibre = !!campoAsig && esAsignacionPorValor(ev.rutinaSesionId) && lideres.length === 0;
+  const opcionesLider = (personas || []).map((p) => ({ nombre: p.nombre, grupo: "Personas (Control de Asistencia)" }));
   const etiquetaPeriodo = { diaria: "hoy", semanal: "esta semana", quincenal: "esta quincena", mensual: "este mes", unica: "en esta asignación" }[yoEnAsig?.frecuencia] || "en este periodo";
   function elegirRutina(id) {
     const r = f.rutinas.find((x) => x.sesionId === id);
@@ -922,7 +943,12 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                   {f.rutinas.map((r) => <option key={r.sesionId} value={r.sesionId}>{r.nombre}</option>)}
                 </select>
               )}
-              {c.tipo === "lider" && (
+              {c.tipo === "lider" && liderLibre && (
+                soloLectura ? <div className="rp-input" style={{ background: "var(--fondo)" }}>{ev.lider || "—"}</div>
+                : <ComboEvaluador valor={ev.lider || ""} opciones={opcionesLider} personas={personas} errorPersonas={errorPersonas} placeholder="Escribe para buscar el nombre…" quien="el nombre"
+                    onTexto={(t) => cambiar((x) => { x.lider = t; })} onElegir={(o) => cambiar((x) => { x.lider = o.nombre; })} />
+              )}
+              {c.tipo === "lider" && !liderLibre && (
                 !ev.rutinaSesionId ? <input className="rp-input" disabled value="Primero elige la reunión" readOnly />
                 : lideres.length === 1 ? <OpcionesLider lideres={lideres} valor={lideres[0]} area={rutina.area} />
                 : lideresComoTarjetas ? <OpcionesLider lideres={lideres} valor={ev.lider} area={rutina.area} onElegir={(l) => cambiar((x) => { x.lider = l; })} />
@@ -965,7 +991,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                           {tocan.length === 1 && <button type="button" style={{ border: "none", background: "none", padding: 0, color: "var(--verde-oscuro, #0F6E56)", fontWeight: 700, cursor: "pointer", fontSize: 12, textDecoration: "underline" }} onClick={() => cambiar((x) => (x.datos[c.id] = tocan[0]))}>Volver al sugerido</button>}
                         </>
                       ) : (
-                        <>Te {tocan.length === 1 ? "tocó" : "tocaron"} al azar {etiquetaPeriodo}{tocan.length > 1 ? `: ${tocan.join(" · ")}` : ""}. Puedes cambiarlo por otro de tu alcance{delAlcance.length > 1 ? ` (${delAlcance.length})` : ""}.</>
+                        <>Te {tocan.length === 1 ? "tocó" : "tocaron"} al azar {etiquetaPeriodo}{tocan.length > 1 ? `: ${tocan.map((o) => (yaEvaluadas.includes(o) ? `${o} (✓ hecho)` : o)).join(" · ")}` : ""}. Puedes cambiarlo por otro de tu alcance{delAlcance.length > 1 ? ` (${delAlcance.length})` : ""}.</>
                       )}
                     </div>
                   </div>
@@ -1020,9 +1046,9 @@ function UltimaDelLider({ ev }) {
   const comp = u?.feedback?.compromiso || {};
   return (
     <div className="ca-card" style={{ marginTop: 14, borderLeft: "4px solid var(--ambar, #B5820A)" }}>
-      <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Última CdR de {ev.lider}</p>
+      <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Última {nombreEval(ev.formulario)} de {ev.lider}</p>
       {estado.cargando && <p style={{ ...ayuda, margin: 0 }}>Buscando…</p>}
-      {!estado.cargando && !u && <p style={{ ...ayuda, margin: 0 }}>Es la primera CdR de este líder con este formulario: no hay oportunidades ni compromisos anteriores.</p>}
+      {!estado.cargando && !u && <p style={{ ...ayuda, margin: 0 }}>Es la primera {nombreEval(ev.formulario)} de este líder con este formulario: no hay oportunidades ni compromisos anteriores.</p>}
       {!estado.cargando && u && (
         <>
           <p style={{ ...ayuda, margin: "0 0 10px" }}>
@@ -1350,7 +1376,7 @@ function PasoResultado({ ev, cambiar }) {
       <NotasDeTerreno ev={ev} />
 
       <p style={{ ...ayuda, margin: "0 0 12px" }}>
-        <b>El feedback es obligatorio para enviar la CdR:</b> cada fortaleza y oportunidad necesita {fb.situacion ? "criterio, situación, comportamiento e impacto" : "criterio, comportamiento e impacto"}. El compromiso con el líder va en el paso siguiente.
+        <b>El feedback es obligatorio para enviar la {nombreEval(ev.formulario)}:</b> cada fortaleza y oportunidad necesita {fb.situacion ? "criterio, situación, comportamiento e impacto" : "criterio, comportamiento e impacto"}. El compromiso con el líder va en el paso siguiente.
       </p>
 
       {["fortalezas", "oportunidades"].map((tipo) => fb[tipo] && (
@@ -1405,7 +1431,7 @@ function PasoCompromiso({ ev, cambiar, anterior }) {
               {casilla("Comentario (opcional)", "¿Qué se vio respecto de ese compromiso?", "seguimiento", ev.feedback.seguimientoComentario, (v) => cambiar((c) => (c.feedback.seguimientoComentario = v)))}
             </>
           ) : (
-            <p style={{ ...ayuda, margin: 0 }}>{ev.rutinaSesionId ? (nombreEval(ev.formulario) === "CdR" ? "Es la primera CdR registrada para esta rutina: no hay compromiso anterior que revisar." : "Es la primera evaluación registrada: no hay compromiso anterior que revisar.") : "Elige la rutina en el paso 1 para ver si hay un compromiso anterior."}</p>
+            <p style={{ ...ayuda, margin: 0 }}>{ev.rutinaSesionId ? (nombreEval(ev.formulario) !== "evaluación" ? `Es la primera ${nombreEval(ev.formulario)} registrada para esta ${objetoEval(ev.formulario)}: no hay compromiso anterior que revisar.` : "Es la primera evaluación registrada: no hay compromiso anterior que revisar.") : `Elige la ${objetoEval(ev.formulario)} en el paso 1 para ver si hay un compromiso anterior.`}</p>
           )}
         </div>
       )}
@@ -1413,7 +1439,7 @@ function PasoCompromiso({ ev, cambiar, anterior }) {
       {fb.compromisoMejora && (
         <div className="ca-card">
           <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Compromiso de mejora acordado con el líder <span style={{ color: "var(--rojo)", fontWeight: 700, fontSize: 12.5 }}>· obligatorio</span></p>
-          <p style={{ ...ayuda, margin: "0 0 10px" }}>Acción concreta, quién la hace y para cuándo. Se revisará en la próxima CdR de esta rutina.</p>
+          <p style={{ ...ayuda, margin: "0 0 10px" }}>Acción concreta, quién la hace y para cuándo. Se revisará en la próxima {nombreEval(ev.formulario)} de esta {objetoEval(ev.formulario)}.</p>
           {casilla("Acción", "¿Qué se compromete a hacer el líder?", "compromiso", ev.feedback.compromiso.accion, (v) => cambiar((c) => (c.feedback.compromiso.accion = v)))}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 240px" }}>
@@ -1485,7 +1511,7 @@ function PasoCierre({ ev, cambiar, anterior, errores, onEnviar, enviando }) {
         El líder tomó conocimiento del feedback entregado
       </label>
       {errores.length > 0 && <ul style={{ color: "var(--rojo)", fontSize: 13.5, paddingLeft: 20 }}>{errores.map((e) => <li key={e}>{e}</li>)}</ul>}
-      <button style={btnPrim} disabled={enviando} onClick={onEnviar}>{enviando ? "Enviando…" : "Enviar y bloquear la CdR"}</button>
+      <button style={btnPrim} disabled={enviando} onClick={onEnviar}>{enviando ? "Enviando…" : `Enviar y bloquear la ${nombreEval(ev.formulario)}`}</button>
       <p style={{ ...ayuda, margin: "8px 0 0" }}>Una vez enviada no se puede modificar.</p>
     </div>
   );
@@ -1510,7 +1536,7 @@ function ResumenEvaluacion({ ev, ocultarEvaluador = false }) {
           <span className={`ca-pill ${CLASE_RESULTADO[r.clasificacion]}`} style={{ fontSize: 14 }}>{ETIQUETA_CLASIFICACION[r.clasificacion]}</span>
           {r.criticosEnCero?.length > 0 && <span className="ca-pill ca-pill-rojo">Crítico en 0: {r.criticosEnCero.join(", ")}</span>}
         </div>
-        <p style={{ ...ayuda, margin: "10px 0 0" }}>Esta CdR fue enviada y está bloqueada.{ev.liderTomoConocimiento ? " El líder tomó conocimiento del feedback." : ""}</p>
+        <p style={{ ...ayuda, margin: "10px 0 0" }}>Esta {nombreEval(ev.formulario)} fue enviada y está bloqueada.{ev.liderTomoConocimiento ? " El líder tomó conocimiento del feedback." : ""}</p>
       </div>
 
       <Titulo t="Nota por bloque" />
@@ -1571,7 +1597,7 @@ function ResumenEvaluacion({ ev, ocultarEvaluador = false }) {
         )}
         {ev.compromisoAnterior && (
           <div className="ca-card">
-            <div style={{ fontWeight: 800, marginBottom: 6 }}>Seguimiento a la CdR anterior: {{ cumplido: "Cumplido", parcial: "Parcial", no: "No cumplido" }[ev.feedback.seguimiento] || "sin registrar"}</div>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>Seguimiento a la {nombreEval(ev.formulario)} anterior: {{ cumplido: "Cumplido", parcial: "Parcial", no: "No cumplido" }[ev.feedback.seguimiento] || "sin registrar"}</div>
             <div style={{ fontSize: 13.5 }}>{ev.compromisoAnterior.accion}{ev.feedback.seguimientoComentario ? ` — ${ev.feedback.seguimientoComentario}` : ""}</div>
           </div>
         )}
