@@ -1,3 +1,6 @@
+import ListadosAdmin from "./ListadosAdmin.jsx";
+import { useListados } from "./listados.js";
+import { listarFormularios } from "./formularios.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   listarUsuarios,
@@ -315,6 +318,10 @@ function nombresParecidos(nombre, listaUsuarios, excluirUid) {
 }
 
 export default function Administracion({ usuarioActual }) {
+  // Listados reutilizables de los formularios (y los formularios, para saber cuál usa cada listado).
+  const listados = useListados();
+  const [formularios, setFormularios] = useState([]);
+  useEffect(() => listarFormularios(setFormularios, () => {}), []);
   const [usuarios, setUsuarios] = useState([]);
   const [areas, setAreas] = useState([]);
 
@@ -886,6 +893,8 @@ export default function Administracion({ usuarioActual }) {
         Al renombrar un área, los RdPs y usuarios que ya tenían asignado el nombre anterior no se
         actualizan solos (el nombre queda guardado tal cual en cada uno).
       </p>
+
+      <ListadosAdmin listados={listados} formularios={formularios} usuario={usuarioActual} />
     </div>
   );
 }

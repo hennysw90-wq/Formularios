@@ -4,7 +4,6 @@ import { listarFormularios, guardarFormulario, eliminarFormulario, nuevoId, cont
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { PLANTILLA_PAUTA_V3, formularioEnBlanco } from "./plantillas.js";
 import ModalQR from "./ModalQR.jsx";
-import ListadosAdmin from "./ListadosAdmin.jsx";
 import { useListados, opcionesDePregunta } from "./listados.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { contarEvaluacionesDeFormulario } from "./evaluaciones.js";
@@ -60,7 +59,6 @@ const fmt = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
 
 export default function Formularios({ usuario }) {
   const [lista, setLista] = useState(null);
-  const listados = useListados();
   const [error, setError] = useState("");
   const [usuarios, setUsuarios] = useState([]);
   const [rutinasAsistencia, setRutinasAsistencia] = useState(null);
@@ -246,8 +244,6 @@ export default function Formularios({ usuario }) {
       )}
 
       {qrDe && <ModalQR form={qrDe} onCerrar={() => setQrDe(null)} />}
-
-      <ListadosAdmin listados={listados} formularios={lista || []} usuario={usuario} />
 
       {modalNuevo && (
         <Modal titulo="Nuevo formulario" onCerrar={() => setModalNuevo(false)}>
@@ -582,7 +578,7 @@ function TabA({ form, cambiar, enUso, listados }) {
                 {(listados || []).map((l) => <option key={l.id} value={l.id}>Listado: {l.nombre} ({(l.opciones || []).length})</option>)}
                 {c.listadoId && !(listados || []).some((l) => l.id === c.listadoId) && <option value={c.listadoId}>Listado no encontrado (usa la copia guardada)</option>}
               </select>
-              {c.listadoId && <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>{opcionesDePregunta(c, listados).length} opciones · se editan en Formularios → Listados.</div>}
+              {c.listadoId && <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>{opcionesDePregunta(c, listados).length} opciones · se editan en Administración → Listados.</div>}
             </div>
           )}
           {c.tipo === "busqueda" && !c.listadoId && (
