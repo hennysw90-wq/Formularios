@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import BuscarOpcion from "./BuscarOpcion.jsx";
-import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, PREFIJO_VALOR } from "./listados.js";
+import AlcanceEvaluador from "./AlcanceEvaluador.jsx";
+import { useListados, datosDePregunta, campoAsignable, esAsignacionPorValor, PREFIJO_VALOR, textoAlcance } from "./listados.js";
 import { APP_ACTUAL_ID } from "./auth.js";
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
@@ -199,7 +199,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNu
                   <div key={a.id} className="ca-card" style={{ padding: "12px 14px" }}>
                     <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
                       <div style={{ flex: "1 1 280px", minWidth: 0 }}>
-                        <div style={{ fontWeight: 800 }}>{a.campoAsignacion ? <span style={{ fontWeight: 600, color: "var(--texto-suave)" }}>{a.campoAsignacion}: </span> : null}{a.reunionNombre}{a.area ? <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · {a.area}</span> : ""}</div>
+                        <div style={{ fontWeight: 800 }}>{a.campoAsignacion && !String(a.reunionId).startsWith(PREFIJO_VALOR + "@") ? <span style={{ fontWeight: 600, color: "var(--texto-suave)" }}>{a.campoAsignacion}: </span> : null}{a.reunionNombre}{a.area ? <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · {a.area}</span> : ""}</div>
                         <div style={{ fontSize: 13, color: "var(--texto-suave)", marginTop: 2 }}>
                           Líderes: {(a.lideres || []).length
                             ? a.lideres.map((l, i) => <span key={l}>{i ? ", " : ""}{l}{directorio.length && !tieneUsuario(l) ? <b style={{ color: "#993c1d" }}> (sin usuario)</b> : ""}</span>)
@@ -208,7 +208,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNu
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                           {(a.personas || []).map((p) => (
                             <span key={p.uid || p.nombre} className="ca-chip" style={{ fontWeight: 600 }} title={p.desde ? `Se controla desde ${p.desde}` : ""}>
-                              {p.nombre} · {etiquetaCadencia(p.cantidad, p.frecuencia, p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}
+                              {p.nombre} · {etiquetaCadencia(p.cantidad, p.frecuencia, p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{p.alcance ? ` · ${textoAlcance(p.alcance)}` : ""}
                             </span>
                           ))}
                           {!(a.personas || []).length && <span style={{ fontSize: 13, color: "var(--rojo)" }}>Sin evaluadores</span>}
@@ -234,7 +234,11 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNu
 /* ------------------------------------------------------------------ */
 
 function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCancelar, onGuardada }) {
-  const [a, setA] = useState(inicial);
+  const [a, setA] = useState(() =>
+    esAsignacionPorValor(inicial.reunionId) && !String(inicial.reunionId).startsWith(PREFIJO_VALOR + "@")
+      ? { ...inicial, personas: (inicial.personas || []).map((p) => ({ ...p, alcance: p.alcance || { opciones: [inicial.reunionNombre], subareas: [] } })) }
+      : inicial
+  );
   const [buscaLider, setBuscaLider] = useState("");
   const [busqueda, setBusqueda] = useState("");
   const [error, setError] = useState("");
@@ -259,9 +263,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     const cambiaTipo = !!campoAsignable(f) !== esAsignacionPorValor(a.reunionId);
     cambiar({ formularioId: id, formularioNombre: f ? f.nombre : "", ...(cambiaTipo ? { reunionId: "", reunionNombre: "", area: "", horaInicio: "", horaFin: "" } : {}) });
   }
-  function elegirValor(v) {
-    cambiar(v ? { reunionId: PREFIJO_VALOR + v, reunionNombre: v, area: "", horaInicio: "", horaFin: "", campoAsignacion: campo?.etiqueta || "" } : { reunionId: "", reunionNombre: "" });
-  }
+  const datosCampo = campo ? datosDePregunta(campo, listados) : null;
   function elegirReunion(id) {
     const r = (reuniones || []).find((x) => x.id === id);
     const parcial = { reunionId: id, reunionNombre: r ? r.nombre : "", area: r?.area || "", horaInicio: r?.horaInicio || "", horaFin: r?.horaFin || "" };
@@ -282,7 +284,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     cambiar({
       personas: existe
         ? a.personas.filter((p) => !esLaPersona(p, u))
-        : [...(a.personas || []), { uid: u.uid, nombre: u.nombreUsuario, cantidad: 1, frecuencia: "semanal", desde: "" }],
+        : [...(a.personas || []), { uid: u.uid, nombre: u.nombreUsuario, cantidad: 1, frecuencia: "semanal", desde: "", ...(campo ? { alcance: { opciones: [], subareas: [] } } : {}) }],
     });
     setBusqueda("");
   }
@@ -292,11 +294,15 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
 
   async function guardar() {
     if (!a.formularioId) return setError("Elige el formulario.");
-    if (!a.reunionId) return setError(campo ? `Elige ${campo.etiqueta}.` : "Elige la reunión.");
+    if (!campo && !a.reunionId) return setError("Elige la reunión.");
     if (!campo && !(a.lideres || []).length) return setError("Agrega al menos un líder a evaluar.");
     const sinUsuario = (a.lideres || []).filter((n) => !usuarioDe(n));
     if (sinUsuario.length) return setError(`Estos líderes no tienen usuario: ${sinUsuario.join(", ")}. Quítalos o créales usuario en Administración.`);
     if (!(a.personas || []).length) return setError("Agrega al menos un evaluador.");
+    if (campo) {
+      const sinAlcance = a.personas.filter((p) => !(p.alcance?.opciones || []).length && !(p.alcance?.subareas || []).length);
+      if (sinAlcance.length) return setError(`Elige qué ${campo.etiqueta.toLowerCase()} le tocan a: ${sinAlcance.map((p) => p.nombre).join(", ")}.`);
+    }
     for (const p of a.personas) {
       if (!(Number(p.cantidad) >= 1)) return setError(`Pon una cantidad válida para ${p.nombre}.`);
       if (p.frecuencia === "unica") {
@@ -307,8 +313,10 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     setGuardando(true);
     try {
       const { esNueva, ...datos } = a;
-      await guardarAsignacion({ ...datos, creado: datos.creado || new Date().toISOString() });
-      onGuardada(esNueva ? `Asignación creada: ${a.reunionNombre}.` : "Asignación guardada.");
+      // Asignación por listado: una "reunión" propia de esta asignación; el valor sale del alcance de cada persona.
+      const porListado = campo ? { reunionId: `${PREFIJO_VALOR}@${datos.id}`, reunionNombre: `${campo.etiqueta} (asignado por evaluador)`, area: "", horaInicio: "", horaFin: "", campoAsignacion: campo.etiqueta } : {};
+      await guardarAsignacion({ ...datos, ...porListado, creado: datos.creado || new Date().toISOString() });
+      onGuardada(esNueva ? `Asignación creada: ${porListado.reunionNombre || a.reunionNombre}.` : "Asignación guardada.");
     } catch (e) {
       setError(`No se pudo guardar (${e.code || e.message}).`);
       setGuardando(false);
@@ -334,8 +342,10 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
         </div>
         {campo ? (
           <div>
-            <label className="ca-label">{campo.etiqueta} *</label>
-            <BuscarOpcion opciones={opcionesDePregunta(campo, listados)} valor={esAsignacionPorValor(a.reunionId) ? a.reunionNombre : ""} etiqueta={campo.etiqueta} onCambiar={elegirValor} />
+            <label className="ca-label">{campo.etiqueta}</label>
+            <p style={{ ...ayuda, margin: "4px 0 0", fontSize: 12.5 }}>
+              Se asigna por evaluador: a cada uno le eliges abajo qué {campo.etiqueta.toLowerCase()} o sub áreas le tocan. Cada periodo le toca uno al azar dentro de ese alcance (rota hasta pasar por todos).
+            </p>
           </div>
         ) : (
         <div>
@@ -413,6 +423,9 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
                   </div>
                 )}
               </div>
+              {campo && (
+                <AlcanceEvaluador etiqueta={campo.etiqueta} nombre={p.nombre} datos={datosCampo} alcance={p.alcance} onCambiar={(al) => cambiarPersona(p.uid, "alcance", al)} />
+              )}
               <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>
                 {etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}
                 {p.frecuencia === "unica" && <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · solo cuentan las CdR hechas {p.desde ? `entre el ${p.desde.split("-").reverse().join("-")}` : "desde que se crea la asignación"}{p.hasta ? ` y el ${p.hasta.split("-").reverse().join("-")}` : " y la fecha de plazo"}</span>}

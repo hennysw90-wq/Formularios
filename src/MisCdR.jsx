@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import BuscarOpcion from "./BuscarOpcion.jsx";
-import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor } from "./listados.js";
+import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, numeroDePeriodo } from "./listados.js";
 import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import { useAgenda, ListaAgenda, PildoraPendientes } from "./MiAgenda.jsx";
@@ -46,7 +46,8 @@ function aplicarRutina(c, rutina) {
   const campo = campoAsignable(c.formulario);
   if (campo) {
     c.datos = c.datos || {};
-    c.datos[campo.id] = rutina && esAsignacionPorValor(rutina.sesionId) ? rutina.nombre : "";
+    // Por alcance (lst:@…), el valor depende del evaluador y del periodo: lo fija PasoDatos.
+    c.datos[campo.id] = rutina && esAsignacionPorValor(rutina.sesionId) && !esAsignacionPorAlcance(rutina.sesionId) ? rutina.nombre : "";
   }
   const l = rutina ? rutina.lideres || [] : [];
   c.lider = l.length === 1 ? l[0] : "";
@@ -851,6 +852,23 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
   const detalleReunion = [horarioDeReunion(rutina), rutina?.area].filter(Boolean).join(" · ");
 
   const campoAsig = campoAsignable(f);
+  // Asignado por evaluador: cada periodo le toca al azar una opción de su alcance (fija dentro del periodo).
+  const porAlcance = !!campoAsig && esAsignacionPorAlcance(ev.rutinaSesionId);
+  const yoEnAsig = porAlcance ? evaluadoresReunion.find((x) => (ev.evaluadorUid && x.uid === ev.evaluadorUid) || norm(x.nombre) === norm(ev.evaluadorNombre)) : null;
+  const campoFecha = f.seccionA.find((c) => c.tipo === "fecha" && !/anterior/i.test(c.etiqueta));
+  const fechaTxt = (campoFecha && ev.datos[campoFecha.id]) || hoyISO();
+  const [fy, fm, fd] = String(fechaTxt).split("-").map(Number);
+  const fechaEval = fy && fm && fd ? new Date(fy, fm - 1, fd) : new Date();
+  const tocan = yoEnAsig
+    ? opcionesQueTocan({ asignacionId: yoEnAsig.asignacionId || ev.rutinaSesionId, persona: yoEnAsig, alcance: yoEnAsig.alcance, datos: datosDePregunta(campoAsig, listados), frecuencia: yoEnAsig.frecuencia, cantidad: yoEnAsig.cantidad, fecha: fechaEval })
+    : [];
+  const valorAsig = campoAsig ? ev.datos[campoAsig.id] || "" : "";
+  useEffect(() => {
+    if (!porAlcance || soloLectura) return;
+    const nuevo = tocan.length === 1 ? tocan[0] : tocan.includes(valorAsig) ? valorAsig : "";
+    if (nuevo !== valorAsig) cambiar((c) => { c.datos[campoAsig.id] = nuevo; });
+  }, [porAlcance, soloLectura, tocan.join("|"), valorAsig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const etiquetaPeriodo = { diaria: "hoy", semanal: "esta semana", quincenal: "esta quincena", mensual: "este mes", unica: "en esta asignación" }[yoEnAsig?.frecuencia] || "en este periodo";
   function elegirRutina(id) {
     const r = f.rutinas.find((x) => x.sesionId === id);
     cambiar((c) => aplicarRutina(c, r || null));
@@ -861,7 +879,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
       {ev.rutinaSesionId && (
         <div className="cdr-reunion">
           <span className="cdr-reunion-etq">{campoAsig ? `${campoAsig.etiqueta} ${ev.rutinaBloqueada ? "asignado" : "elegido"}` : ev.rutinaBloqueada ? "Reunión asignada" : "Reunión elegida"}</span>
-          <span className="cdr-reunion-nom">{ev.rutinaNombre}</span>
+          <span className="cdr-reunion-nom">{porAlcance ? valorAsig || (yoEnAsig ? "—" : "Se define al indicar quién evalúa") : ev.rutinaNombre}</span>
           {detalleReunion && <span className="cdr-reunion-sub">{detalleReunion}</span>}
         </div>
       )}
@@ -906,7 +924,26 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
               {c.tipo === "numero" && <input className="rp-input" type="number" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "fecha" && <input className="rp-input" type="date" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "hora" && <input className="rp-input" type="time" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
-              {c.asignable && c.id === campoAsig?.id ? (
+              {c.asignable && c.id === campoAsig?.id && porAlcance && !soloLectura ? (
+                !yoEnAsig ? (
+                  <input className="rp-input" disabled readOnly value="Primero indica quién evalúa" />
+                ) : tocan.length === 0 ? (
+                  <p style={{ ...ayuda, margin: 0, color: "var(--rojo)" }}>No tienes {c.etiqueta.toLowerCase()} asignados. Pídele a un administrador que revise tu asignación.</p>
+                ) : tocan.length === 1 ? (
+                  <div>
+                    <div className="rp-input" style={{ background: "#E1F5EE", fontWeight: 700 }}>{tocan[0]}</div>
+                    <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 3 }}>Te tocó al azar {etiquetaPeriodo}, dentro de tu alcance.</div>
+                  </div>
+                ) : (
+                  <div>
+                    <select className="rp-select" value={valorAsig} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} aria-label={`Elegir ${c.etiqueta}`}>
+                      <option value="">¿Cuál vas a evaluar ahora?</option>
+                      {tocan.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 3 }}>Te tocaron al azar {etiquetaPeriodo}: {tocan.join(" · ")}.</div>
+                  </div>
+                )
+              ) : c.asignable && c.id === campoAsig?.id ? (
                 ev.rutinaBloqueada || soloLectura ? (
                   <div className="rp-input" style={{ background: "#E1F5EE", fontWeight: 700 }}>{ev.datos[c.id] || "—"}</div>
                 ) : (

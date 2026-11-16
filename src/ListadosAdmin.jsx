@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { guardarListados, usosDeListados } from "./listados.js";
+import { guardarListados, usosDeListados, lineasDeListado, parsearLineasListado } from "./listados.js";
 import { nuevoId } from "./formularios.js";
 
 // Formularios → Listados: listas reutilizables (ej. Estándares, Equipos) para las preguntas "Lista con búsqueda" y
@@ -11,15 +11,16 @@ const btnPrim = { ...btn, background: "var(--verde, #009899)", borderColor: "var
 function TarjetaListado({ l, usos, onGuardar, onEliminar }) {
   const [abierto, setAbierto] = useState(!l.opciones?.length);
   const [nombre, setNombre] = useState(l.nombre);
-  const [texto, setTexto] = useState((l.opciones || []).join("\n"));
+  const [texto, setTexto] = useState(lineasDeListado(l).join("\n"));
   const [trabajando, setTrabajando] = useState(false);
-  const opciones = [...new Set(texto.split(/\r?\n/).map((s) => s.trim()).filter(Boolean))];
-  const cambiado = nombre.trim() !== l.nombre || opciones.join("\n") !== (l.opciones || []).join("\n");
+  const { opciones, subareas } = parsearLineasListado(texto);
+  const cambiado = nombre.trim() !== l.nombre || lineasDeListado({ opciones, subareas }).join("\n") !== lineasDeListado(l).join("\n");
+  const nSub = new Set(Object.values(subareas)).size;
   async function guardar() {
     if (!nombre.trim()) return window.alert("El listado necesita un nombre.");
     setTrabajando(true);
     try {
-      await onGuardar({ ...l, nombre: nombre.trim(), opciones });
+      await onGuardar({ ...l, nombre: nombre.trim(), opciones, subareas });
     } finally {
       setTrabajando(false);
     }
@@ -29,7 +30,7 @@ function TarjetaListado({ l, usos, onGuardar, onEliminar }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <button style={{ ...btn, border: "none", padding: "2px 6px" }} onClick={() => setAbierto(!abierto)} aria-label={`${abierto ? "Cerrar" : "Abrir"} listado ${l.nombre}`}>{abierto ? "▾" : "▸"}</button>
         <input className="rp-input" style={{ maxWidth: 260, fontWeight: 700 }} value={nombre} onChange={(e) => setNombre(e.target.value)} aria-label={`Nombre del listado ${l.nombre}`} placeholder="Nombre del listado" />
-        <span style={{ fontSize: 13, color: "var(--texto-suave)" }}>{opciones.length} opciones</span>
+        <span style={{ fontSize: 13, color: "var(--texto-suave)" }}>{opciones.length} opciones{nSub ? ` · ${nSub} sub área${nSub === 1 ? "" : "s"}` : ""}</span>
         <span style={{ fontSize: 12.5, color: "var(--texto-suave)" }}>{usos.length ? `· Lo usa: ${usos.join(", ")}` : "· Ningún formulario lo usa todavía"}</span>
         <span style={{ flex: 1 }} />
         {cambiado && <button style={btnPrim} disabled={trabajando} onClick={guardar}>{trabajando ? "Guardando…" : "Guardar listado"}</button>}
@@ -52,9 +53,20 @@ function TarjetaListado({ l, usos, onGuardar, onEliminar }) {
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             aria-label={`Opciones del listado ${l.nombre}`}
-            placeholder={"Una opción por línea. Puedes pegar una lista larga (por ejemplo desde Excel)."}
+            placeholder={"Una opción por línea. Para darle sub área, agrégala después de una barra:\nEST-01 Bloqueo y etiquetado | Eléctrica\nEST-02 Trabajo en altura | Mecánica"}
           />
-          <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>Una opción por línea; las repetidas y las líneas vacías se quitan solas.</div>
+          <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>
+            Una opción por línea; las repetidas y las líneas vacías se quitan solas. Sub área (opcional): después de « | », ej. «EST-01 Bloqueo | Eléctrica».
+            En el Plan de evaluadores se puede asignar a cada evaluador una opción, una sub área completa o varias.
+          </div>
+          {nSub > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+              {[...new Set(Object.values(subareas))].sort((a, b) => a.localeCompare(b, "es")).map((s) => (
+                <span key={s} className="ca-chip" style={{ fontSize: 12 }}>{s} · {Object.values(subareas).filter((x) => x === s).length}</span>
+              ))}
+              {opciones.some((o) => !subareas[o]) && <span className="ca-chip" style={{ fontSize: 12, opacity: 0.7 }}>Sin sub área · {opciones.filter((o) => !subareas[o]).length}</span>}
+            </div>
+          )}
         </div>
       )}
     </div>

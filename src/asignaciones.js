@@ -222,6 +222,8 @@ export async function guardarAsignacion(a) {
       frecuencia: p.frecuencia || "semanal",
       desde: p.desde || "",
       hasta: (p.frecuencia === "unica" && p.hasta) || "",
+      // Formularios asignados por listado: qué opciones / sub áreas le tocan a esta persona.
+      ...(p.alcance ? { alcance: { opciones: p.alcance.opciones || [], subareas: p.alcance.subareas || [] } } : {}),
     })),
     lideres: (resto.lideres || []).map((l) => String(l).trim()).filter(Boolean),
     actualizado: new Date().toISOString(),
@@ -277,7 +279,7 @@ export function proyectarFormulario(form, asignaciones, usuario = null) {
       if (!r.lideres.includes(l)) r.lideres.push(l);
     });
     (a.personas || []).forEach((p) => {
-      if (!r.evaluadores.some((x) => esLaPersona(x, p))) r.evaluadores.push({ uid: p.uid || "", nombre: p.nombre || "" });
+      if (!r.evaluadores.some((x) => esLaPersona(x, p))) r.evaluadores.push({ uid: p.uid || "", nombre: p.nombre || "", ...(p.alcance ? { alcance: p.alcance, cantidad: p.cantidad || 1, frecuencia: p.frecuencia || "semanal", asignacionId: a.id } : {}) });
     });
     rutinas.set(a.reunionId, r);
   });

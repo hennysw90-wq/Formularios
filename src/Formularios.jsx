@@ -398,7 +398,10 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, formularios = [], on
       f.actualizado = new Date().toISOString();
       // Si la pregunta usa un listado, se guarda además una copia de sus opciones (respaldo si el listado se borra
       // o si el formulario se exporta a otro ambiente).
-      f.seccionA.forEach((c) => (c.opciones = (c.listadoId ? opcionesDePregunta(c, listados) : c.opciones || []).filter(Boolean)));
+      f.seccionA.forEach((c) => {
+        c.opciones = (c.listadoId ? opcionesDePregunta(c, listados) : c.opciones || []).filter(Boolean);
+        if (c.listadoId) c.subareas = (listados || []).find((l) => l.id === c.listadoId)?.subareas || c.subareas || {};
+      });
       f.seccionB.puntos = f.seccionB.puntos.filter((p) => (p.texto || "").trim());
       await guardarFormulario(f);
       setForm(f);
