@@ -1,0 +1,10 @@
+name: tmp probar borrado
+on:
+  push:
+    branches: [tmp-probar-borrado]
+jobs:
+  p:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tmpp/p.py
