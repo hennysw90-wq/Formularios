@@ -9,6 +9,8 @@ import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
 import { FILTROS_VACIOS, filtrar, ordenar, opciones, kpis, distribucion, tendencia, promedioPor, porBloque, porCriterio, compromisos, cobertura, rangoPreset, aCSV, hoyISO, fechaCdR } from "./estadisticas.js";
 import { referenciaEval, siglaDe } from "./referencia.js";
+import { useListados, campoAsignable, datosDePregunta, opcionesDelAlcance } from "./listados.js";
+import { tramosDe } from "./asignaciones.js";
 
 const fmt = (n) => (n === null || n === undefined ? "—" : String(Math.round(n * 10) / 10).replace(".", ","));
 const fechaCorta = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" }) : "—");
@@ -75,7 +77,26 @@ export default function Estadisticas({ usuario }) {
     return [...m.values()].sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
   }, [evals, asignaciones, formularios]);
   // Las reuniones y los líderes de cada formulario salen de sus asignaciones (para la cobertura por reunión).
-  const formulariosConAsignaciones = useMemo(() => formularios.map((f) => proyectarFormulario(f, asignaciones)), [formularios, asignaciones]);
+  const listados = useListados();
+  const formulariosConAsignaciones = useMemo(
+    () =>
+      formularios
+        .filter((f) => !formSel || f.id === formSel)
+        .map((f) => {
+          const p = proyectarFormulario(f, asignaciones);
+          const campo = campoAsignable(f);
+          if (!campo) return p;
+          // Formularios por listado: la cobertura va por estándar (los de su alcance), no por la asignación «Listado…».
+          const datos = datosDePregunta(campo, listados || []);
+          const ops = new Set();
+          asignaciones
+            .filter((a) => a.formularioId === f.id && a.activa !== false)
+            .forEach((a) => tramosDe(a).flatMap((t) => t.personas || []).forEach((pe) => opcionesDelAlcance(pe.alcance || a.planComun?.alcance, datos).forEach((o) => ops.add(o))));
+          const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+          return { ...p, rutinas: [...ops].map((o) => ({ sesionId: `val:${norm(o)}`, nombre: o, lideres: [] })) };
+        }),
+    [formularios, asignaciones, formSel, listados]
+  );
   // Las listas de filtros no ofrecen rutinas, líderes ni evaluadores que solo existen en CdR anuladas (a menos que se pidan).
   const opts = useMemo(() => opciones(todas.filter((e) => filtros.verAnuladas || !e.anulada)), [todas, filtros.verAnuladas]);
   const filtradas = useMemo(() => filtrar(todas, filtros), [todas, filtros]); // registros: incluye anuladas si se pide
@@ -406,7 +427,7 @@ function Analisis({ T, lista, todas, formularios, umbrales }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
         <Kpi titulo={`${T.plural.replace(/^./, (x) => x.toUpperCase())} realizadas`} valor={k.n} sub={`${k.rutinas} ${T.objeto.toLowerCase()}(s) · ${k.lideres} ${T.receptor.toLowerCase()}(s)`} />
         <Kpi titulo="Índice promedio" valor={`${fmt(k.promedio)}%`} color={colorDe(k.promedio, umbrales)} />
-        <Kpi titulo="Rutinas efectivas" valor={`${fmt(k.pctEfectiva)}%`} sub={`≥ ${umbrales.efectiva}% y sin crítico en 0`} />
+        <Kpi titulo={`${T.plural.replace(/^./, (x) => x.toUpperCase())} efectivas`} valor={`${fmt(k.pctEfectiva)}%`} sub={`≥ ${umbrales.efectiva}% y sin crítico en 0`} />
         <Kpi titulo="Con crítico en 0" valor={`${fmt(k.pctCritico)}%`} color={k.pctCritico > 0 ? COLOR.malo : undefined} />
       </div>
 

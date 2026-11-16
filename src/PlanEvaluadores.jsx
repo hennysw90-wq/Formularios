@@ -149,7 +149,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
 
       {!editando && vistaActual === "asignaciones" && (
         <ListaAsignaciones
-          asignaciones={asignaciones}
+          asignaciones={asignaciones === null ? null : lista}
           formPorId={formPorId}
           onEditar={(a) => { setAviso({ tipo: "", texto: "" }); setEditando({ ...JSON.parse(JSON.stringify(a)), esNueva: false }); }}
           onEliminar={borrar}
@@ -171,7 +171,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
       )}
 
       {!editando && vistaActual === "cumplimiento" && (
-        <Cumplimiento asignaciones={asignaciones} todas={todas} directorio={directorio} cargandoDirectorio={!Array.isArray(usuarios) && !errorUsuarios} onIrAsignaciones={() => setVista("asignaciones")} />
+        <Cumplimiento asignaciones={asignaciones === null ? null : lista} soloConAsignacion={!!formularioId} todas={todas} directorio={directorio} cargandoDirectorio={!Array.isArray(usuarios) && !errorUsuarios} onIrAsignaciones={() => setVista("asignaciones")} />
       )}
     </div>
   );
@@ -606,7 +606,8 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
 /*  Cumplimiento por persona                                           */
 /* ------------------------------------------------------------------ */
 
-function Cumplimiento({ asignaciones, todas, directorio, cargandoDirectorio, onIrAsignaciones }) {
+function Cumplimiento({ asignaciones, todas, directorio, cargandoDirectorio, onIrAsignaciones, soloConAsignacion = false }) {
+  const [verSinExigencia, setVerSinExigencia] = useState(false);
   const hoy = new Date();
   const [anio, setAnio] = useState(hoy.getFullYear());
   const [mes, setMes] = useState(hoy.getMonth());
@@ -626,7 +627,8 @@ function Cumplimiento({ asignaciones, todas, directorio, cargandoDirectorio, onI
         if (!personas.has(k)) personas.set(k, { uid: p.uid, nombre: u?.nombreUsuario || p.nombre, area: u?.area || "" });
       })
     );
-    directorio
+    // Con un formulario elegido, solo quienes tienen asignación en él (no todo el directorio).
+    if (!soloConAsignacion) directorio
       .filter((u) => tieneAcceso(u) && u.rol !== "master")
       .forEach((u) => {
         if (![...personas.values()].some((p) => esLaPersona(p, u))) personas.set(u.uid, { uid: u.uid, nombre: u.nombreUsuario, area: u.area || "" });
@@ -636,12 +638,16 @@ function Cumplimiento({ asignaciones, todas, directorio, cargandoDirectorio, onI
       .map((p) => filaDeEvaluador(p, asignaciones, todas || [], anio, mes, hoy))
       .sort((x, y) => orden[x.estado] - orden[y.estado] || x.nombre.localeCompare(y.nombre, "es"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asignaciones, todas, directorio, anio, mes]);
+  }, [asignaciones, todas, directorio, anio, mes, soloConAsignacion]);
 
   const t = sinTildes(filtro.trim());
-  let visibles = t ? filas.filter((f) => sinTildes(f.nombre).includes(t) || sinTildes(f.area).includes(t)) : filas;
+  // Por defecto solo quienes tienen algo exigido este mes; el resto (plan que parte después, sin plan) se ve con la casilla.
+  const conExigencia = (f) => !["sin_exigencia", "sin_plan", "pendiente"].includes(f.estado);
+  const ocultos = filas.filter((f) => !conExigencia(f)).length;
+  let visibles = verSinExigencia ? filas : filas.filter(conExigencia);
+  if (t) visibles = visibles.filter((f) => sinTildes(f.nombre).includes(t) || sinTildes(f.area).includes(t));
   if (soloDeuda) visibles = visibles.filter((f) => f.estado === "atrasado" || f.estado === "no_cumplido");
-  const r = resumenDeFilas(filas);
+  const r = resumenDeFilas(filas.filter(conExigencia));
   const exigido = filas.reduce((s, f) => s + f.exigido, 0);
   const hechas = filas.reduce((s, f) => s + f.hechas, 0);
   const general = exigido > 0 ? Math.round((hechas / exigido) * 100) : null;
@@ -651,7 +657,7 @@ function Cumplimiento({ asignaciones, todas, directorio, cargandoDirectorio, onI
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 14 }}>
-        <Kpi titulo="Evaluadores" valor={r.personas} />
+        <Kpi titulo="Evaluadores con exigencia" valor={r.personas} />
         <Kpi titulo="Cumplido" valor={r.cumplido} color="#0f6e56" />
         <Kpi titulo="Al día" valor={r.al_dia} color="#0f6e56" />
         <Kpi titulo="Atrasados" valor={r.atrasado} color={r.atrasado ? "#ba7517" : undefined} />
@@ -679,6 +685,11 @@ function Cumplimiento({ asignaciones, todas, directorio, cargandoDirectorio, onI
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13.5, paddingBottom: 8 }}>
           <input type="checkbox" checked={soloDeuda} onChange={(e) => setSoloDeuda(e.target.checked)} /> Solo con deuda
         </label>
+        {ocultos > 0 && (
+          <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13.5, paddingBottom: 8 }}>
+            <input type="checkbox" checked={verSinExigencia} onChange={(e) => setVerSinExigencia(e.target.checked)} /> Ver también sin exigencia este mes ({ocultos})
+          </label>
+        )}
       </div>
 
       {filas.length === 0 ? (
