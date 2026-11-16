@@ -45,7 +45,7 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
             {c.ev.formulario?.nombre || "Formulario"} · {valorAsignado(c.ev) ? <b>{valorAsignado(c.ev)}</b> : c.ev.rutinaNombre || "Sin reunión"} · {String(c.ev.formulario?.sigla || "").trim() || (String(c.ev.formulario?.nombre || "").match(/^(C[a-z][A-Z])\b/) || [])[1] || "CdR"} del {ddmm(fechaCdR(c.ev))}
             {c.responsable ? ` · Responsable: ${c.responsable}` : ""}
           </div>
-          {mostrarLider && <div style={{ fontSize: 12.5, marginTop: 2 }}>Líder: <b>{c.ev.lider || "—"}</b>{c.cierre?.cerradoPorNombre && c.cierre.cerradoPorNombre !== c.ev.lider ? ` · cerrado por ${c.cierre.cerradoPorNombre}` : ""}</div>}
+          {mostrarLider && <div style={{ fontSize: 12.5, marginTop: 2 }}>{String(c.ev.formulario?.receptor || "").trim() || "Líder"}: <b>{c.ev.lider || "—"}</b>{c.cierre?.cerradoPorNombre && c.cierre.cerradoPorNombre !== c.ev.lider ? ` · cerrado por ${c.cierre.cerradoPorNombre}` : ""}</div>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
           <span className={`ca-pill ${PILL[c.estado]}`}>{TEXTO[c.estado]}</span>
@@ -105,12 +105,26 @@ export default function CompromisosMejora({ recibidos = [], entregados = [], tod
   const [grupo, setGrupo] = useState(todos ? "todos" : "recibidos");
   const [filtro, setFiltro] = useState("abiertos");
   const [lider, setLider] = useState("");
-  const base = grupo === "todos" ? todos || [] : grupo === "entregados" ? entregados : recibidos;
+  const [formSel, setFormSel] = useState(""); // separar por formulario ("" = todos)
+  // Formularios que aparecen en los compromisos (con su nombre guardado en la evaluación).
+  const formularios = (() => {
+    const m = new Map();
+    [...recibidos, ...entregados, ...(todos || [])].forEach((c) => c.ev.formularioId && !m.has(c.ev.formularioId) && m.set(c.ev.formularioId, c.ev.formulario?.nombre || "Formulario"));
+    return [...m.entries()].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  })();
+  const delForm = (l) => (formSel ? l.filter((c) => c.ev.formularioId === formSel) : l);
+  const fRec = delForm(recibidos);
+  const fEnt = delForm(entregados);
+  const fTod = todos ? delForm(todos) : null;
+  const base = grupo === "todos" ? fTod || [] : grupo === "entregados" ? fEnt : fRec;
+  const formElegido = formularios.find((f) => f.id === formSel);
+  const ejemplo = base[0]?.ev?.formulario;
+  const rotulo = formElegido && String(ejemplo?.receptor || "").trim() ? String(ejemplo.receptor).trim() : "Líder";
   const lideres = grupo === "todos" ? [...new Set(base.map((c) => c.ev.lider).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")) : [];
   const delLider = lider && grupo === "todos" ? base.filter((c) => c.ev.lider === lider) : base;
   const n = (e) => delLider.filter((c) => c.estado === e).length;
   const vistos = filtro === "abiertos" ? delLider.filter((c) => !estaCerrado(c)) : filtro === "cerrados" ? delLider.filter(estaCerrado) : delLider;
-  const grupos = [["recibidos", `Recibidos (${recibidos.length})`], ["entregados", `Entregados (${entregados.length})`], ...(todos ? [["todos", `Todos (${todos.length})`]] : [])];
+  const grupos = [["recibidos", `Recibidos (${fRec.length})`], ["entregados", `Entregados (${fEnt.length})`], ...(fTod ? [["todos", `Todos (${fTod.length})`]] : [])];
   const textos = {
     recibidos: "Los que acordaron contigo en las evaluaciones que te hicieron. Cuando lo cumplas, márcalo como ejecutado y deja un comentario; si no corresponde, recházalo.",
     entregados: "Los que acordaste tú como evaluador con cada líder: aquí ves si ya los cerró y su comentario.",
@@ -120,6 +134,22 @@ export default function CompromisosMejora({ recibidos = [], entregados = [], tod
     <div>
       <div className={compacto ? "" : "ca-card"} style={{ marginBottom: 14 }}>
         {!compacto && <p style={{ margin: 0, fontWeight: 800, fontSize: 18 }}>Compromisos de mejora</p>}
+        {formularios.length > 1 && (
+          <div style={{ margin: compacto ? "0 0 10px" : "10px 0 4px" }}>
+            <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--texto-suave)", marginBottom: 6 }}>Formulario</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[{ id: "", nombre: "Todos los formularios" }, ...formularios].map((f) => {
+                const act = formSel === f.id;
+                return (
+                  <button key={f.id || "todos"} type="button" onClick={() => { setFormSel(f.id); setLider(""); }}
+                    style={{ cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, padding: "7px 12px", borderRadius: 10, border: act ? "2px solid var(--verde, #009899)" : "1px solid var(--borde, #D3D1C7)", background: act ? "var(--verde, #009899)" : "#fff", color: act ? "#fff" : "inherit" }}>
+                    {f.nombre}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: compacto ? "0 0 8px" : "10px 0 8px" }}>
           {grupos.map(([v, t]) => (
             <button key={v} className={`cdr-nav-btn ${grupo === v ? "prim" : ""}`} onClick={() => { setGrupo(v); setLider(""); }}>{t}</button>
@@ -132,8 +162,8 @@ export default function CompromisosMejora({ recibidos = [], entregados = [], tod
           <span className="ca-pill ca-pill-verde">Ejecutados: {n("ejecutado")}</span>
           <span className="ca-pill">Rechazados: {n("rechazado")}</span>
           {grupo === "todos" && (
-            <select className="rp-select" aria-label="Filtrar por líder" style={{ maxWidth: 240, marginLeft: "auto" }} value={lider} onChange={(e) => setLider(e.target.value)}>
-              <option value="">Todos los líderes</option>
+            <select className="rp-select" aria-label={`Filtrar por ${rotulo.toLowerCase()}`} style={{ maxWidth: 240, marginLeft: "auto" }} value={lider} onChange={(e) => setLider(e.target.value)}>
+              <option value="">{rotulo === "Líder" ? "Todos los líderes" : `Todos (${rotulo})`}</option>
               {lideres.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           )}

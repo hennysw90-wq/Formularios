@@ -13,6 +13,7 @@ import { listarAsignaciones, proyectarFormulario, asignacionesDeFormulario, asig
 import { fechaCdR } from "./estadisticas.js";
 import { mismaPersona } from "./compromisos.js";
 import AvancePlan from "./AvancePlan.jsx";
+import ModalQR from "./ModalQR.jsx";
 import logoOems from "./assets/logo-oems.png";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { nuevoId } from "./formularios.js";
@@ -282,6 +283,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
   const [evals, setEvals] = useState(null);
   const [error, setError] = useState("");
   const [ejecutando, setEjecutando] = useState(null);
+  const [qrDe, setQrDe] = useState(null); // QR del formulario elegido (para mostrar o descargar)
   const [asignaciones, setAsignaciones] = useState([]);
   const agenda = useAgenda(usuario);
   const [subAsignados, setSubAsignados] = useState("asignaciones");
@@ -384,6 +386,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
         />
       )}
 
+      {qrDe && <ModalQR form={qrDe} onCerrar={() => setQrDe(null)} />}
       <Titulo t="Iniciar un formulario" />
       {formularios === null && !error && <p style={ayuda}>Cargando…</p>}
       {formularios && disponibles.length === 0 && (
@@ -401,7 +404,10 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
               <div style={{ fontWeight: 800, fontSize: 16 }}>{f.nombre}</div>
               {f.descripcion && <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginTop: 2 }}>{f.descripcion.length > 150 ? f.descripcion.slice(0, 150) + "…" : f.descripcion}</div>}
             </div>
-            <button style={btnPrim} onClick={() => setEjecutando(nuevaEvaluacion(f, usuario))}>Iniciar</button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={btn} onClick={() => setQrDe(proyectarFormulario(f, asignaciones))} aria-label={`QR de ${f.nombre}`}>QR</button>
+              <button style={btnPrim} onClick={() => setEjecutando(nuevaEvaluacion(f, usuario))}>Iniciar</button>
+            </div>
           </div>
         ))}
       </div>
