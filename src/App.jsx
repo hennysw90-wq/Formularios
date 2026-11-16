@@ -151,7 +151,7 @@ function Inicio({ usuario, esMaster, onIr, compromisos = [], recibidas = [], car
             </>}
       </div>
       <div className="ca-card">
-        <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 16 }}>CdR que me han realizado ({cargando ? "…" : recibidas.length})</p>
+        <p style={{ margin: "0 0 8px", fontWeight: 800, fontSize: 16 }}>Evaluaciones que me han realizado ({cargando ? "…" : recibidas.length})</p>
         {cargando ? <p style={{ color: "var(--texto-suave)", margin: 0 }}>Cargando…</p> : <EvaluacionesRecibidas lista={recibidas} onVer={onVerRecibida} limite={10} />}
       </div>
       {esMaster && <Diagnostico />}

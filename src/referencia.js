@@ -31,3 +31,12 @@ export function etiquetaCampo(c, form) {
   if (c?.tipo === "rutina" && String(form?.objeto || "").trim()) return may(form.objeto);
   return c?.etiqueta || "";
 }
+
+/** Sigla de un formulario (CdR, CdE…): la definida en General, la del inicio del nombre o, si no, CdR / evaluación. */
+export function siglaDe(f) {
+  const s = String(f?.sigla || "").trim() || (String(f?.nombre || "").trim().match(/^(C[a-z][A-Z])\b/) || [])[1];
+  if (s) return s;
+  return (f?.seccionA || []).some((c) => c.asignable) ? "evaluación" : (f?.seccionA || []).some((c) => c.tipo === "lider") ? "CdR" : "evaluación";
+}
+/** Plural para contar: "3 CdE", "3 evaluaciones". */
+export const pluralSigla = (f) => (siglaDe(f) === "evaluación" ? "evaluaciones" : siglaDe(f));

@@ -140,7 +140,7 @@ export default function Formularios({ usuario }) {
           );
         }
       } catch {
-        window.alert("Ese archivo no es un formulario de CdR válido. Usa un archivo exportado desde esta misma pantalla.");
+        window.alert("Ese archivo no es un formulario válido. Usa un archivo exportado desde esta misma pantalla.");
       }
     };
     lector.readAsText(archivo);
@@ -183,7 +183,7 @@ export default function Formularios({ usuario }) {
     <div>
       <div style={E.barra}>
         <p className="ca-conteo" style={{ margin: 0 }}>
-          Formularios de CdR {lista ? `(${lista.length})` : ""}
+          Formularios {lista ? `(${lista.length})` : ""}
         </p>
         <button style={{ ...btnPrim, marginLeft: "auto" }} onClick={() => setModalNuevo(true)}>
           + Nuevo formulario

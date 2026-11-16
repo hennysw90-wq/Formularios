@@ -8,7 +8,7 @@ import { listarCierres, MOTIVOS_RECHAZO } from "./compromisosLider.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
 import { FILTROS_VACIOS, filtrar, ordenar, opciones, kpis, distribucion, tendencia, promedioPor, porBloque, porCriterio, compromisos, cobertura, rangoPreset, aCSV, hoyISO, fechaCdR } from "./estadisticas.js";
-import { referenciaEval } from "./referencia.js";
+import { referenciaEval, siglaDe } from "./referencia.js";
 
 const fmt = (n) => (n === null || n === undefined ? "—" : String(Math.round(n * 10) / 10).replace(".", ","));
 const fechaCorta = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" }) : "—");
@@ -42,13 +42,14 @@ export default function Estadisticas({ usuario }) {
   const [orden, setOrden] = useState({ campo: "fecha", dir: "desc" });
   const [detalleId, setDetalleId] = useState(null);
   const [limite, setLimite] = useState(25);
+  const [formSel, setFormSel] = useState(""); // estadísticas por tipo de formulario ("" = todos)
 
   useEffect(() => {
     const c1 = listarEvaluacionesEnviadas(setEvals, (e) =>
       setError(
         e.code === "permission-denied" || e.code === "auth/operation-not-allowed"
-          ? "Sin permiso para leer las CdR. Revisa en Firebase (formularios-7f89a): login Anónimo y reglas publicadas."
-          : `No se pudieron cargar las CdR (${e.code || e.message}).`
+          ? "Sin permiso para leer las evaluaciones. Revisa en Firebase (formularios-7f89a): login Anónimo y reglas publicadas."
+          : `No se pudieron cargar las evaluaciones (${e.code || e.message}).`
       )
     );
     const c2 = listarFormularios(setFormularios, () => {});
@@ -62,7 +63,13 @@ export default function Estadisticas({ usuario }) {
     };
   }, []);
 
-  const todas = useMemo(() => evals || [], [evals]);
+  const todas = useMemo(() => (evals || []).filter((e) => !formSel || e.formularioId === formSel), [evals, formSel]);
+  // Nombres según el formulario elegido (CdR: rutina / líder; por listado: estándar / quien recibe).
+  const T = useMemo(() => terminosDe(formularios.find((f) => f.id === formSel)), [formularios, formSel]);
+  const formsConDatos = useMemo(() => {
+    const ids = new Set([...(evals || []).map((e) => e.formularioId), ...asignaciones.map((a) => a.formularioId)]);
+    return formularios.filter((f) => ids.has(f.id)).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
+  }, [evals, asignaciones, formularios]);
   // Las reuniones y los líderes de cada formulario salen de sus asignaciones (para la cobertura por reunión).
   const formulariosConAsignaciones = useMemo(() => formularios.map((f) => proyectarFormulario(f, asignaciones)), [formularios, asignaciones]);
   // Las listas de filtros no ofrecen rutinas, líderes ni evaluadores que solo existen en CdR anuladas (a menos que se pidan).
@@ -98,33 +105,44 @@ export default function Estadisticas({ usuario }) {
   return (
     <div className="cdr-ejecutar" style={{ maxWidth: 1180 }}>
       {error && <p style={{ color: "var(--rojo)", fontSize: 14 }}>{error}</p>}
-      {evals === null && !error && <p style={ayuda}>Cargando las CdR…</p>}
+      {evals === null && !error && <p style={ayuda}>Cargando las evaluaciones…</p>}
 
       {/* Las pestañas están siempre: el plan se puede definir aunque todavía no haya CdR enviadas */}
       {evals !== null && (
         <>
+          {formsConDatos.length > 1 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--texto-suave)", marginRight: 4 }}>Formulario:</span>
+              {[{ id: "", nombre: "Todos" }, ...formsConDatos].map((f) => (
+                <button key={f.id || "todos"} className="ca-chip" onClick={() => { setFormSel(f.id); cambiarFiltros({ ...filtros, formularioId: "", rutina: "", lider: "" }); }}
+                  style={{ cursor: "pointer", border: "none", fontWeight: 700, padding: "6px 12px", ...(formSel === f.id ? { background: "var(--verde)", color: "#fff" } : {}) }}>
+                  {f.nombre}
+                </button>
+              ))}
+            </div>
+          )}
           <div style={S.tabs}>
             {[["registros", `Registros (${filtradas.length})`], ["analisis", "Análisis"], ["compromisos", "Compromisos"], ["plan", "Plan de evaluadores"]].map(([id, t]) => (
               <button key={id} style={{ ...S.tab, ...(vista === id ? S.tabAct : {}) }} onClick={() => setVista(id)}>{t}</button>
             ))}
           </div>
 
-          {vista === "plan" && <PlanEvaluadores todas={todas} formularios={formularios} usuario={usuario} usuarios={usuarios} errorUsuarios={errorUsuarios} />}
+          {vista === "plan" && <PlanEvaluadores todas={todas} formularioId={formSel} formularios={formularios} usuario={usuario} usuarios={usuarios} errorUsuarios={errorUsuarios} />}
 
           {vista !== "plan" && todas.length === 0 && (
             <div className="cdr-molde">
-              <b>Aún no hay CdR enviadas</b>
+              <b>Aún no hay {T.plural} enviadas{formSel ? " de este formulario" : ""}</b>
               Cuando se envíe la primera aparecerá aquí con sus filtros y estadísticas.
             </div>
           )}
 
           {vista !== "plan" && todas.length > 0 && (
             <>
-              <Filtros opts={opts} filtros={filtros} onCambiar={cambiarFiltros} total={todas.filter((e) => filtros.verAnuladas || !e.anulada).length} mostradas={filtradas.length} />
+              <Filtros T={T} ocultarFormulario={!!formSel} opts={opts} filtros={filtros} onCambiar={cambiarFiltros} total={todas.filter((e) => filtros.verAnuladas || !e.anulada).length} mostradas={filtradas.length} />
               {vista === "registros" && (
-                <Registros lista={lista} orden={orden} onOrden={setOrden} limite={limite} onMas={() => setLimite((l) => l + 25)} onVer={setDetalleId} onDescargar={descargar} umbrales={umbrales} />
+                <Registros T={T} lista={lista} orden={orden} onOrden={setOrden} limite={limite} onMas={() => setLimite((l) => l + 25)} onVer={setDetalleId} onDescargar={descargar} umbrales={umbrales} />
               )}
-              {vista === "analisis" && <Analisis lista={paraStats} todas={todas} formularios={formulariosConAsignaciones} umbrales={umbrales} />}
+              {vista === "analisis" && <Analisis T={T} lista={paraStats} todas={todas} formularios={formulariosConAsignaciones} umbrales={umbrales} />}
               {vista === "compromisos" && <Compromisos lista={paraStats} />}
             </>
           )}
@@ -134,9 +152,23 @@ export default function Estadisticas({ usuario }) {
   );
 }
 
+/** Cómo nombrar las cosas según el formulario elegido (sin formulario: nombres generales). */
+function terminosDe(f) {
+  if (!f) return { objeto: "Reunión / estándar", receptor: "Recibe evaluación", plural: "evaluaciones", sigla: "evaluación" };
+  const porListado = (f.seccionA || []).some((c) => c.asignable);
+  const sigla = String(f.sigla || "").trim() || (String(f.nombre || "").match(/^(C[a-z][A-Z])\b/) || [])[1] || (porListado ? "evaluación" : "CdR");
+  const may = (t) => String(t || "").trim().replace(/^./, (x) => x.toUpperCase());
+  return {
+    objeto: f.objeto ? may(f.objeto) : porListado ? "Estándar" : "Rutina",
+    receptor: f.receptor ? may(f.receptor) : porListado ? "Recibe evaluación" : "Líder",
+    plural: sigla === "evaluación" ? "evaluaciones" : sigla,
+    sigla,
+  };
+}
+
 /* ----------------------------- Filtros ----------------------------- */
 
-function Filtros({ opts, filtros, onCambiar, total, mostradas }) {
+function Filtros({ T, ocultarFormulario = false, opts, filtros, onCambiar, total, mostradas }) {
   // En el celular los filtros parten plegados para que se vean los resultados; en el computador, desplegados.
   const [abierto, setAbierto] = useState(() => typeof window === "undefined" || window.innerWidth > 640);
   const activos = Object.keys(FILTROS_VACIOS).filter((k) => filtros[k] !== FILTROS_VACIOS[k]).length;
@@ -162,7 +194,7 @@ function Filtros({ opts, filtros, onCambiar, total, mostradas }) {
           Filtros{activos > 0 ? ` (${activos} activo${activos > 1 ? "s" : ""})` : ""} {abierto ? "▴" : "▾"}
         </button>
         {hayFiltros && <button style={btn} onClick={() => onCambiar(FILTROS_VACIOS)}>Limpiar filtros</button>}
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--texto-suave)" }}>Mostrando <b>{mostradas}</b> de {total} CdR</span>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "var(--texto-suave)" }}>Mostrando <b>{mostradas}</b> de {total} {T.plural}</span>
       </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: abierto ? 12 : 0 }}>
         {PRESETS.map(([n, t]) => (
@@ -181,9 +213,9 @@ function Filtros({ opts, filtros, onCambiar, total, mostradas }) {
           <label className="ca-label">Hasta</label>
           <input className="rp-input" type="date" value={filtros.hasta} onChange={(e) => set("hasta", e.target.value)} />
         </div>
-        <Sel etiqueta="Formulario" campo="formularioId" items={opts.formularios} />
-        <Sel etiqueta="Rutina" campo="rutina" items={opts.rutinas} />
-        <Sel etiqueta="Líder" campo="lider" items={opts.lideres} />
+        {!ocultarFormulario && <Sel etiqueta="Formulario" campo="formularioId" items={opts.formularios} />}
+        <Sel etiqueta={T.objeto} campo="rutina" items={opts.rutinas} />
+        <Sel etiqueta={T.receptor} campo="lider" items={opts.lideres} />
         <Sel etiqueta="Evaluador" campo="evaluador" items={opts.evaluadores} />
         <div>
           <label className="ca-label">Resultado</label>
@@ -194,7 +226,7 @@ function Filtros({ opts, filtros, onCambiar, total, mostradas }) {
         </div>
         <div>
           <label className="ca-label">Buscar</label>
-          <input className="rp-input" placeholder="Rutina, líder o evaluador…" value={filtros.texto} onChange={(e) => set("texto", e.target.value)} />
+          <input className="rp-input" placeholder={`${T.objeto}, ${T.receptor.toLowerCase()} o evaluador…`} value={filtros.texto} onChange={(e) => set("texto", e.target.value)} />
         </div>
       </div>
       <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", marginTop: 12 }}>
@@ -208,7 +240,7 @@ function Filtros({ opts, filtros, onCambiar, total, mostradas }) {
 
 /* ----------------------------- Registros --------------------------- */
 
-function Registros({ lista, orden, onOrden, limite, onMas, onVer, onDescargar, umbrales }) {
+function Registros({ T, lista, orden, onOrden, limite, onMas, onVer, onDescargar, umbrales }) {
   const valor = `${orden.campo}:${orden.dir}`;
   const encabezado = (campo, texto) => (
     <th style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => onOrden({ campo, dir: orden.campo === campo ? (orden.dir === "asc" ? "desc" : "asc") : campo === "fecha" || campo === "indice" ? "desc" : "asc" })}>
@@ -232,7 +264,7 @@ function Registros({ lista, orden, onOrden, limite, onMas, onVer, onDescargar, u
       ) : (
         <table className="ca-tabla cdr-apilada">
           <thead>
-            <tr>{encabezado("rutina", "Rutina")}{encabezado("fecha", "Fecha")}{encabezado("lider", "Líder")}{encabezado("evaluador", "Evaluador")}{encabezado("indice", "Índice")}<th>Resultado</th>{encabezado("formulario", "Formulario")}<th></th></tr>
+            <tr>{encabezado("rutina", T.objeto)}{encabezado("fecha", "Fecha")}{encabezado("lider", T.receptor)}{encabezado("evaluador", "Evaluador")}{encabezado("indice", "Índice")}<th>Resultado</th>{encabezado("formulario", "Formulario")}<th></th></tr>
           </thead>
           <tbody>
             {visibles.map((e) => (
@@ -267,7 +299,7 @@ function Registros({ lista, orden, onOrden, limite, onMas, onVer, onDescargar, u
 function DetalleCdR({ ev, usuario, onVolver }) {
   const [borrando, setBorrando] = useState(false);
   async function anular() {
-    const motivo = window.prompt("Motivo para anular esta CdR (por ejemplo: prueba). No se borra: deja de contar en las estadísticas y se puede restaurar.", "Prueba");
+    const motivo = window.prompt(`Motivo para anular esta ${siglaDe(ev.formulario)} (por ejemplo: prueba). No se borra: deja de contar en las estadísticas y se puede restaurar.`, "Prueba");
     if (motivo === null) return;
     try {
       await anularEvaluacion(ev.id, motivo);
@@ -290,7 +322,7 @@ function DetalleCdR({ ev, usuario, onVolver }) {
         </div>
       )}
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-        {ev.anulada ? <button key="restaurar" style={btn} onClick={restaurar}>Restaurar esta CdR</button> : <button key="anular" style={btnPel} onClick={anular}>Anular esta CdR</button>}
+        {ev.anulada ? <button key="restaurar" style={btn} onClick={restaurar}>Restaurar esta {siglaDe(ev.formulario)}</button> : <button key="anular" style={btnPel} onClick={anular}>Anular esta {siglaDe(ev.formulario)}</button>}
         {usuario?.rol === "master" && <button key="eliminar" style={{ ...btnPel, marginLeft: 8, background: "#fbeae5" }} onClick={() => setBorrando(true)}>Eliminar definitivamente</button>}
       </div>
       <Ejecutar key={ev.id} evaluacionInicial={ev} onCerrar={onVolver} textoVolver="← Volver a Estadísticas" />
@@ -319,7 +351,7 @@ function EliminarConClave({ ev, usuario, onCancelar, onEliminada }) {
     } catch (err) {
       setError(
         err.code === "permission-denied"
-          ? "La base todavía no permite borrar CdR: falta publicar las reglas nuevas de Firestore (archivo firestore.rules)."
+          ? "La base todavía no permite borrar evaluaciones: falta publicar las reglas nuevas de Firestore (archivo firestore.rules)."
           : `No se pudo eliminar (${err.code || err.message}).`
       );
       setTrabajando(false);
@@ -329,7 +361,7 @@ function EliminarConClave({ ev, usuario, onCancelar, onEliminada }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(20,20,18,.5)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 16px" }} onClick={onCancelar}>
       <form className="ca-card" style={{ maxWidth: 420, width: "100%" }} onClick={(e) => e.stopPropagation()} onSubmit={confirmar}>
-        <p style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 16, color: "var(--rojo)" }}>Eliminar esta CdR para siempre</p>
+        <p style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 16, color: "var(--rojo)" }}>Eliminar esta {siglaDe(ev.formulario)} para siempre</p>
         <p style={{ margin: "0 0 10px", fontSize: 13.5, color: "var(--texto-suave)" }}>
           {referenciaEval(ev)} · {fecha} · Líder: {ev.lider || "—"} · Evaluó: {ev.evaluadorNombre || "—"}
           <br />Se borra de la base y no se puede recuperar. Si solo quieres que no cuente, usa «Anular».
@@ -348,7 +380,7 @@ function EliminarConClave({ ev, usuario, onCancelar, onEliminada }) {
 
 /* ------------------------------ Análisis --------------------------- */
 
-function Analisis({ lista, todas, formularios, umbrales }) {
+function Analisis({ T, lista, todas, formularios, umbrales }) {
   const [verTodosCriterios, setVerTodosCriterios] = useState(false);
   const k = kpis(lista);
   if (!lista.length) return <div className="cdr-molde"><b>No hay CdR con estos filtros</b>Amplía el rango de fechas o limpia los filtros para ver el análisis.</div>;
@@ -362,7 +394,7 @@ function Analisis({ lista, todas, formularios, umbrales }) {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-        <Kpi titulo="CdR realizadas" valor={k.n} sub={`${k.rutinas} rutina(s) · ${k.lideres} líder(es)`} />
+        <Kpi titulo={`${T.plural.replace(/^./, (x) => x.toUpperCase())} realizadas`} valor={k.n} sub={`${k.rutinas} ${T.objeto.toLowerCase()}(s) · ${k.lideres} ${T.receptor.toLowerCase()}(s)`} />
         <Kpi titulo="Índice promedio" valor={`${fmt(k.promedio)}%`} color={colorDe(k.promedio, umbrales)} />
         <Kpi titulo="Rutinas efectivas" valor={`${fmt(k.pctEfectiva)}%`} sub={`≥ ${umbrales.efectiva}% y sin crítico en 0`} />
         <Kpi titulo="Con crítico en 0" valor={`${fmt(k.pctCritico)}%`} color={k.pctCritico > 0 ? COLOR.malo : undefined} />
@@ -380,16 +412,16 @@ function Analisis({ lista, todas, formularios, umbrales }) {
         <BarrasH filas={filas(porBloque(lista), (x) => `n=${x.n}`)} umbrales={umbrales} />
       </Tarjeta>
 
-      <Tarjeta titulo="Por rutina">
-        <BarrasH filas={filas(promedioPor(lista, (e) => referenciaEval(e, "")), (x) => `${x.n} CdR`)} umbrales={umbrales} />
+      <Tarjeta titulo={`Por ${T.objeto.toLowerCase()}`}>
+        <BarrasH filas={filas(promedioPor(lista, (e) => referenciaEval(e, "")), (x) => `${x.n} ${T.plural}`)} umbrales={umbrales} />
       </Tarjeta>
 
-      <Tarjeta titulo="Por líder">
-        <BarrasH filas={filas(promedioPor(lista, (e) => e.lider), (x) => `${x.n} CdR`)} umbrales={umbrales} />
+      <Tarjeta titulo={`Por ${T.receptor.toLowerCase()}`}>
+        <BarrasH filas={filas(promedioPor(lista, (e) => e.lider), (x) => `${x.n} ${T.plural}`)} umbrales={umbrales} />
       </Tarjeta>
 
       <Tarjeta titulo="Por evaluador" nota="Sirve para ver si hay evaluadores más exigentes o más generosos que el resto.">
-        <BarrasH filas={filas(promedioPor(lista, (e) => e.evaluadorNombre), (x) => `${x.n} CdR`)} umbrales={umbrales} />
+        <BarrasH filas={filas(promedioPor(lista, (e) => e.evaluadorNombre), (x) => `${x.n} ${T.plural}`)} umbrales={umbrales} />
       </Tarjeta>
 
       <Tarjeta titulo="Criterios: de más débil a más fuerte" nota="Cumplimiento promedio (2 = 100%, 1 = 50%, 0 = 0%; N/A no cuenta). ★ = criterio crítico.">
@@ -399,16 +431,16 @@ function Analisis({ lista, todas, formularios, umbrales }) {
         )}
       </Tarjeta>
 
-      <Tarjeta titulo="Cobertura de rutinas" nota="Primero las rutinas que nunca se evaluaron y luego las que llevan más tiempo sin una CdR. La última CdR se mira en todo el historial; la columna del período respeta los filtros.">
+      <Tarjeta titulo={`Cobertura por ${T.objeto.toLowerCase()}`} nota={`Primero lo que nunca se evaluó y luego lo que lleva más tiempo sin evaluación. La última se mira en todo el historial; la columna del período respeta los filtros.`}>
         <table className="ca-tabla cdr-apilada">
-          <thead><tr><th>Rutina</th><th>Líder(es)</th><th>CdR en el período</th><th>Última CdR</th><th>Hace</th><th>Último índice</th></tr></thead>
+          <thead><tr><th>{T.objeto}</th><th>{T.receptor}</th><th>En el período</th><th>Última</th><th>Hace</th><th>Último índice</th></tr></thead>
           <tbody>
             {cob.map((r) => (
               <tr key={r.nombre}>
                 <td><b>{r.nombre}</b></td>
                 <td data-label="Líder(es)">{r.lideres.join(", ") || "—"}</td>
-                <td data-label="CdR en el período">{r.enPeriodo}</td>
-                <td data-label="Última CdR">{r.ultima ? fechaCorta(r.ultima) : <span className="ca-pill ca-pill-rojo">Nunca evaluada</span>}</td>
+                <td data-label="En el período">{r.enPeriodo}</td>
+                <td data-label="Última">{r.ultima ? fechaCorta(r.ultima) : <span className="ca-pill ca-pill-rojo">Nunca evaluada</span>}</td>
                 <td data-label="Hace">{r.dias === null ? "—" : `${r.dias} día(s)`}</td>
                 <td data-label="Último índice">{r.ultimoIndice === null ? "—" : `${fmt(r.ultimoIndice)}%`}</td>
               </tr>

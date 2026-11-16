@@ -112,7 +112,7 @@ export default function CompromisosMejora({ recibidos = [], entregados = [], tod
   const vistos = filtro === "abiertos" ? delLider.filter((c) => !estaCerrado(c)) : filtro === "cerrados" ? delLider.filter(estaCerrado) : delLider;
   const grupos = [["recibidos", `Recibidos (${recibidos.length})`], ["entregados", `Entregados (${entregados.length})`], ...(todos ? [["todos", `Todos (${todos.length})`]] : [])];
   const textos = {
-    recibidos: "Los que acordaron contigo en las CdR que te hicieron. Cuando lo cumplas, márcalo como ejecutado y deja un comentario; si no corresponde, recházalo.",
+    recibidos: "Los que acordaron contigo en las evaluaciones que te hicieron. Cuando lo cumplas, márcalo como ejecutado y deja un comentario; si no corresponde, recházalo.",
     entregados: "Los que acordaste tú como evaluador con cada líder: aquí ves si ya los cerró y su comentario.",
     todos: "Todos los compromisos de todos los líderes. Como Master puedes comentarlos, cerrarlos, rechazarlos o reabrirlos.",
   };
@@ -155,7 +155,7 @@ export default function CompromisosMejora({ recibidos = [], entregados = [], tod
 export function EvaluacionesRecibidas({ lista, onVer, limite }) {
   const [todas, setTodas] = useState(false);
   const vistas = todas || !limite ? lista : lista.slice(0, limite);
-  if (!lista.length) return <p style={{ color: "var(--texto-suave)", fontSize: 13.5, margin: 0 }}>Todavía no te han realizado CdR.</p>;
+  if (!lista.length) return <p style={{ color: "var(--texto-suave)", fontSize: 13.5, margin: 0 }}>Todavía no te han realizado evaluaciones.</p>;
   return (
     <div>
       {vistas.map((e) => {

@@ -45,7 +45,7 @@ function tieneAcceso(u) {
  * Plan de evaluadores, con la lógica de asignaciones de Formularios: cada asignación es
  * formulario + reunión + líderes + evaluadores (cada uno con su cantidad, frecuencia y "desde").
  */
-export default function PlanEvaluadores({ todas, formularios, usuario, usuarios = null, errorUsuarios = false }) {
+export default function PlanEvaluadores({ todas, formularioId = "", formularios, usuario, usuarios = null, errorUsuarios = false }) {
   const [asignaciones, setAsignaciones] = useState(null);
   const [reuniones, setReuniones] = useState(null);
   const [error, setError] = useState("");
@@ -65,7 +65,8 @@ export default function PlanEvaluadores({ todas, formularios, usuario, usuarios 
   useEffect(() => listarPlanesAnteriores(setPlanesAnteriores, () => setPlanesAnteriores([])), []);
   const [creandoPropuestas, setCreandoPropuestas] = useState(false);
 
-  const lista = asignaciones || [];
+  // Con un formulario elegido arriba (Estadísticas), solo sus asignaciones.
+  const lista = (asignaciones || []).filter((a) => !formularioId || a.formularioId === formularioId);
   const vistaActual = vista || (asignaciones && lista.length === 0 ? "asignaciones" : "cumplimiento");
   const directorio = Array.isArray(usuarios) ? usuarios : [];
   const formPorId = useMemo(() => new Map((formularios || []).map((f) => [f.id, f])), [formularios]);
@@ -569,7 +570,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
               )}
               <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>
                 {etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}
-                {p.frecuencia === "unica" && <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · solo cuentan las CdR hechas {p.desde ? `entre el ${p.desde.split("-").reverse().join("-")}` : "desde que se crea la asignación"}{p.hasta ? ` y el ${p.hasta.split("-").reverse().join("-")}` : " y la fecha de plazo"}</span>}
+                {p.frecuencia === "unica" && <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · solo cuentan las evaluaciones hechas {p.desde ? `entre el ${p.desde.split("-").reverse().join("-")}` : "desde que se crea la asignación"}{p.hasta ? ` y el ${p.hasta.split("-").reverse().join("-")}` : " y la fecha de plazo"}</span>}
               </div>
               </>)}
             </div>

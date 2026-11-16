@@ -3,6 +3,7 @@ import { TablaBloques } from "./MisCdR.jsx";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
 import { fechaCdR, claveRutina, norm } from "./estadisticas.js";
 import { referenciaEval } from "./referencia.js";
+import { pluralSigla } from "./referencia.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const RANGOS = [["1m", "Mes actual"], ["3m", "3 meses"], ["6m", "6 meses"], ["anio", `Año ${new Date().getFullYear()}`]];
@@ -121,7 +122,7 @@ export default function ResultadosQR({ persona, evals, vista, onVista, onVer, mo
       {!formularioId && (
         <Lista
           titulo={`${realizadas ? "Resultados asignaciones" : "Evaluaciones recibidas"} · ${textoRango(rango)}`}
-          vacio={realizadas ? "No realizaste CdR en este periodo." : "Nadie te evaluó como líder en este periodo."}
+          vacio={realizadas ? "No realizaste evaluaciones en este periodo." : "Nadie te evaluó en este periodo."}
           grupos={formularios}
           onElegir={(g) => cambiar({ formularioId: g.clave })}
         />
@@ -197,7 +198,7 @@ function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer
           {criticos.length > 0 && <span className="ca-pill ca-pill-rojo">Crítico en 0: {criticos.join(", ")}</span>}
         </div>
         <p style={{ ...gris, fontSize: 12.5, margin: "8px 0 0" }}>
-          {lista.length ? `Promedio de ${lista.length} CdR` : "Sin CdR"} · {textoRango(rango)}
+          {lista.length ? `Promedio de ${lista.length} ${pluralSigla((lista[0] || historico[0])?.formulario)}` : `Sin ${pluralSigla(historico[0]?.formulario)}`} · {textoRango(rango)}
           {conCritico.length > 0 ? ` · ${conCritico.length} con crítico en 0` : ""}
         </p>
         <Evolucion historico={historico} umbrales={u} />
@@ -210,7 +211,7 @@ function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer
         </>
       )}
 
-      <p style={{ fontWeight: 800, fontSize: 15, margin: "16px 0 8px" }}>CdR del periodo ({lista.length})</p>
+      <p style={{ fontWeight: 800, fontSize: 15, margin: "16px 0 8px" }}>{pluralSigla((lista[0] || historico[0])?.formulario).replace(/^./, (x) => x.toUpperCase())} del periodo ({lista.length})</p>
       {lista.map((e) => {
         const r = e.resultado || {};
         return (
