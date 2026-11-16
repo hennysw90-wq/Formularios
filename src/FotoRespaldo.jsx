@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
 
 // Respaldo fotográfico de un criterio: "Tomar foto" abre la cámara del celular y "Cargar foto" la galería o un
-// archivo. La foto se achica en el celular (JPG de ~1000 px) y se guarda dentro de la evaluación.
+// archivo. La foto se achica en el celular (JPG de máx. 900 px y 50 KB) y se guarda dentro de la evaluación.
 
-const LIMITE_FOTO = 110 * 1024; // ~110 KB por foto
+const LIMITE_FOTO = 50 * 1024; // máx. 50 KB por foto
 export const LIMITE_FOTOS_EVALUACION = 700 * 1024; // la evaluación entera debe caber en un documento
 
-/** Achica una imagen a JPG (máx. 1000 px) bajando la calidad hasta que pese menos de ~110 KB. */
+/** Achica una imagen a JPG (máx. 900 px) bajando la calidad hasta que pese menos de 50 KB. */
 export async function comprimirFoto(archivo) {
   if (!archivo || !String(archivo.type || "").startsWith("image/")) throw new Error("El archivo no es una imagen.");
   const url = URL.createObjectURL(archivo);
@@ -17,14 +17,14 @@ export async function comprimirFoto(archivo) {
       i.onerror = () => reject(new Error("No se pudo leer la imagen."));
       i.src = url;
     });
-    let lado = 1000;
-    for (let intento = 0; intento < 6; intento++) {
+    let lado = 900;
+    for (let intento = 0; intento < 7; intento++) {
       const k = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight));
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(img.naturalWidth * k));
       canvas.height = Math.max(1, Math.round(img.naturalHeight * k));
       canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-      for (const q of [0.7, 0.55, 0.45]) {
+      for (const q of [0.65, 0.5, 0.4]) {
         const datos = canvas.toDataURL("image/jpeg", q);
         if (datos.length * 0.75 <= LIMITE_FOTO) return datos;
       }

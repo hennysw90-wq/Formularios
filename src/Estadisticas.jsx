@@ -67,8 +67,12 @@ export default function Estadisticas({ usuario }) {
   // Nombres según el formulario elegido (CdR: rutina / líder; por listado: estándar / quien recibe).
   const T = useMemo(() => terminosDe(formularios.find((f) => f.id === formSel)), [formularios, formSel]);
   const formsConDatos = useMemo(() => {
-    const ids = new Set([...(evals || []).map((e) => e.formularioId), ...asignaciones.map((a) => a.formularioId)]);
-    return formularios.filter((f) => ids.has(f.id)).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
+    // Los formularios con evaluaciones o asignaciones (si alguno ya no existe, se usa el nombre guardado en sus evaluaciones).
+    const m = new Map();
+    (evals || []).forEach((e) => e.formularioId && !m.has(e.formularioId) && m.set(e.formularioId, { id: e.formularioId, nombre: e.formulario?.nombre || "Formulario" }));
+    asignaciones.forEach((a) => a.formularioId && !m.has(a.formularioId) && m.set(a.formularioId, { id: a.formularioId, nombre: a.formularioNombre || "Formulario" }));
+    formularios.forEach((f) => m.has(f.id) && m.set(f.id, f));
+    return [...m.values()].sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
   }, [evals, asignaciones, formularios]);
   // Las reuniones y los líderes de cada formulario salen de sus asignaciones (para la cobertura por reunión).
   const formulariosConAsignaciones = useMemo(() => formularios.map((f) => proyectarFormulario(f, asignaciones)), [formularios, asignaciones]);
@@ -110,17 +114,23 @@ export default function Estadisticas({ usuario }) {
       {/* Las pestañas están siempre: el plan se puede definir aunque todavía no haya CdR enviadas */}
       {evals !== null && (
         <>
-          {formsConDatos.length > 1 && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--texto-suave)", marginRight: 4 }}>Formulario:</span>
-              {[{ id: "", nombre: "Todos" }, ...formsConDatos].map((f) => (
-                <button key={f.id || "todos"} className="ca-chip" onClick={() => { setFormSel(f.id); cambiarFiltros({ ...filtros, formularioId: "", rutina: "", lider: "" }); }}
-                  style={{ cursor: "pointer", border: "none", fontWeight: 700, padding: "6px 12px", ...(formSel === f.id ? { background: "var(--verde)", color: "#fff" } : {}) }}>
-                  {f.nombre}
-                </button>
-              ))}
+          {/* Primer nivel: qué formulario se mira. Debajo, sus pestañas (Registros, Análisis, Compromisos, Plan). */}
+          <div className="ca-card" style={{ marginBottom: 14, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--texto-suave)", marginBottom: 8 }}>Formulario</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[{ id: "", nombre: "Todos los formularios" }, ...formsConDatos].map((f) => {
+                const act = formSel === f.id;
+                const n = f.id ? (evals || []).filter((e) => e.formularioId === f.id && !e.anulada).length : (evals || []).filter((e) => !e.anulada).length;
+                return (
+                  <button key={f.id || "todos"} type="button" onClick={() => { setFormSel(f.id); cambiarFiltros({ ...filtros, formularioId: "", rutina: "", lider: "" }); }}
+                    style={{ cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 700, padding: "9px 14px", borderRadius: 10, border: act ? "2px solid var(--verde, #009899)" : "1px solid var(--borde, #D3D1C7)", background: act ? "var(--verde, #009899)" : "#fff", color: act ? "#fff" : "inherit", display: "flex", alignItems: "center", gap: 8 }}>
+                    {f.nombre}
+                    <span style={{ fontSize: 12, fontWeight: 700, borderRadius: 999, padding: "1px 8px", background: act ? "rgba(255,255,255,.25)" : "var(--fondo, #F1EFE8)" }}>{n}</span>
+                  </button>
+                );
+              })}
             </div>
-          )}
+          </div>
           <div style={S.tabs}>
             {[["registros", `Registros (${filtradas.length})`], ["analisis", "Análisis"], ["compromisos", "Compromisos"], ["plan", "Plan de evaluadores"]].map(([id, t]) => (
               <button key={id} style={{ ...S.tab, ...(vista === id ? S.tabAct : {}) }} onClick={() => setVista(id)}>{t}</button>
