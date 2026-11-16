@@ -227,6 +227,7 @@ export async function guardarAsignacion(a) {
       hasta: (p.frecuencia === "unica" && p.hasta) || "",
       // Formularios asignados por listado: qué opciones / sub áreas le tocan a esta persona.
       ...(p.alcance ? { alcance: { opciones: p.alcance.opciones || [], subareas: p.alcance.subareas || [] } } : {}),
+      ...(p.personalizado ? { personalizado: true } : {}), // distinto del plan común de la asignación
     })),
     lideres: (resto.lideres || []).map((l) => String(l).trim()).filter(Boolean),
     actualizado: new Date().toISOString(),

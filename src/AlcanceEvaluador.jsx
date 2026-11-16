@@ -11,6 +11,7 @@ const fila = { display: "flex", justifyContent: "space-between", alignItems: "ce
 
 export default function AlcanceEvaluador({ etiqueta, datos, alcance, onCambiar, nombre }) {
   const [texto, setTexto] = useState("");
+  const [abierto, setAbierto] = useState(false);
   const a = { opciones: alcance?.opciones || [], subareas: alcance?.subareas || [] };
   const subareas = subareasDe(datos);
   const cubre = opcionesDelAlcance(a, datos);
@@ -52,8 +53,10 @@ export default function AlcanceEvaluador({ etiqueta, datos, alcance, onCambiar, 
         placeholder={subareas.length ? "Busca una opción o sub área…" : "Busca una opción…"}
         aria-label={`Alcance de ${nombre}`}
         autoComplete="off"
+        onFocus={() => setAbierto(true)}
+        onBlur={() => setTimeout(() => setAbierto(false), 200)}
       />
-      {(texto.trim() || subareas.length > 0) && (subEncontradas.length > 0 || opEncontradas.length > 0 || texto.trim()) && (
+      {(abierto || texto.trim()) && (texto.trim() || subareas.length > 0) && (subEncontradas.length > 0 || opEncontradas.length > 0 || texto.trim()) && (
         <div style={{ maxWidth: 420, border: "1px solid #D3D1C7", borderRadius: 8, marginTop: 4, overflow: "hidden", background: "#fff" }}>
           {subEncontradas.map((s) => (
             <button key={"s" + s} style={{ ...fila, background: "#0F6E56", color: "#fff" }} onClick={() => poner({ subareas: [...a.subareas, s] })}>

@@ -268,6 +268,25 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
   const [buscaLider, setBuscaLider] = useState("");
   const [busqueda, setBusqueda] = useState("");
   const [masivo, setMasivo] = useState(false);
+  // Plan común de la asignación: se define una vez y lo heredan todos los evaluadores que no estén "personalizados".
+  const PLAN_VACIO = { cantidad: 1, frecuencia: "semanal", desde: "", hasta: "", alcance: { opciones: [], subareas: [] } };
+  const planDe = (p) => ({ cantidad: p.cantidad ?? 1, frecuencia: p.frecuencia || "semanal", desde: p.desde || "", hasta: p.hasta || "", alcance: p.alcance || { opciones: [], subareas: [] } });
+  const mismoPlan = (x, y) => JSON.stringify(planDe(x)) === JSON.stringify(planDe(y));
+  const [planComun, setPlanComun] = useState(() => (inicial.planComun ? planDe(inicial.planComun) : (inicial.personas || [])[0] ? planDe(inicial.personas[0]) : PLAN_VACIO));
+  useEffect(() => {
+    // Asignaciones anteriores (sin plan común guardado): quien no coincida con el plan del primero queda personalizado.
+    if (inicial.planComun || !(inicial.personas || []).length) return;
+    setA((x) => ({ ...x, personas: (x.personas || []).map((p) => ({ ...p, personalizado: !mismoPlan(p, planComun) })) }));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  function cambiarPlanComun(cambio) {
+    const nuevo = { ...planComun, ...cambio };
+    setPlanComun(nuevo);
+    setError("");
+    setA((x) => ({ ...x, planComun: nuevo, personas: (x.personas || []).map((p) => (p.personalizado ? p : { ...p, ...nuevo, ...(campo ? {} : { alcance: undefined }) })) }));
+  }
+  function personalizar(uid, si) {
+    setA((x) => ({ ...x, personas: x.personas.map((p) => (p.uid === uid ? (si ? { ...p, personalizado: true } : { ...p, ...planComun, ...(campo ? {} : { alcance: undefined }), personalizado: false }) : p)) }));
+  }
   const [habilitando, setHabilitando] = useState("");
   // Da acceso a la app (lo mismo que marcarla en Administración); el directorio se actualiza solo.
   async function habilitarAcceso(usuarios) {
@@ -284,12 +303,13 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     }
   }
   async function aplicarPlanMasivo(usuarios, plan, habilitar) {
-    const base = { cantidad: plan.cantidad, frecuencia: plan.frecuencia, desde: plan.desde || "", hasta: plan.hasta || "", ...(plan.alcance ? { alcance: plan.alcance } : {}) };
+    const p0 = plan || planComun;
+    const base = { cantidad: p0.cantidad, frecuencia: p0.frecuencia, desde: p0.desde || "", hasta: p0.hasta || "", ...(campo && p0.alcance ? { alcance: p0.alcance } : {}), ...(plan ? {} : { personalizado: false }) };
     setA((x) => {
       const personas = [...(x.personas || [])];
       usuarios.forEach((u) => {
         const i = personas.findIndex((p) => esLaPersona(p, u));
-        if (i >= 0) personas[i] = { ...personas[i], ...base };
+        if (i >= 0) { if (plan) personas[i] = { ...personas[i], ...base }; }
         else personas.push({ uid: u.uid, nombre: u.nombreUsuario, ...base });
       });
       return { ...x, personas };
@@ -340,7 +360,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     cambiar({
       personas: existe
         ? a.personas.filter((p) => !esLaPersona(p, u))
-        : [...(a.personas || []), { uid: u.uid, nombre: u.nombreUsuario, cantidad: 1, frecuencia: "semanal", desde: "", ...(campo ? { alcance: { opciones: [], subareas: [] } } : {}) }],
+        : [...(a.personas || []), { uid: u.uid, nombre: u.nombreUsuario, ...planComun, ...(campo ? {} : { alcance: undefined }), personalizado: false }],
     });
     setBusqueda("");
   }
@@ -355,6 +375,10 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     const sinUsuario = (a.lideres || []).filter((n) => !usuarioDe(n));
     if (sinUsuario.length) return setError(`Estos líderes no tienen usuario: ${sinUsuario.join(", ")}. Quítalos o créales usuario en Administración.`);
     if (!(a.personas || []).length) return setError("Agrega al menos un evaluador.");
+    if (campo && (a.personas || []).some((p) => !p.personalizado) && !(planComun.alcance?.opciones || []).length && !(planComun.alcance?.subareas || []).length) {
+      return setError(`Elige en el plan común qué ${campo.etiqueta.toLowerCase()} les tocan.`);
+    }
+    if (planComun.frecuencia === "unica" && !planComun.hasta && (a.personas || []).some((p) => !p.personalizado)) return setError("Pon en el plan común hasta qué fecha tienen para ejecutarlo (plazo).");
     if (campo) {
       const sinAlcance = a.personas.filter((p) => !(p.alcance?.opciones || []).length && !(p.alcance?.subareas || []).length);
       if (sinAlcance.length) return setError(`Elige qué ${campo.etiqueta.toLowerCase()} le tocan a: ${sinAlcance.map((p) => p.nombre).join(", ")}.`);
@@ -371,7 +395,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
       const { esNueva, ...datos } = a;
       // Asignación por listado: una "reunión" propia de esta asignación; el valor sale del alcance de cada persona.
       const porListado = campo ? { reunionId: `${PREFIJO_VALOR}@${datos.id}`, reunionNombre: `${campo.etiqueta} (asignado por evaluador)`, area: "", horaInicio: "", horaFin: "", campoAsignacion: campo.etiqueta } : {};
-      const nueva = { ...datos, ...porListado, creado: datos.creado || new Date().toISOString() };
+      const nueva = { ...datos, ...porListado, planComun: { ...planComun, ...(campo ? {} : { alcance: null }) }, creado: datos.creado || new Date().toISOString() };
       // Modificar una asignación no reescribe el pasado: lo anterior queda como tramo del historial.
       await guardarAsignacion(esNueva ? nueva : versionarAsignacion(inicial, nueva));
       onGuardada(esNueva ? `Asignación creada: ${porListado.reunionNombre || a.reunionNombre}.` : "Asignación guardada.");
@@ -449,7 +473,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
       <div style={{ marginTop: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <label className="ca-label" style={{ margin: 0 }}>Evaluadores *</label>
-          {!masivo && <button style={{ ...chipBtn, fontWeight: 700 }} onClick={() => setMasivo(true)}>＋ Agregar varios con el mismo plan</button>}
+
           {(() => {
             const sin = (a.personas || []).map((p) => directorio.find((d) => esLaPersona(p, d))).filter((u) => u && !tieneAcceso(u));
             return sin.length > 1 ? (
@@ -457,18 +481,39 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
             ) : null;
           })()}
         </div>
-        <p style={{ ...ayuda, margin: "0 0 8px", fontSize: 12.5 }}>Cada uno con su propia cadencia.</p>
-        {masivo && (
-          <PlanMasivo
-            activos={activos}
-            elegidos={a.personas || []}
-            campo={campo}
-            datosCampo={datosCampo}
-            tieneAcceso={tieneAcceso}
-            onAplicar={aplicarPlanMasivo}
-            onCerrar={() => setMasivo(false)}
-          />
-        )}
+        <p style={{ ...ayuda, margin: "0 0 8px", fontSize: 12.5 }}>Todos siguen el plan común; si alguien necesita algo distinto, tócale «Personalizar».</p>
+
+        <div style={{ border: "1.5px solid var(--verde)", borderRadius: 10, padding: "10px 12px", marginBottom: 10, background: "#F4FBF9" }}>
+          <b style={{ fontSize: 14 }}>Plan común</b>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
+            <div style={{ flex: "0 0 86px" }}>
+              <label style={mini}>Cantidad</label>
+              <input className="rp-input" type="number" min="1" value={planComun.cantidad} onChange={(e) => cambiarPlanComun({ cantidad: e.target.value })} aria-label="Cantidad del plan común" />
+            </div>
+            <div style={{ flex: "1 1 150px" }}>
+              <label style={mini}>Frecuencia</label>
+              <select className="rp-select" value={planComun.frecuencia} onChange={(e) => cambiarPlanComun({ frecuencia: e.target.value })} aria-label="Frecuencia del plan común">
+                {FRECUENCIAS.map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: "0 0 160px" }}>
+              <label style={mini}>{planComun.frecuencia === "unica" ? "Ejecutar desde" : "Controlar desde"}</label>
+              <input className="rp-input" type="date" value={planComun.desde} title="Vacío = desde que se crea la asignación" onChange={(e) => cambiarPlanComun({ desde: e.target.value })} aria-label="Desde del plan común" />
+            </div>
+            {planComun.frecuencia === "unica" && (
+              <div style={{ flex: "0 0 160px" }}>
+                <label style={mini}>Hasta (plazo) *</label>
+                <input className="rp-input" type="date" value={planComun.hasta} min={planComun.desde || undefined} onChange={(e) => cambiarPlanComun({ hasta: e.target.value })} aria-label="Hasta del plan común" />
+              </div>
+            )}
+          </div>
+          {campo && <AlcanceEvaluador etiqueta={campo.etiqueta} nombre="el plan común" datos={datosCampo} alcance={planComun.alcance} onCambiar={(al) => cambiarPlanComun({ alcance: al })} />}
+          <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>
+            {etiquetaCadencia(planComun.cantidad || 1, planComun.frecuencia, planComun.frecuencia === "unica" ? planComun.hasta : "")}
+            {planComun.desde ? ` · desde ${planComun.desde.split("-").reverse().join("-")}` : ""}
+            {(a.personas || []).length ? ` · lo siguen ${(a.personas || []).filter((p) => !p.personalizado).length} de ${(a.personas || []).length}` : ""}
+          </div>
+        </div>
         {elegidos.map((p) => {
           const u = directorio.find((d) => esLaPersona(p, d));
           const sinAcceso = u && !tieneAcceso(u);
@@ -487,8 +532,16 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
                     {habilitando === u.uid ? "Habilitando…" : "Sin acceso a la app · Habilitar"}
                   </button>
                 )}
+                {p.personalizado
+                  ? <button style={chipBtn} onClick={() => personalizar(p.uid, false)}>Volver al plan común</button>
+                  : <button style={chipBtn} onClick={() => personalizar(p.uid, true)}>Personalizar</button>}
                 <button style={x} title="Quitar" onClick={() => alternarPersona({ uid: p.uid, nombreUsuario: p.nombre })}>✕</button>
               </div>
+              {!p.personalizado ? (
+                <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginTop: 2 }}>
+                  Plan común · {etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{campo && p.alcance ? ` · ${textoAlcance(p.alcance) || "sin alcance"}` : ""}
+                </div>
+              ) : (<>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
                 <div style={{ flex: "0 0 86px" }}>
                   <label style={mini}>Cantidad</label>
@@ -518,10 +571,16 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
                 {etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}
                 {p.frecuencia === "unica" && <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · solo cuentan las CdR hechas {p.desde ? `entre el ${p.desde.split("-").reverse().join("-")}` : "desde que se crea la asignación"}{p.hasta ? ` y el ${p.hasta.split("-").reverse().join("-")}` : " y la fecha de plazo"}</span>}
               </div>
+              </>)}
             </div>
           );
         })}
-        <input className="rp-input" style={{ maxWidth: 420, marginTop: 4 }} value={busqueda} placeholder="Buscar evaluador por nombre o área…" onChange={(e) => setBusqueda(e.target.value)} />
+        {masivo ? (
+          <PlanMasivo soloPersonas activos={activos} elegidos={a.personas || []} campo={campo} datosCampo={datosCampo} tieneAcceso={tieneAcceso} onAplicar={aplicarPlanMasivo} onCerrar={() => setMasivo(false)} />
+        ) : (
+          <button style={{ ...chipBtn, fontWeight: 700, marginBottom: 6 }} onClick={() => setMasivo(true)}>＋ Agregar varios evaluadores a la vez</button>
+        )}
+        <input className="rp-input" style={{ maxWidth: 420, marginTop: 4, display: "block" }} value={busqueda} placeholder="Buscar evaluador por nombre o área…" onChange={(e) => setBusqueda(e.target.value)} />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           {candidatos.map((u) => (
             <button key={u.uid} style={chipBtn} title={u.area || ""} onClick={() => alternarPersona(u)}>

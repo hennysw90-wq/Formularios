@@ -11,7 +11,7 @@ const mini = { display: "block", fontSize: 11.5, fontWeight: 700, color: "var(--
 const btn = { border: "1px solid var(--borde, #D3D1C7)", background: "#fff", borderRadius: 8, padding: "7px 12px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
 const btnPrim = { ...btn, background: "var(--verde, #009899)", borderColor: "var(--verde, #009899)", color: "#fff" };
 
-export default function PlanMasivo({ activos, elegidos, campo, datosCampo, tieneAcceso, onAplicar, onCerrar }) {
+export default function PlanMasivo({ activos, elegidos, campo, datosCampo, tieneAcceso, onAplicar, onCerrar, soloPersonas = false }) {
   const [plan, setPlan] = useState({ cantidad: 1, frecuencia: "semanal", desde: "", hasta: "", alcance: { opciones: [], subareas: [] } });
   const [busca, setBusca] = useState("");
   const [marcados, setMarcados] = useState([]); // uids
@@ -30,6 +30,17 @@ export default function PlanMasivo({ activos, elegidos, campo, datosCampo, tiene
   async function aplicar() {
     setError("");
     if (!seleccion.length) return setError("Marca al menos una persona.");
+    if (soloPersonas) {
+      setTrabajando(true);
+      try {
+        await onAplicar(seleccion, null, habilitar);
+        setMarcados([]);
+        setBusca("");
+      } finally {
+        setTrabajando(false);
+      }
+      return;
+    }
     if (!(Number(plan.cantidad) >= 1)) return setError("Pon una cantidad válida.");
     if (plan.frecuencia === "unica" && !plan.hasta) return setError("Pon hasta qué fecha tienen para ejecutarlo (plazo).");
     if (campo && !plan.alcance.opciones.length && !plan.alcance.subareas.length) return setError(`Elige qué ${campo.etiqueta.toLowerCase()} les tocan.`);
@@ -48,10 +59,11 @@ export default function PlanMasivo({ activos, elegidos, campo, datosCampo, tiene
   return (
     <div style={{ border: "1.5px solid var(--verde, #009899)", borderRadius: 10, padding: 12, margin: "8px 0 12px", background: "#F4FBF9" }}>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-        <b style={{ flex: 1 }}>Agregar varios con el mismo plan</b>
+        <b style={{ flex: 1 }}>{soloPersonas ? "Agregar varios evaluadores (con el plan común)" : "Agregar varios con el mismo plan"}</b>
         <button style={{ ...btn, padding: "4px 10px" }} onClick={onCerrar}>Cerrar</button>
       </div>
 
+      {!soloPersonas && (<>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div style={{ flex: "0 0 86px" }}>
           <label style={mini}>Cantidad</label>
@@ -76,6 +88,7 @@ export default function PlanMasivo({ activos, elegidos, campo, datosCampo, tiene
       </div>
       <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>{etiquetaCadencia(plan.cantidad || 1, plan.frecuencia, plan.frecuencia === "unica" ? plan.hasta : "")}</div>
       {campo && <AlcanceEvaluador etiqueta={campo.etiqueta} nombre="el plan masivo" datos={datosCampo} alcance={plan.alcance} onCambiar={(al) => setPlan({ ...plan, alcance: al })} />}
+      </>)}
 
       <div style={{ marginTop: 12 }}>
         <label style={mini}>Personas ({seleccion.length} marcada{seleccion.length === 1 ? "" : "s"})</label>
@@ -117,9 +130,9 @@ export default function PlanMasivo({ activos, elegidos, campo, datosCampo, tiene
       {error && <p style={{ color: "var(--rojo)", fontSize: 13.5, fontWeight: 600, margin: "8px 0 0" }}>{error}</p>}
       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button style={btnPrim} disabled={trabajando || !seleccion.length} onClick={aplicar}>
-          {trabajando ? "Aplicando…" : `Aplicar plan a ${seleccion.length} persona${seleccion.length === 1 ? "" : "s"}`}
+          {trabajando ? "Aplicando…" : soloPersonas ? `Agregar ${seleccion.length} persona${seleccion.length === 1 ? "" : "s"}` : `Aplicar plan a ${seleccion.length} persona${seleccion.length === 1 ? "" : "s"}`}
         </button>
-        {yaEstan.length > 0 && <span style={{ fontSize: 12.5, color: "var(--texto-suave)" }}>{yaEstan.length} ya está{yaEstan.length === 1 ? "" : "n"} en la asignación: se les actualiza el plan.</span>}
+        {yaEstan.length > 0 && <span style={{ fontSize: 12.5, color: "var(--texto-suave)" }}>{yaEstan.length} ya está{yaEstan.length === 1 ? "" : "n"} en la asignación{soloPersonas ? "" : ": se les actualiza el plan"}.</span>}
       </div>
     </div>
   );
