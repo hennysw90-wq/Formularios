@@ -166,7 +166,7 @@ function erroresDeEnvio(ev, anterior) {
     if (!F.compromiso.fecha) errores.push("Falta la fecha del compromiso de mejora (paso 5).");
   }
   if (fb.seguimientoAnterior && anterior && !F.seguimiento) {
-    errores.push("Falta indicar si se cumplió el compromiso de la CdR anterior (paso 5).");
+    errores.push("Falta indicar si se cumplió el compromiso de la evaluación anterior (paso 5).");
   }
   return errores;
 }
@@ -677,6 +677,8 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
     const t = setTimeout(() => {
       buscarCompromisoAnterior({
         id: ev.id,
+        formularioId: ev.formularioId,
+        seguimientoFormularioId: ev.formulario?.feedback?.seguimientoFormularioId || "",
         rutinaSesionId: ev.rutinaSesionId,
         lider: ev.lider,
         evaluador: { uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre },
@@ -953,7 +955,7 @@ function UltimaDelLider({ ev }) {
     <div className="ca-card" style={{ marginTop: 14, borderLeft: "4px solid var(--ambar, #B5820A)" }}>
       <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Última CdR de {ev.lider}</p>
       {estado.cargando && <p style={{ ...ayuda, margin: 0 }}>Buscando…</p>}
-      {!estado.cargando && !u && <p style={{ ...ayuda, margin: 0 }}>Es la primera CdR de este líder con este formulario: no hay oportunidades ni compromisos anteriores.</p>}
+      {!estado.cargando && !u && <p style={{ ...ayuda, margin: 0 }}>Es la primera evaluación de este líder con este formulario: no hay oportunidades ni compromisos anteriores.</p>}
       {!estado.cargando && u && (
         <>
           <p style={{ ...ayuda, margin: "0 0 10px" }}>
@@ -1311,7 +1313,7 @@ function PasoCompromiso({ ev, cambiar, anterior }) {
     <div>
       {fb.seguimientoAnterior && (
         <div className="ca-card" style={{ marginBottom: 16 }}>
-          <p style={{ fontWeight: 800, margin: "0 0 8px" }}>Seguimiento al compromiso de la CdR anterior {anterior && <span style={{ color: "var(--rojo)", fontWeight: 700, fontSize: 12.5 }}>· obligatorio</span>}</p>
+          <p style={{ fontWeight: 800, margin: "0 0 8px" }}>Seguimiento al compromiso de la evaluación anterior {anterior && <span style={{ color: "var(--rojo)", fontWeight: 700, fontSize: 12.5 }}>· obligatorio</span>}</p>
           {anterior ? (
             <>
               <div style={{ background: "var(--fondo)", borderRadius: 8, padding: "8px 12px", fontSize: 13.5, marginBottom: 10 }}>
@@ -1326,7 +1328,7 @@ function PasoCompromiso({ ev, cambiar, anterior }) {
               {casilla("Comentario (opcional)", "¿Qué se vio respecto de ese compromiso?", "seguimiento", ev.feedback.seguimientoComentario, (v) => cambiar((c) => (c.feedback.seguimientoComentario = v)))}
             </>
           ) : (
-            <p style={{ ...ayuda, margin: 0 }}>{ev.rutinaSesionId ? "Es la primera CdR registrada para esta rutina: no hay compromiso anterior que revisar." : "Elige la rutina en el paso 1 para ver si hay un compromiso anterior."}</p>
+            <p style={{ ...ayuda, margin: 0 }}>{ev.rutinaSesionId ? "Es la primera evaluación registrada: no hay compromiso anterior que revisar." : "Elige la rutina en el paso 1 para ver si hay un compromiso anterior."}</p>
           )}
         </div>
       )}

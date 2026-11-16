@@ -172,6 +172,7 @@ export default function Formularios({ usuario }) {
         esNuevo={editando.esNuevo}
         usuarios={usuarios}
         asignaciones={asignaciones}
+        formularios={lista || []}
         onCerrar={() => setEditando(null)}
       />
     );
@@ -324,7 +325,7 @@ function mover(arr, i, d) {
   [arr[i], arr[j]] = [arr[j], arr[i]];
 }
 
-function Editor({ inicial, esNuevo, usuarios, asignaciones, onCerrar }) {
+function Editor({ inicial, esNuevo, usuarios, asignaciones, formularios = [], onCerrar }) {
   const [form, setForm] = useState(() => {
     const f = normalizarFormulario(inicial);
     f.asignadosUids = f.asignadosUids || [];
@@ -458,7 +459,7 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, onCerrar }) {
       {tab === "b" && <TabB form={form} cambiar={cambiar} />}
       {tab === "c" && <TabC form={form} cambiar={cambiar} />}
       {tab === "d" && <TabD form={form} />}
-      {tab === "e" && <TabE form={form} cambiar={cambiar} />}
+      {tab === "e" && <TabE form={form} cambiar={cambiar} formularios={formularios} />}
       {tab === "previa" && <VistaPrevia form={form} listados={listados} />}
     </div>
   );
@@ -877,21 +878,36 @@ function TabD({ form }) {
 
 /* ----- E · Feedback ----- */
 
-function TabE({ form, cambiar }) {
+function TabE({ form, cambiar, formularios = [] }) {
   const fb = form.feedback;
   return (
     <div className="ca-card" style={{ maxWidth: 760 }}>
-      <p style={E.ayuda}>Qué se le pide al evaluador para apoyar el feedback al líder. El feedback es obligatorio: todo lo que actives aquí se exige para poder enviar la CdR. Las fortalezas y oportunidades van en el paso 4; el seguimiento y el compromiso con el líder, en el paso 5.</p>
+      <p style={E.ayuda}>Qué se le pide al evaluador para apoyar el feedback al líder. El feedback es obligatorio: todo lo que actives aquí se exige para poder enviar la evaluación. Las fortalezas y oportunidades van en el paso 4; el seguimiento y el compromiso con el líder, en el paso 5.</p>
       <div style={{ background: "var(--verde-claro)", borderRadius: 10, padding: "10px 14px", fontSize: 13.5, marginBottom: 14 }}>
-        📝 Al ejecutar la CdR, antes de las fortalezas y oportunidades se muestra una tarjeta con las <b>notas que el evaluador anotó en terreno (B)</b>, para que las lea antes de escribir el feedback.
+        📝 Al responder el formulario, antes de las fortalezas y oportunidades se muestra una tarjeta con las <b>notas que el evaluador anotó en terreno (B)</b>, para que las lea antes de escribir el feedback.
       </div>
       <div style={{ display: "grid", gap: 10 }}>
-        <label style={E.check}><input type="checkbox" checked={!!fb.fortalezas} onChange={(e) => cambiar((f) => (f.feedback.fortalezas = e.target.checked))} /> Fortalezas identificadas</label>
-        <label style={E.check}><input type="checkbox" checked={!!fb.oportunidades} onChange={(e) => cambiar((f) => (f.feedback.oportunidades = e.target.checked))} /> Oportunidades de mejora</label>
-        <label style={E.check}><input type="checkbox" checked={!!fb.compromisoMejora} onChange={(e) => cambiar((f) => (f.feedback.compromisoMejora = e.target.checked))} /> Compromiso de mejora acordado con el líder (acción, responsable, fecha)</label>
-        <label style={E.check}><input type="checkbox" checked={!!fb.seguimientoAnterior} onChange={(e) => cambiar((f) => (f.feedback.seguimientoAnterior = e.target.checked))} /> Seguimiento al compromiso de la CdR anterior</label>
-        <label style={E.check}><input type="checkbox" checked={!!fb.situacion} onChange={(e) => cambiar((f) => (f.feedback.situacion = e.target.checked))} /> Incluir «Situación» (cuándo y dónde ocurrió) en cada fortaleza y oportunidad. Si está apagado se piden solo comportamiento e impacto.</label>
+        <label style={E.check}><input style={{ flexShrink: 0, marginTop: 3 }} type="checkbox" checked={!!fb.fortalezas} onChange={(e) => cambiar((f) => (f.feedback.fortalezas = e.target.checked))} /> Fortalezas identificadas</label>
+        <label style={E.check}><input style={{ flexShrink: 0, marginTop: 3 }} type="checkbox" checked={!!fb.oportunidades} onChange={(e) => cambiar((f) => (f.feedback.oportunidades = e.target.checked))} /> Oportunidades de mejora</label>
+        <label style={E.check}><input style={{ flexShrink: 0, marginTop: 3 }} type="checkbox" checked={!!fb.compromisoMejora} onChange={(e) => cambiar((f) => (f.feedback.compromisoMejora = e.target.checked))} /> Compromiso de mejora acordado con el líder (acción, responsable, fecha)</label>
+        <label style={E.check}><input style={{ flexShrink: 0, marginTop: 3 }} type="checkbox" checked={!!fb.seguimientoAnterior} onChange={(e) => cambiar((f) => (f.feedback.seguimientoAnterior = e.target.checked))} /> Seguimiento al compromiso de la evaluación anterior</label>
+        {fb.seguimientoAnterior && (
+          <div style={{ marginLeft: 26 }}>
+            <label className="ca-label" style={{ fontSize: 12.5 }}>Buscar el compromiso anterior en</label>
+            <select className="rp-select" style={{ maxWidth: 520 }} value={fb.seguimientoFormularioId || ""} aria-label="Formulario donde buscar el compromiso anterior"
+              onChange={(e) => cambiar((f) => (f.feedback.seguimientoFormularioId = e.target.value))}>
+              <option value="">Cualquier formulario de la misma reunión (como hasta ahora)</option>
+              <option value="__mismo">Este mismo formulario</option>
+              {formularios.filter((x) => x.id !== form.id).map((x) => <option key={x.id} value={x.id}>Formulario: {x.nombre}</option>)}
+            </select>
+            <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 3 }}>
+              Se toma el último compromiso registrado por el mismo evaluador{fb.seguimientoFormularioId && fb.seguimientoFormularioId !== "__mismo" ? " (y el mismo líder, si este formulario tiene líder)" : " para el mismo líder"}.
+            </div>
+          </div>
+        )}
+        <label style={E.check}><input style={{ flexShrink: 0, marginTop: 3 }} type="checkbox" checked={!!fb.situacion} onChange={(e) => cambiar((f) => (f.feedback.situacion = e.target.checked))} /> Incluir «Situación» (cuándo y dónde ocurrió) en cada fortaleza y oportunidad. Si está apagado se piden solo comportamiento e impacto.</label>
       </div>
+      <div style={{ height: 14 }} />
       <Campo etiqueta="Máximo de fortalezas y de oportunidades a registrar">
         <input className="rp-input" type="number" min="1" max="5" style={{ width: 100 }} value={fb.maxPorTipo} onChange={(e) => cambiar((f) => (f.feedback.maxPorTipo = Number(e.target.value)))} />
       </Campo>
@@ -1018,7 +1034,7 @@ function VistaPrevia({ form, listados }) {
         {form.feedback.fortalezas && <div>✔ Fortalezas identificadas (hasta {form.feedback.maxPorTipo}) — criterio · {form.feedback.situacion ? "situación · " : ""}comportamiento · impacto</div>}
         {form.feedback.oportunidades && <div>✔ Oportunidades de mejora (hasta {form.feedback.maxPorTipo}) — criterio · {form.feedback.situacion ? "situación · " : ""}comportamiento · impacto</div>}
         {form.feedback.compromisoMejora && <div>✔ (paso aparte) Compromiso de mejora del líder — acción · responsable · fecha</div>}
-        {form.feedback.seguimientoAnterior && <div>✔ (paso aparte) Seguimiento al compromiso de la CdR anterior — cumplido / parcial / no cumplido / primera CdR</div>}
+        {form.feedback.seguimientoAnterior && <div>✔ (paso aparte) Seguimiento al compromiso de la evaluación anterior — cumplido / parcial / no cumplido / primera evaluación</div>}
       </div>
     </div>
   );
@@ -1042,7 +1058,7 @@ const E = {
   tabAct: { color: "var(--verde-oscuro)", borderBottomColor: "var(--verde)" },
   ayuda: { fontSize: 13.5, color: "var(--texto-suave)", margin: "0 0 12px" },
   fila: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", background: "#fff", border: "1px solid var(--borde)", borderRadius: 10, padding: "8px 10px", marginBottom: 8 },
-  check: { display: "flex", alignItems: "center", gap: 6, fontSize: 13.5, cursor: "pointer" },
+  check: { display: "flex", alignItems: "flex-start", gap: 6, fontSize: 13.5, cursor: "pointer", lineHeight: 1.4 },
   criterio: { border: "1px solid var(--borde)", borderRadius: 10, padding: 12, marginBottom: 10, background: "#fcfcfb" },
   mini: { fontSize: 11.5, fontWeight: 700, color: "var(--texto-suave)", textTransform: "uppercase", letterSpacing: ".03em", marginBottom: 3 },
   prevNota: { fontSize: 13, color: "var(--texto)", background: "var(--fondo)", borderRadius: 8, padding: "8px 12px", marginTop: 10 },

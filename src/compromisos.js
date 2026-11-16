@@ -26,7 +26,7 @@ export function mismoLider(a, b) {
  * el de su CdR enviada más reciente con ese líder. Ignora las anuladas y las de otros evaluadores.
  * `actual` = { id, lider, evaluador: { uid, personaId, nombre } }
  */
-export function elegirCompromisoAnterior(evaluaciones, actual) {
+export function elegirCompromisoAnterior(evaluaciones, actual, { exigirLider = true } = {}) {
   const propias = evaluaciones
     .filter(
       (e) =>
@@ -35,7 +35,7 @@ export function elegirCompromisoAnterior(evaluaciones, actual) {
         e.id !== actual.id &&
         (e.feedback?.compromiso?.accion || "").trim() &&
         mismaPersona({ uid: e.evaluadorUid, personaId: e.evaluadorPersonaId, nombre: e.evaluadorNombre }, actual.evaluador) &&
-        mismoLider(e.lider, actual.lider)
+        (!exigirLider || mismoLider(e.lider, actual.lider))
     )
     .sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
   const e = propias[0];

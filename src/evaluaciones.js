@@ -65,8 +65,19 @@ export async function guardarEvaluacion(ev) {
  */
 export async function buscarCompromisoAnterior(actual) {
   await asegurarSesionCdR();
-  const snap = await getDocs(query(collection(db, "cdrEvaluaciones"), where("rutinaSesionId", "==", actual.rutinaSesionId)));
-  return elegirCompromisoAnterior(snap.docs.map((d) => ({ id: d.id, ...d.data() })), actual);
+  // Dónde buscar (pestaña E del formulario): "" = cualquier formulario de la misma reunión (como siempre);
+  // "__mismo" = este mismo formulario (misma reunión o mismo valor asignado); otro id = ese formulario.
+  const origen = actual.seguimientoFormularioId || "";
+  if (!origen) {
+    const snap = await getDocs(query(collection(db, "cdrEvaluaciones"), where("rutinaSesionId", "==", actual.rutinaSesionId)));
+    return elegirCompromisoAnterior(snap.docs.map((d) => ({ id: d.id, ...d.data() })), actual);
+  }
+  const formId = origen === "__mismo" ? actual.formularioId : origen;
+  const snap = await getDocs(query(collection(db, "cdrEvaluaciones"), where("formularioId", "==", formId)));
+  let evs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  if (origen === "__mismo") evs = evs.filter((e) => e.rutinaSesionId === actual.rutinaSesionId);
+  // De otro formulario: el líder solo se exige si esta evaluación tiene líder.
+  return elegirCompromisoAnterior(evs, actual, { exigirLider: origen === "__mismo" || !!String(actual.lider || "").trim() });
 }
 
 /**
