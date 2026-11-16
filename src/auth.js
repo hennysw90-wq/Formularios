@@ -10,6 +10,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { dbDirectorio as db } from "./firebaseDirectorio.js";
+import { escucharCompartido } from "./compartir.js";
 
 const CLAVE_SESION = "cdr_sesion_uid";
 
@@ -133,6 +134,11 @@ export async function verificarClave(uid, password) {
 }
 
 export function listarUsuarios(callback, onError) {
+  // Una sola escucha del directorio para toda la app (el directorio es compartido con Asistencia y RdP: cada lectura
+  // completa cuenta para la cuota diaria de Firebase).
+  return escucharCompartido("usuarios", (ok, mal) => abrirUsuarios(ok, mal), callback, onError);
+}
+function abrirUsuarios(callback, onError) {
   return onSnapshot(
     collection(db, "usuarios"),
     (snap) => {
@@ -327,6 +333,9 @@ export async function eliminarUsuario(uid) {
 // --- Áreas ---
 
 export function listarAreas(callback, onError) {
+  return escucharCompartido("areas", (ok, mal) => abrirAreas(ok, mal), callback, onError);
+}
+function abrirAreas(callback, onError) {
   return onSnapshot(
     collection(db, "areas"),
     (snap) => {
