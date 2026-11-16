@@ -17,6 +17,7 @@ import { Ejecutar, nuevaEvaluacion } from "./MisCdR.jsx";
 import { TEXTO_PERIODO } from "./MiAgenda.jsx";
 import CompromisosMejora from "./CompromisosMejora.jsx";
 import { listarCierres, compromisosRecibidos, compromisosEntregados, estaCerrado } from "./compromisosLider.js";
+import { referenciaEval } from "./referencia.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -388,7 +389,7 @@ function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBor
       {borrador && (
         <div style={{ ...tarjeta(false), borderColor: "var(--ambar)" }}>
           <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 14 }}>Tienes uno incompleto</p>
-          <p style={{ ...gris, fontSize: 12, margin: 0 }}>{borrador.rutinaNombre || "Sin reunión"}</p>
+          <p style={{ ...gris, fontSize: 12, margin: 0 }}>{referenciaEval(borrador)}</p>
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
             <button className="cdr-nav-btn prim" style={{ flex: 1 }} onClick={onContinuar}>Continuar</button>
             <button className="cdr-nav-btn" style={{ color: "var(--rojo, #b02a26)" }} onClick={onBorrar}>Borrar</button>

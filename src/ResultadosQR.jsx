@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { TablaBloques } from "./MisCdR.jsx";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
 import { fechaCdR, claveRutina, norm } from "./estadisticas.js";
+import { referenciaEval } from "./referencia.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const RANGOS = [["1m", "Mes actual"], ["3m", "3 meses"], ["6m", "6 meses"], ["anio", `Año ${new Date().getFullYear()}`]];
@@ -86,11 +87,11 @@ export default function ResultadosQR({ persona, evals, vista, onVista, onVer, mo
 
   const formularios = useMemo(() => agrupar(mias, (e) => e.formularioId, (e) => e.formulario?.nombre || "Formulario"), [mias]);
   const delForm = mias.filter((e) => e.formularioId === formularioId);
-  const reuniones = useMemo(() => agrupar(delForm, claveRutina, (e) => e.rutinaNombre || "Sin reunión"), [delForm]);
+  const reuniones = useMemo(() => agrupar(delForm, claveRutina, (e) => referenciaEval(e)), [delForm]);
   const deReunion = delForm.filter((e) => claveRutina(e) === reunion);
   const historicoReunion = recibidas.filter((e) => e.formularioId === formularioId && claveRutina(e) === reunion);
   const nombreForm = (delForm[0] || recibidas.find((e) => e.formularioId === formularioId))?.formulario?.nombre || "";
-  const nombreReunion = (deReunion[0] || historicoReunion[0])?.rutinaNombre || "";
+  const nombreReunion = referenciaEval(deReunion[0] || historicoReunion[0] || {}, "");
 
   return (
     <div>

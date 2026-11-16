@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { fechaCdR } from "./estadisticas.js";
 import { celdaDelMes, hechasEnAsignacion, asignacionesDe, esLaPersona, etiquetaCadencia, desdeEfectivo, asignacionesConHistorialDe, celdaConHistorial, ultimoTramoDe, desdeDelTramo } from "./asignaciones.js";
+import { referenciaEval } from "./referencia.js";
 
 const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES_CORTOS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
@@ -298,7 +299,7 @@ function ItemRealizado({ e, fecha, onVer }) {
         <span style={{ fontSize: 12, color: "var(--texto-suave)", whiteSpace: "nowrap" }}>{fecha.split("-").reverse().join("-")}</span>
       </div>
       <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 2 }}>
-        {e.rutinaNombre || "Sin reunión"}{e.lider ? ` · Líder: ${e.lider}` : ""}
+        {referenciaEval(e)}{e.lider ? ` · Líder: ${e.lider}` : ""}
       </div>
       {onVer && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--verde-oscuro)", marginTop: 4 }}>Revisar ›</div>}
     </div>

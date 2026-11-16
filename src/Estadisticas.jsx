@@ -8,6 +8,7 @@ import { listarCierres, MOTIVOS_RECHAZO } from "./compromisosLider.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
 import { FILTROS_VACIOS, filtrar, ordenar, opciones, kpis, distribucion, tendencia, promedioPor, porBloque, porCriterio, compromisos, cobertura, rangoPreset, aCSV, hoyISO, fechaCdR } from "./estadisticas.js";
+import { referenciaEval } from "./referencia.js";
 
 const fmt = (n) => (n === null || n === undefined ? "—" : String(Math.round(n * 10) / 10).replace(".", ","));
 const fechaCorta = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" }) : "—");
@@ -236,7 +237,7 @@ function Registros({ lista, orden, onOrden, limite, onMas, onVer, onDescargar, u
           <tbody>
             {visibles.map((e) => (
               <tr key={e.id} style={e.anulada ? { opacity: 0.55 } : undefined}>
-                <td><b>{e.rutinaNombre || "—"}</b>{e.anulada && <span className="ca-pill ca-pill-rojo" style={{ marginLeft: 8 }}>Anulada</span>}</td>
+                <td><b>{referenciaEval(e, "—")}</b>{e.anulada && <span className="ca-pill ca-pill-rojo" style={{ marginLeft: 8 }}>Anulada</span>}</td>
                 <td data-label="Fecha">{fechaCorta(fechaCdR(e))}</td>
                 <td data-label="Líder">{e.lider || "—"}</td>
                 <td data-label="Evaluador">{e.evaluadorNombre || "—"}</td>
@@ -330,7 +331,7 @@ function EliminarConClave({ ev, usuario, onCancelar, onEliminada }) {
       <form className="ca-card" style={{ maxWidth: 420, width: "100%" }} onClick={(e) => e.stopPropagation()} onSubmit={confirmar}>
         <p style={{ margin: "0 0 6px", fontWeight: 800, fontSize: 16, color: "var(--rojo)" }}>Eliminar esta CdR para siempre</p>
         <p style={{ margin: "0 0 10px", fontSize: 13.5, color: "var(--texto-suave)" }}>
-          {ev.rutinaNombre || "Sin reunión"} · {fecha} · Líder: {ev.lider || "—"} · Evaluó: {ev.evaluadorNombre || "—"}
+          {referenciaEval(ev)} · {fecha} · Líder: {ev.lider || "—"} · Evaluó: {ev.evaluadorNombre || "—"}
           <br />Se borra de la base y no se puede recuperar. Si solo quieres que no cuente, usa «Anular».
         </p>
         <label className="ca-label">Escribe tu clave para confirmar</label>
@@ -380,7 +381,7 @@ function Analisis({ lista, todas, formularios, umbrales }) {
       </Tarjeta>
 
       <Tarjeta titulo="Por rutina">
-        <BarrasH filas={filas(promedioPor(lista, (e) => e.rutinaNombre), (x) => `${x.n} CdR`)} umbrales={umbrales} />
+        <BarrasH filas={filas(promedioPor(lista, (e) => referenciaEval(e, "")), (x) => `${x.n} CdR`)} umbrales={umbrales} />
       </Tarjeta>
 
       <Tarjeta titulo="Por líder">

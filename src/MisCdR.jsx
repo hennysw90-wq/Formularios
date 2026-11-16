@@ -16,6 +16,7 @@ import logoOems from "./assets/logo-oems.png";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { nuevoId } from "./formularios.js";
 import { calcularResultado, normalizarFormulario, ETIQUETA_CLASIFICACION } from "./calculo.js";
+import { referenciaEval, valorAsignado } from "./referencia.js";
 
 const clonar = (x) => JSON.parse(JSON.stringify(x));
 const fmt = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
@@ -702,6 +703,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
         formularioId: ev.formularioId,
         seguimientoFormularioId: ev.formulario?.feedback?.seguimientoFormularioId || "",
         rutinaSesionId: ev.rutinaSesionId,
+        valor: valorAsignado(ev),
         lider: ev.lider,
         evaluador: { uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre },
       })
@@ -725,7 +727,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
       clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ev.rutinaSesionId, ev.evaluadorNombre, ev.evaluadorUid, ev.evaluadorPersonaId, ev.lider]);
+  }, [ev.rutinaSesionId, ev.evaluadorNombre, ev.evaluadorUid, ev.evaluadorPersonaId, ev.lider, valorAsignado(ev)]);
 
   function irAPaso(n) {
     cambiar((c) => (c.paso = n));
@@ -795,7 +797,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
         <button style={btn} onClick={volver}>← Salir (se guarda solo)</button>
         <div style={{ flex: 1, minWidth: 180 }}>
           <div className="cdr-clamp2" style={{ fontWeight: 800 }} title={ev.formulario.nombre}>{ev.formulario.nombre}</div>
-          <div className="cdr-clamp2" style={{ fontSize: 12.5, color: "var(--texto-suave)" }} title={`${ev.rutinaNombre || ""}${ev.lider ? " · Líder: " + ev.lider : ""}`}>{ev.rutinaNombre || "Rutina sin elegir"}{ev.lider ? ` · Líder: ${ev.lider}` : ""}</div>
+          <div className="cdr-clamp2" style={{ fontSize: 12.5, color: "var(--texto-suave)" }} title={`${referenciaEval(ev, "")}${ev.lider ? " · Líder: " + ev.lider : ""}`}>{referenciaEval(ev, "Rutina sin elegir")}{ev.lider ? ` · Líder: ${ev.lider}` : ""}</div>
         </div>
         <span style={{ fontSize: 12.5, color: estadoGuardado === "error" ? "var(--rojo)" : "var(--texto-suave)", fontWeight: 600 }}>{etiquetaGuardado}</span>
       </div>
@@ -1057,7 +1059,7 @@ function UltimaDelLider({ ev }) {
       {!estado.cargando && u && (
         <>
           <p style={{ ...ayuda, margin: "0 0 10px" }}>
-            {fechaLegible(u.fechaEnvio)} · {u.rutinaNombre || "Sin reunión"} · Evaluó: {u.evaluadorNombre || "—"}
+            {fechaLegible(u.fechaEnvio)} · {referenciaEval(u)} · Evaluó: {u.evaluadorNombre || "—"}
           </p>
           <p style={{ fontWeight: 700, fontSize: 14, margin: "0 0 6px" }}>Oportunidad de mejora</p>
           {ops.length === 0 ? (
@@ -1425,7 +1427,7 @@ function PasoCompromiso({ ev, cambiar, anterior }) {
           {anterior ? (
             <>
               <div style={{ background: "var(--fondo)", borderRadius: 8, padding: "8px 12px", fontSize: 13.5, marginBottom: 10 }}>
-                <b>Compromiso acordado el {fechaLegible(anterior.fecha)}</b>{anterior.evaluador ? ` (evaluó ${anterior.evaluador})` : ""}:<br />
+                <b>Compromiso acordado el {fechaLegible(anterior.fecha)}</b>{anterior.referencia ? <> en <b>{anterior.referencia}</b></> : null}{anterior.evaluador ? ` (evaluó ${anterior.evaluador})` : ""}:<br />
                 {anterior.accion}{anterior.responsable ? ` — Responsable: ${anterior.responsable}` : ""}
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { cerrarCompromiso, reabrirCompromiso, rechazarCompromiso, estaCerrado, MOTIVOS_RECHAZO } from "./compromisosLider.js";
 import { fechaCdR } from "./estadisticas.js";
 import { ETIQUETA_CLASIFICACION } from "./calculo.js";
+import { referenciaEval, valorAsignado } from "./referencia.js";
 
 const ddmm = (iso) => (iso ? String(iso).slice(0, 10).split("-").reverse().join("-") : "—");
 const PILL = { pendiente: "ca-pill-ambar", vencido: "ca-pill-rojo", ejecutado: "ca-pill-verde", rechazado: "" };
@@ -41,7 +42,7 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 14.5, whiteSpace: "pre-wrap" }}>{c.accion}</div>
           <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginTop: 3 }}>
-            {c.ev.formulario?.nombre || "Formulario"} · {c.ev.rutinaNombre || "Sin reunión"} · CdR del {ddmm(fechaCdR(c.ev))}
+            {c.ev.formulario?.nombre || "Formulario"} · {valorAsignado(c.ev) ? <b>{valorAsignado(c.ev)}</b> : c.ev.rutinaNombre || "Sin reunión"} · {String(c.ev.formulario?.sigla || "").trim() || "CdR"} del {ddmm(fechaCdR(c.ev))}
             {c.responsable ? ` · Responsable: ${c.responsable}` : ""}
           </div>
           {mostrarLider && <div style={{ fontSize: 12.5, marginTop: 2 }}>Líder: <b>{c.ev.lider || "—"}</b>{c.cierre?.cerradoPorNombre && c.cierre.cerradoPorNombre !== c.ev.lider ? ` · cerrado por ${c.cierre.cerradoPorNombre}` : ""}</div>}
@@ -162,7 +163,7 @@ export function EvaluacionesRecibidas({ lista, onVer, limite }) {
         return (
           <button key={e.id} type="button" onClick={() => onVer(e)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", border: "1px solid var(--borde)", borderRadius: 10, padding: "9px 12px", marginBottom: 6, background: "#fff", cursor: "pointer", fontFamily: "inherit", color: "inherit" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 13.5 }}>{e.formulario?.nombre || "Formulario"} · {e.rutinaNombre || "Sin reunión"}</div>
+              <div style={{ fontWeight: 700, fontSize: 13.5 }}>{e.formulario?.nombre || "Formulario"} · {referenciaEval(e)}</div>
               <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>{ddmm(fechaCdR(e))}{r.clasificacion ? ` · ${ETIQUETA_CLASIFICACION[r.clasificacion]}` : ""}</div>
             </div>
             <span className={`ca-pill ${PILL_RES[r.clasificacion] || ""}`}>{typeof r.indice === "number" ? `${fmt(r.indice)}%` : "—"}</span>

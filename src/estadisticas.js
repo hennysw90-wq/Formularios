@@ -1,3 +1,4 @@
+import { referenciaEval, claveReferencia } from "./referencia.js";
 // Filtros, orden y cálculos de las estadísticas de CdR. Todo son funciones puras (sin Firebase).
 
 export const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -22,7 +23,8 @@ export function fechaCdR(e) {
   return (e.fechaEnvio || "").slice(0, 10);
 }
 
-export const claveRutina = (e) => e.rutinaSesionId || norm(e.rutinaNombre);
+// Por reunión (CdR) o, en los formularios asignados por listado, por su valor (ej. el estándar).
+export const claveRutina = (e) => claveReferencia(e);
 
 export const FILTROS_VACIOS = { desde: "", hasta: "", formularioId: "", rutina: "", lider: "", evaluador: "", clasificacion: "", soloCriticos: false, texto: "", verAnuladas: false };
 
@@ -47,12 +49,12 @@ export function filtrar(evals, f) {
     if (f.desde && fecha < f.desde) return false;
     if (f.hasta && fecha > f.hasta) return false;
     if (f.formularioId && e.formularioId !== f.formularioId) return false;
-    if (f.rutina && norm(e.rutinaNombre) !== norm(f.rutina)) return false;
+    if (f.rutina && norm(referenciaEval(e, "")) !== norm(f.rutina)) return false;
     if (f.lider && norm(e.lider) !== norm(f.lider)) return false;
     if (f.evaluador && norm(e.evaluadorNombre) !== norm(f.evaluador)) return false;
     if (f.clasificacion && e.resultado?.clasificacion !== f.clasificacion) return false;
     if (f.soloCriticos && !(e.resultado?.criticosEnCero || []).length) return false;
-    if (q && !norm(`${e.rutinaNombre} ${e.lider} ${e.evaluadorNombre} ${e.formulario?.nombre}`).includes(q)) return false;
+    if (q && !norm(`${referenciaEval(e, "")} ${e.lider} ${e.evaluadorNombre} ${e.formulario?.nombre}`).includes(q)) return false;
     return true;
   });
 }
@@ -60,7 +62,7 @@ export function filtrar(evals, f) {
 const CAMPOS = {
   fecha: (e) => fechaCdR(e),
   indice: (e) => e.resultado?.indice ?? 0,
-  rutina: (e) => norm(e.rutinaNombre),
+  rutina: (e) => norm(referenciaEval(e, "")),
   lider: (e) => norm(e.lider),
   evaluador: (e) => norm(e.evaluadorNombre),
   formulario: (e) => norm(e.formulario?.nombre),
@@ -92,7 +94,7 @@ export function opciones(evals) {
   evals.forEach((e) => e.formularioId && formularios.set(e.formularioId, e.formulario?.nombre || e.formularioId));
   return {
     formularios: [...formularios].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
-    rutinas: unicos((e) => e.rutinaNombre),
+    rutinas: unicos((e) => referenciaEval(e, "")),
     lideres: unicos((e) => e.lider),
     evaluadores: unicos((e) => e.evaluadorNombre),
   };
@@ -219,7 +221,7 @@ export function compromisos(lista, hoy = hoyISO()) {
       let estado;
       if (posterior) estado = ETIQUETA_SEGUIMIENTO[posterior.feedback?.seguimiento] || "Revisado";
       else estado = c.fecha && c.fecha < hoy ? "Vencido" : "Pendiente";
-      return { id: e.id, rutina: e.rutinaNombre, lider: e.lider, accion: c.accion, responsable: c.responsable || e.lider, fecha: c.fecha || "", fechaCdR: fechaCdR(e), estado };
+      return { id: e.id, rutina: referenciaEval(e, ""), lider: e.lider, accion: c.accion, responsable: c.responsable || e.lider, fecha: c.fecha || "", fechaCdR: fechaCdR(e), estado };
     })
     .sort((a, b) => b.fechaCdR.localeCompare(a.fechaCdR));
 }
@@ -239,7 +241,7 @@ export function cobertura(formularios, todas, filtradas, hoy = hoyISO()) {
     );
   todas.filter((e) => !e.anulada).forEach((e) => {
     const k = claveRutina(e);
-    if (!rutinas.has(k)) rutinas.set(k, { clave: k, nombre: e.rutinaNombre, lideres: new Set(e.lider ? [e.lider] : []) });
+    if (!rutinas.has(k)) rutinas.set(k, { clave: k, nombre: referenciaEval(e, ""), lideres: new Set(e.lider ? [e.lider] : []) });
   });
   return [...rutinas.values()]
     .map((r) => {
@@ -285,7 +287,7 @@ export function aCSV(lista) {
       fechaCdR(e),
       (e.fechaEnvio || "").slice(0, 10),
       e.formulario?.nombre,
-      e.rutinaNombre,
+      referenciaEval(e, ""),
       e.lider,
       e.evaluadorNombre,
       num(e.resultado?.indice),

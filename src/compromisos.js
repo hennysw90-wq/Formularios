@@ -1,3 +1,4 @@
+import { valorAsignado } from "./referencia.js";
 // A quién le corresponde revisar un compromiso de mejora en la CdR siguiente.
 // Regla: lo que yo acordé con un líder lo reviso yo, con ese mismo líder y en esa misma rutina, y solo el último.
 
@@ -35,10 +36,12 @@ export function elegirCompromisoAnterior(evaluaciones, actual, { exigirLider = t
         e.id !== actual.id &&
         (e.feedback?.compromiso?.accion || "").trim() &&
         mismaPersona({ uid: e.evaluadorUid, personaId: e.evaluadorPersonaId, nombre: e.evaluadorNombre }, actual.evaluador) &&
-        (!exigirLider || mismoLider(e.lider, actual.lider))
+        (!exigirLider || mismoLider(e.lider, actual.lider)) &&
+        // En formularios por listado, como en las CdR con la reunión: el compromiso se revisa en el mismo valor (ej. estándar).
+        (!actual.valor || norm(valorAsignado(e)) === norm(actual.valor))
     )
     .sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
   const e = propias[0];
   if (!e) return null;
-  return { fecha: e.fechaEnvio, accion: e.feedback.compromiso.accion, responsable: e.feedback.compromiso.responsable || "", lider: e.lider || "", evaluador: e.evaluadorNombre || "" };
+  return { fecha: e.fechaEnvio, referencia: valorAsignado(e), accion: e.feedback.compromiso.accion, responsable: e.feedback.compromiso.responsable || "", lider: e.lider || "", evaluador: e.evaluadorNombre || "" };
 }
