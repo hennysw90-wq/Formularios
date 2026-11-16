@@ -1,0 +1,10 @@
+name: tmp probar Firestore Excelencia
+on:
+  push:
+    branches: [tmp-probar-exc]
+jobs:
+  p:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tmpp/p.py
