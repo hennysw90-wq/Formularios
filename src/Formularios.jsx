@@ -5,6 +5,7 @@ import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistenc
 import { PLANTILLA_PAUTA_V3, formularioEnBlanco } from "./plantillas.js";
 import ModalQR from "./ModalQR.jsx";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
+import { contarEvaluacionesDeFormulario } from "./evaluaciones.js";
 import {
   repartirIgual,
   repartirProporcional,
@@ -335,6 +336,17 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, onCerrar }) {
   const [guardando, setGuardando] = useState(false);
   const [verQr, setVerQr] = useState(false);
   const [aviso, setAviso] = useState({ tipo: "", texto: "" });
+  // ¿El formulario ya está en uso (tiene asignaciones o evaluaciones)? Mientras se averigua, se trata como en uso.
+  const [evaluacionesDelForm, setEvaluacionesDelForm] = useState(esNuevo ? 0 : null);
+  useEffect(() => {
+    if (esNuevo || !inicial?.id) return;
+    let vivo = true;
+    contarEvaluacionesDeFormulario(inicial.id)
+      .then((n) => vivo && setEvaluacionesDelForm(n))
+      .catch(() => vivo && setEvaluacionesDelForm(null));
+    return () => { vivo = false; };
+  }, [esNuevo, inicial?.id]);
+  const enUso = !esNuevo && (evaluacionesDelForm !== 0 || (asignaciones || []).some((a) => a.formularioId === form.id));
 
   function cambiar(fn) {
     setForm((prev) => {
@@ -438,7 +450,7 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, onCerrar }) {
       </div>
 
       {tab === "general" && <TabGeneral form={form} cambiar={cambiar} />}
-      {tab === "a" && <TabA form={form} cambiar={cambiar} />}
+      {tab === "a" && <TabA form={form} cambiar={cambiar} enUso={enUso} />}
       {tab === "b" && <TabB form={form} cambiar={cambiar} />}
       {tab === "c" && <TabC form={form} cambiar={cambiar} />}
       {tab === "d" && <TabD form={form} />}
@@ -500,6 +512,12 @@ function BotonesFila({ i, n, onMover, onBorrar }) {
 
 // Estos tres datos no se llenan a mano: salen de la asignación con que se evalúa.
 const TIPOS_AUTOMATICOS = ["rutina", "lider", "evaluador"];
+// En un formulario nuevo se pueden quitar, avisando qué deja de funcionar.
+const AVISO_QUITAR_AUTOMATICO = {
+  rutina: "¿Quitar «Reunión»? Las evaluaciones de este formulario no quedarán asociadas a una reunión (las asignaciones y estadísticas por reunión no las contarán).",
+  lider: "¿Quitar «Líder»? Las evaluaciones no tendrán líder: no aparecerán en Evaluaciones recibidas ni generarán Compromisos de mejora para un líder.",
+  evaluador: "¿Quitar «Evaluador»? Igual se registrará quién evalúa (se pide aparte al responder).",
+};
 
 const TIPOS_A = [
   ["rutina", "Reunión (automática: de la asignación)"],
@@ -513,27 +531,39 @@ const TIPOS_A = [
   ["busqueda", "Lista con búsqueda (escribe y elige)"],
 ];
 
-function TabA({ form, cambiar }) {
+function TabA({ form, cambiar, enUso }) {
   const n = form.seccionA.length;
   return (
     <div style={{ maxWidth: 980 }}>
       <p style={E.ayuda}>
         Datos que el evaluador completa al empezar. La reunión y su líder no se fijan aquí: salen de la asignación con que se evalúa (Estadísticas → Plan de evaluadores).
       </p>
+      {enUso ? (
+        <p style={{ ...E.ayuda, background: "var(--fondo)", borderRadius: 8, padding: "8px 10px" }}>
+          🔒 Este formulario ya tiene asignaciones o evaluaciones: los datos automáticos (reunión, líder y evaluador) no se cambian. Si necesitas otra dinámica, crea un formulario nuevo o usa «Duplicar».
+        </p>
+      ) : (
+        <p style={{ ...E.ayuda, background: "#E1F5EE", borderRadius: 8, padding: "8px 10px" }}>
+          Formulario nuevo: puedes cambiar o quitar también los datos automáticos (reunión, líder y evaluador). Una vez que tenga asignaciones o evaluaciones, quedan fijos.
+        </p>
+      )}
       {form.seccionA.map((c, i) => (
         <div key={c.id} style={E.fila}>
           <div style={{ flex: "2 1 220px" }}>
             <input className="rp-input" value={c.etiqueta} placeholder="Etiqueta" onChange={(e) => cambiar((f) => (f.seccionA[i].etiqueta = e.target.value))} />
           </div>
           <div style={{ flex: "1 1 220px" }}>
-            {TIPOS_AUTOMATICOS.includes(c.tipo) ? (
+            {TIPOS_AUTOMATICOS.includes(c.tipo) && enUso ? (
               <div className="rp-input" style={{ background: "var(--fondo)", display: "flex", alignItems: "center", gap: 8 }} title="Se completa solo al evaluar, desde la asignación">
                 <span className="ca-pill ca-pill-verde">Automático</span>
                 <span style={{ fontSize: 13.5 }}>{(TIPOS_A.find(([v]) => v === c.tipo) || [, c.tipo])[1].replace(/ \(automátic[oa]: /, " (")}</span>
               </div>
             ) : (
               <select className="rp-select" value={c.tipo} onChange={(e) => cambiar((f) => (f.seccionA[i].tipo = e.target.value))}>
-                {TIPOS_A.filter(([v]) => !TIPOS_AUTOMATICOS.includes(v)).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                {/* En un formulario nuevo también se ofrecen los automáticos (cada uno puede estar una sola vez). */}
+                {TIPOS_A.filter(([v]) => !enUso || !TIPOS_AUTOMATICOS.includes(v)).map(([v, t]) => (
+                  <option key={v} value={v} disabled={TIPOS_AUTOMATICOS.includes(v) && v !== c.tipo && form.seccionA.some((o) => o.tipo === v)}>{t}</option>
+                ))}
               </select>
             )}
           </div>
@@ -554,7 +584,10 @@ function TabA({ form, cambiar }) {
           <label style={E.check}>
             <input type="checkbox" checked={!!c.obligatorio} onChange={(e) => cambiar((f) => (f.seccionA[i].obligatorio = e.target.checked))} /> Obligatorio
           </label>
-          <BotonesFila i={i} n={n} onMover={(d) => cambiar((f) => mover(f.seccionA, i, d))} onBorrar={TIPOS_AUTOMATICOS.includes(c.tipo) ? null : () => cambiar((f) => f.seccionA.splice(i, 1))} />
+          <BotonesFila i={i} n={n} onMover={(d) => cambiar((f) => mover(f.seccionA, i, d))} onBorrar={TIPOS_AUTOMATICOS.includes(c.tipo) && enUso ? null : () => {
+            if (TIPOS_AUTOMATICOS.includes(c.tipo) && !window.confirm(AVISO_QUITAR_AUTOMATICO[c.tipo])) return;
+            cambiar((f) => f.seccionA.splice(i, 1));
+          }} />
         </div>
       ))}
       <button style={btn} onClick={() => cambiar((f) => f.seccionA.push({ id: nuevoId("a"), etiqueta: "", tipo: "texto", opciones: [], obligatorio: false }))}>

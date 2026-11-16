@@ -87,6 +87,13 @@ export async function buscarUltimaDelLider({ id, formularioId, lider }) {
 const normLider = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 
 /** Un formulario por su id (para la pantalla a la que llega quien escanea el QR). */
+/** ¿Cuántas evaluaciones (enviadas o en curso) tiene este formulario? Sirve para saber si ya está en uso. */
+export async function contarEvaluacionesDeFormulario(formularioId) {
+  await asegurarSesionCdR();
+  const snap = await getDocs(query(collection(db, "cdrEvaluaciones"), where("formularioId", "==", formularioId)));
+  return snap.size;
+}
+
 export async function obtenerFormulario(id) {
   await asegurarSesionCdR();
   const snap = await getDoc(doc(db, "cdrFormularios", id));
