@@ -43,7 +43,11 @@ function instantanea(f) {
 // Los formularios tipo CdR (con dato «Líder») mantienen sus textos de siempre; los demás usan "evaluación".
 // Cómo se llama cada evaluación y lo que se evalúa: personalizable por formulario (General → Nombres).
 // Sin personalizar se mantiene lo de siempre: "CdR" y "rutina" en formularios con líder.
-const nombreEval = (f) => String(f?.sigla || "").trim() || ((f?.seccionA || []).some((c) => c.tipo === "lider") ? "CdR" : "evaluación");
+// Si no se definió la sigla pero el nombre del formulario parte con una (ej. "CdE Estándares…"), se usa esa.
+const siglaDelNombre = (f) => { const m = String(f?.nombre || "").trim().match(/^(C[a-z][A-Z])\b/); return m ? m[1] : ""; };
+const nombreEval = (f) => String(f?.sigla || "").trim() || siglaDelNombre(f) || ((f?.seccionA || []).some((c) => c.tipo === "lider") ? "CdR" : "evaluación");
+// Cómo se rotula a quien recibe (ej. "Líder o Responsable Actividad"); por defecto "Líder".
+const rotuloReceptor = (f) => String(f?.receptor || "").trim().replace(/^./, (x) => x.toUpperCase()) || "Líder";
 const objetoEval = (f) => String(f?.objeto || "").trim() || "rutina";
 // Quien recibe la evaluación (y los compromisos): "líder" en las CdR; personalizable (ej. "evaluado").
 const receptorEval = (f) => String(f?.receptor || "").trim() || "líder";
@@ -799,7 +803,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
         <button style={btn} onClick={volver}>← Salir (se guarda solo)</button>
         <div style={{ flex: 1, minWidth: 180 }}>
           <div className="cdr-clamp2" style={{ fontWeight: 800 }} title={ev.formulario.nombre}>{ev.formulario.nombre}</div>
-          <div className="cdr-clamp2" style={{ fontSize: 12.5, color: "var(--texto-suave)" }} title={`${referenciaEval(ev, "")}${ev.lider ? " · Líder: " + ev.lider : ""}`}>{referenciaEval(ev, "Rutina sin elegir")}{ev.lider ? ` · Líder: ${ev.lider}` : ""}</div>
+          <div className="cdr-clamp2" style={{ fontSize: 12.5, color: "var(--texto-suave)" }} title={`${referenciaEval(ev, "")}${ev.lider ? ` · ${rotuloReceptor(ev.formulario)}: ${ev.lider}` : ""}`}>{nombreOpcion(referenciaEval(ev, "Rutina sin elegir"))}{ev.lider ? ` · ${rotuloReceptor(ev.formulario)}: ${ev.lider}` : ""}</div>
         </div>
         <span style={{ fontSize: 12.5, color: estadoGuardado === "error" ? "var(--rojo)" : "var(--texto-suave)", fontWeight: 600 }}>{etiquetaGuardado}</span>
       </div>
@@ -1128,11 +1132,12 @@ function UltimaDelLider({ ev }) {
     }
     let vivo = true;
     setEstado({ cargando: true, ultima: null });
-    buscarUltimaDelLider({ id: ev.id, formularioId: ev.formularioId, lider: ev.lider })
+    // En formularios por listado, la última del mismo estándar (como la reunión en las CdR).
+    buscarUltimaDelLider({ id: ev.id, formularioId: ev.formularioId, lider: ev.lider, valor: valorAsignado(ev) })
       .then((u) => vivo && setEstado({ cargando: false, ultima: u }))
       .catch(() => vivo && setEstado({ cargando: false, ultima: null }));
     return () => { vivo = false; };
-  }, [ev.id, ev.formularioId, ev.lider]);
+  }, [ev.id, ev.formularioId, ev.lider, valorAsignado(ev)]);
 
   if (!(ev.lider || "").trim()) return null;
   const u = estado.ultima;
@@ -1142,9 +1147,9 @@ function UltimaDelLider({ ev }) {
   const comp = u?.feedback?.compromiso || {};
   return (
     <div className="ca-card" style={{ marginTop: 14, borderLeft: "4px solid var(--ambar, #B5820A)" }}>
-      <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Última {nombreEval(ev.formulario)} de {ev.lider}</p>
+      <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Última {nombreEval(ev.formulario)} de {ev.lider}{valorAsignado(ev) ? <> en {nombreOpcion(valorAsignado(ev))}</> : null}</p>
       {estado.cargando && <p style={{ ...ayuda, margin: 0 }}>Buscando…</p>}
-      {!estado.cargando && !u && <p style={{ ...ayuda, margin: 0 }}>Es la primera {nombreEval(ev.formulario)} de este {receptorEval(ev.formulario)} con este formulario: no hay oportunidades ni compromisos anteriores.</p>}
+      {!estado.cargando && !u && <p style={{ ...ayuda, margin: 0 }}>Es la primera {nombreEval(ev.formulario)} de este {receptorEval(ev.formulario)} {valorAsignado(ev) ? "en este estándar" : "con este formulario"}: no hay oportunidades ni compromisos anteriores.</p>}
       {!estado.cargando && u && (
         <>
           <p style={{ ...ayuda, margin: "0 0 10px" }}>
@@ -1625,7 +1630,7 @@ function ResumenEvaluacion({ ev, ocultarEvaluador = false }) {
           <div style={{ flex: "1 1 260px" }}>
             <div style={{ fontWeight: 800, fontSize: 18 }}>{ev.rutinaNombre}</div>
             <div style={{ fontSize: 13, color: "var(--texto-suave)" }}>
-              {f.nombre} · Líder: {ev.lider}{ocultarEvaluador ? "" : <> · Evaluó: {ev.evaluadorNombre}{ev.registradoPorNombre && ev.registradoPorNombre !== ev.evaluadorNombre ? ` (registrada por ${ev.registradoPorNombre})` : ""}</>} · {fechaLegible(ev.fechaEnvio)}
+              {f.nombre} · {rotuloReceptor(f)}: {ev.lider}{ocultarEvaluador ? "" : <> · Evaluó: {ev.evaluadorNombre}{ev.registradoPorNombre && ev.registradoPorNombre !== ev.evaluadorNombre ? ` (registrada por ${ev.registradoPorNombre})` : ""}</>} · {fechaLegible(ev.fechaEnvio)}
             </div>
           </div>
           <span style={{ fontSize: 34, fontWeight: 800 }}>{fmt(r.indice)}%</span>

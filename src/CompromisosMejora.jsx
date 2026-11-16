@@ -42,7 +42,7 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 14.5, whiteSpace: "pre-wrap" }}>{c.accion}</div>
           <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginTop: 3 }}>
-            {c.ev.formulario?.nombre || "Formulario"} · {valorAsignado(c.ev) ? <b>{valorAsignado(c.ev)}</b> : c.ev.rutinaNombre || "Sin reunión"} · {String(c.ev.formulario?.sigla || "").trim() || "CdR"} del {ddmm(fechaCdR(c.ev))}
+            {c.ev.formulario?.nombre || "Formulario"} · {valorAsignado(c.ev) ? <b>{valorAsignado(c.ev)}</b> : c.ev.rutinaNombre || "Sin reunión"} · {String(c.ev.formulario?.sigla || "").trim() || (String(c.ev.formulario?.nombre || "").match(/^(C[a-z][A-Z])\b/) || [])[1] || "CdR"} del {ddmm(fechaCdR(c.ev))}
             {c.responsable ? ` · Responsable: ${c.responsable}` : ""}
           </div>
           {mostrarLider && <div style={{ fontSize: 12.5, marginTop: 2 }}>Líder: <b>{c.ev.lider || "—"}</b>{c.cierre?.cerradoPorNombre && c.cierre.cerradoPorNombre !== c.ev.lider ? ` · cerrado por ${c.cierre.cerradoPorNombre}` : ""}</div>}

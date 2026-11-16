@@ -2,6 +2,7 @@
 import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { db, asegurarSesionCdR } from "./firebase.js";
 import { elegirCompromisoAnterior } from "./compromisos.js";
+import { valorAsignado } from "./referencia.js";
 
 function escuchar(consulta, callback, onError, etiqueta) {
   let apagar = () => {};
@@ -84,14 +85,14 @@ export async function buscarCompromisoAnterior(actual) {
  * La CdR enviada más reciente de un líder con este formulario (cualquier reunión y cualquier evaluador),
  * para mostrar su última oportunidad de mejora y su compromiso al empezar una nueva.
  */
-export async function buscarUltimaDelLider({ id, formularioId, lider }) {
+export async function buscarUltimaDelLider({ id, formularioId, lider, valor = "" }) {
   const nl = normLider(lider);
   if (!formularioId || !nl) return null;
   await asegurarSesionCdR();
   const snap = await getDocs(query(collection(db, "cdrEvaluaciones"), where("formularioId", "==", formularioId)));
   const lista = snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((e) => e.estado === "enviada" && !e.anulada && e.id !== id && normLider(e.lider) === nl)
+    .filter((e) => e.estado === "enviada" && !e.anulada && e.id !== id && normLider(e.lider) === nl && (!valor || normLider(valorAsignado(e)) === normLider(valor)))
     .sort((a, b) => (b.fechaEnvio || "").localeCompare(a.fechaEnvio || ""));
   return lista[0] || null;
 }
