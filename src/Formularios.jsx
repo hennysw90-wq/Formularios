@@ -595,6 +595,18 @@ function TabA({ form, cambiar, enUso, listados }) {
                 onBlur={(e) => cambiar((f) => (f.seccionA[i].opciones = e.target.value.split(",").map((s) => s.trim()).filter(Boolean)))} />
             </div>
           )}
+          {(c.tipo === "busqueda" || c.tipo === "seleccion") && (
+            <label style={E.check} title="El Plan de evaluadores asignará este formulario por los valores de esta lista (en vez de por reunión)">
+              <input
+                type="checkbox"
+                checked={!!c.asignable}
+                disabled={enUso}
+                aria-label={`Asignar por ${c.etiqueta}`}
+                onChange={(e) => cambiar((f) => f.seccionA.forEach((x, k) => (x.asignable = k === i ? e.target.checked : false)))}
+              />{" "}
+              Se asigna en el Plan de evaluadores
+            </label>
+          )}
           <label style={E.check}>
             <input type="checkbox" checked={!!c.obligatorio} onChange={(e) => cambiar((f) => (f.seccionA[i].obligatorio = e.target.checked))} /> Obligatorio
           </label>
@@ -604,6 +616,12 @@ function TabA({ form, cambiar, enUso, listados }) {
           }} />
         </div>
       ))}
+      {form.seccionA.some((c) => c.asignable) && (
+        <p style={{ ...E.ayuda, background: "#FAEEDA", borderRadius: 8, padding: "8px 10px" }}>
+          Este formulario se asigna por «{form.seccionA.find((c) => c.asignable).etiqueta}»: en Estadísticas → Plan de evaluadores, la asignación pide ese valor en vez de la reunión, y al evaluar viene fijo.
+          {form.seccionA.some((c) => c.tipo === "rutina") ? " Te conviene quitar el dato «Reunión», que no se usará." : ""}
+        </p>
+      )}
       <button style={btn} onClick={() => cambiar((f) => f.seccionA.push({ id: nuevoId("a"), etiqueta: "", tipo: "texto", opciones: [], obligatorio: false }))}>
         + Agregar dato
       </button>

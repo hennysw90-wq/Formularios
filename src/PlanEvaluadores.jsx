@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import BuscarOpcion from "./BuscarOpcion.jsx";
+import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, PREFIJO_VALOR } from "./listados.js";
 import { APP_ACTUAL_ID } from "./auth.js";
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
@@ -197,11 +199,11 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNu
                   <div key={a.id} className="ca-card" style={{ padding: "12px 14px" }}>
                     <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
                       <div style={{ flex: "1 1 280px", minWidth: 0 }}>
-                        <div style={{ fontWeight: 800 }}>{a.reunionNombre}{a.area ? <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · {a.area}</span> : ""}</div>
+                        <div style={{ fontWeight: 800 }}>{a.campoAsignacion ? <span style={{ fontWeight: 600, color: "var(--texto-suave)" }}>{a.campoAsignacion}: </span> : null}{a.reunionNombre}{a.area ? <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · {a.area}</span> : ""}</div>
                         <div style={{ fontSize: 13, color: "var(--texto-suave)", marginTop: 2 }}>
                           Líderes: {(a.lideres || []).length
                             ? a.lideres.map((l, i) => <span key={l}>{i ? ", " : ""}{l}{directorio.length && !tieneUsuario(l) ? <b style={{ color: "#993c1d" }}> (sin usuario)</b> : ""}</span>)
-                            : <span style={{ color: "#993c1d" }}>sin líder: edítala para agregarlo</span>}
+                            : esAsignacionPorValor(a.reunionId) ? <span>—</span> : <span style={{ color: "#993c1d" }}>sin líder: edítala para agregarlo</span>}
                         </div>
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                           {(a.personas || []).map((p) => (
@@ -247,11 +249,18 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
   const usuarioDe = (nombre) => activos.find((u) => esLaPersona({ nombre }, u));
   const ordenFormularios = formularios.slice().sort((x, y) => (x.estado === "publicado" ? 0 : 1) - (y.estado === "publicado" ? 0 : 1) || (x.nombre || "").localeCompare(y.nombre || "", "es"));
   const reunionActual = (reuniones || []).find((r) => r.id === a.reunionId);
-  const reunionHuerfana = a.reunionId && reuniones && !reunionActual;
+  // Formulario que se asigna por un campo (ej. Estándar) en vez de por reunión: solo los que lo tienen marcado.
+  const listados = useListados();
+  const campo = campoAsignable(formularios.find((x) => x.id === a.formularioId));
+  const reunionHuerfana = !campo && a.reunionId && reuniones && !reunionActual;
 
   function elegirFormulario(id) {
     const f = formularios.find((x) => x.id === id);
-    cambiar({ formularioId: id, formularioNombre: f ? f.nombre : "" });
+    const cambiaTipo = !!campoAsignable(f) !== esAsignacionPorValor(a.reunionId);
+    cambiar({ formularioId: id, formularioNombre: f ? f.nombre : "", ...(cambiaTipo ? { reunionId: "", reunionNombre: "", area: "", horaInicio: "", horaFin: "" } : {}) });
+  }
+  function elegirValor(v) {
+    cambiar(v ? { reunionId: PREFIJO_VALOR + v, reunionNombre: v, area: "", horaInicio: "", horaFin: "", campoAsignacion: campo?.etiqueta || "" } : { reunionId: "", reunionNombre: "" });
   }
   function elegirReunion(id) {
     const r = (reuniones || []).find((x) => x.id === id);
@@ -283,8 +292,8 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
 
   async function guardar() {
     if (!a.formularioId) return setError("Elige el formulario.");
-    if (!a.reunionId) return setError("Elige la reunión.");
-    if (!(a.lideres || []).length) return setError("Agrega al menos un líder a evaluar.");
+    if (!a.reunionId) return setError(campo ? `Elige ${campo.etiqueta}.` : "Elige la reunión.");
+    if (!campo && !(a.lideres || []).length) return setError("Agrega al menos un líder a evaluar.");
     const sinUsuario = (a.lideres || []).filter((n) => !usuarioDe(n));
     if (sinUsuario.length) return setError(`Estos líderes no tienen usuario: ${sinUsuario.join(", ")}. Quítalos o créales usuario en Administración.`);
     if (!(a.personas || []).length) return setError("Agrega al menos un evaluador.");
@@ -323,6 +332,12 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
             ))}
           </select>
         </div>
+        {campo ? (
+          <div>
+            <label className="ca-label">{campo.etiqueta} *</label>
+            <BuscarOpcion opciones={opcionesDePregunta(campo, listados)} valor={esAsignacionPorValor(a.reunionId) ? a.reunionNombre : ""} etiqueta={campo.etiqueta} onCambiar={elegirValor} />
+          </div>
+        ) : (
         <div>
           <label className="ca-label">Reunión *</label>
           <select className="rp-select" value={a.reunionId} onChange={(e) => elegirReunion(e.target.value)} disabled={reuniones === null}>
@@ -334,10 +349,11 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
           </select>
           {reunionHuerfana && <p style={{ fontSize: 12, color: "var(--rojo)", margin: "4px 0 0" }}>Esta reunión ya no existe (o está inactiva) en Asistencia. Elige otra.</p>}
         </div>
+        )}
       </div>
 
       <div style={{ marginTop: 14 }}>
-        <label className="ca-label">Líderes a evaluar *</label>
+        <label className="ca-label">Líderes a evaluar{campo ? " (opcional)" : " *"}</label>
         <p style={{ ...ayuda, margin: "0 0 6px", fontSize: 12.5 }}>Quién lidera esta reunión, elegido entre las personas con usuario. Si hay uno, al evaluar se pone solo; si hay varios, se elige entre ellos.</p>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
           {(a.lideres || []).map((l) => {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import BuscarOpcion from "./BuscarOpcion.jsx";
-import { useListados, opcionesDePregunta } from "./listados.js";
+import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor } from "./listados.js";
 import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import { useAgenda, ListaAgenda, PildoraPendientes } from "./MiAgenda.jsx";
@@ -39,6 +39,12 @@ const horarioDeReunion = (r) => (r && r.horaInicio ? (r.horaFin ? `${r.horaInici
 function aplicarRutina(c, rutina) {
   c.rutinaSesionId = rutina ? rutina.sesionId : "";
   c.rutinaNombre = rutina ? rutina.nombre : "";
+  // Formulario asignado por un campo (ej. Estándar): ese dato queda con el valor de la asignación.
+  const campo = campoAsignable(c.formulario);
+  if (campo) {
+    c.datos = c.datos || {};
+    c.datos[campo.id] = rutina && esAsignacionPorValor(rutina.sesionId) ? rutina.nombre : "";
+  }
   const l = rutina ? rutina.lideres || [] : [];
   c.lider = l.length === 1 ? l[0] : "";
   // Sin sesión (QR), el evaluador se elige entre los asignados a ESTA reunión; si hay uno solo, queda puesto.
@@ -839,6 +845,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
   const lideres = rutina?.lideres || [];
   const detalleReunion = [horarioDeReunion(rutina), rutina?.area].filter(Boolean).join(" · ");
 
+  const campoAsig = campoAsignable(f);
   function elegirRutina(id) {
     const r = f.rutinas.find((x) => x.sesionId === id);
     cambiar((c) => aplicarRutina(c, r || null));
@@ -848,12 +855,16 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
     <div className="ca-card">
       {ev.rutinaSesionId && (
         <div className="cdr-reunion">
-          <span className="cdr-reunion-etq">{ev.rutinaBloqueada ? "Reunión asignada" : "Reunión elegida"}</span>
+          <span className="cdr-reunion-etq">{campoAsig ? `${campoAsig.etiqueta} ${ev.rutinaBloqueada ? "asignado" : "elegido"}` : ev.rutinaBloqueada ? "Reunión asignada" : "Reunión elegida"}</span>
           <span className="cdr-reunion-nom">{ev.rutinaNombre}</span>
           {detalleReunion && <span className="cdr-reunion-sub">{detalleReunion}</span>}
         </div>
       )}
-      <p style={{ ...ayuda, marginTop: 0 }}>{ev.rutinaBloqueada ? "La reunión, el líder y el evaluador salen de la asignación. Completa el resto." : "Elige la reunión: el líder y el evaluador salen de la asignación."}</p>
+      <p style={{ ...ayuda, marginTop: 0 }}>
+        {campoAsig
+          ? ev.rutinaBloqueada ? `«${campoAsig.etiqueta}» y el evaluador salen de la asignación. Completa el resto.` : `Elige «${campoAsig.etiqueta}» entre los que tienes asignados.`
+          : ev.rutinaBloqueada ? "La reunión, el líder y el evaluador salen de la asignación. Completa el resto." : "Elige la reunión: el líder y el evaluador salen de la asignación."}
+      </p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
         {!f.seccionA.some((c) => c.tipo === "evaluador") && (
           <div>
@@ -890,10 +901,19 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
               {c.tipo === "numero" && <input className="rp-input" type="number" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "fecha" && <input className="rp-input" type="date" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "hora" && <input className="rp-input" type="time" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
-              {c.tipo === "busqueda" && (
+              {c.asignable && c.id === campoAsig?.id ? (
+                ev.rutinaBloqueada || soloLectura ? (
+                  <div className="rp-input" style={{ background: "#E1F5EE", fontWeight: 700 }}>{ev.datos[c.id] || "—"}</div>
+                ) : (
+                  <select className="rp-select" value={esAsignacionPorValor(ev.rutinaSesionId) ? ev.rutinaSesionId : ""} onChange={(e) => elegirRutina(e.target.value)} aria-label={`Elegir ${c.etiqueta}`}>
+                    <option value="">Elige…</option>
+                    {f.rutinas.filter((r) => esAsignacionPorValor(r.sesionId)).map((r) => <option key={r.sesionId} value={r.sesionId}>{r.nombre}</option>)}
+                  </select>
+                )
+              ) : c.tipo === "busqueda" && (
                 <BuscarOpcion opciones={opcionesDePregunta(c, listados)} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura} onCambiar={(v) => cambiar((x) => (x.datos[c.id] = v))} />
               )}
-              {c.tipo === "seleccion" && (
+              {c.tipo === "seleccion" && !(c.asignable && c.id === campoAsig?.id) && (
                 <select className="rp-select" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))}>
                   <option value="">Elige…</option>
                   {opcionesDePregunta(c, listados).map((o) => <option key={o} value={o}>{o}</option>)}

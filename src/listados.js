@@ -68,3 +68,10 @@ export function usosDeListados(formularios) {
   );
   return Object.fromEntries(Object.entries(usos).map(([k, v]) => [k, [...v]]));
 }
+
+// ---------- Asignar un formulario por un campo (ej. Estándar) en vez de por reunión ----------
+// Una pregunta de lista marcada "asignable" hace que el Plan de evaluadores asigne el formulario por sus valores.
+// La asignación se guarda con reunionId = "lst:<valor>" (así el resto de la app la trata como una "reunión").
+export const PREFIJO_VALOR = "lst:";
+export const campoAsignable = (form) => (form?.seccionA || []).find((c) => c.asignable && (c.tipo === "busqueda" || c.tipo === "seleccion")) || null;
+export const esAsignacionPorValor = (idReunion) => String(idReunion || "").startsWith(PREFIJO_VALOR);
