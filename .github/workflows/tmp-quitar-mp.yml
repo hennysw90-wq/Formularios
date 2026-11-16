@@ -1,0 +1,10 @@
+name: tmp quitar MP_ (una vez)
+on:
+  push:
+    branches: [tmp-quitar-mp]
+jobs:
+  q:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tmpmp/q.py
