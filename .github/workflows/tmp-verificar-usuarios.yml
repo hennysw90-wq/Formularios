@@ -1,0 +1,10 @@
+name: tmp verificar usuarios (una vez)
+on:
+  push:
+    branches: [tmp-verificar-usuarios]
+jobs:
+  ver:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tmpver/ver.py
