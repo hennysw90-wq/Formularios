@@ -42,6 +42,8 @@ function instantanea(f) {
 // Sin personalizar se mantiene lo de siempre: "CdR" y "rutina" en formularios con líder.
 const nombreEval = (f) => String(f?.sigla || "").trim() || ((f?.seccionA || []).some((c) => c.tipo === "lider") ? "CdR" : "evaluación");
 const objetoEval = (f) => String(f?.objeto || "").trim() || "rutina";
+// Quien recibe la evaluación (y los compromisos): "líder" en las CdR; personalizable (ej. "evaluado").
+const receptorEval = (f) => String(f?.receptor || "").trim() || "líder";
 
 const horarioDeReunion = (r) => (r && r.horaInicio ? (r.horaFin ? `${r.horaInicio} – ${r.horaFin}` : r.horaInicio) : "");
 
@@ -1051,7 +1053,7 @@ function UltimaDelLider({ ev }) {
     <div className="ca-card" style={{ marginTop: 14, borderLeft: "4px solid var(--ambar, #B5820A)" }}>
       <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Última {nombreEval(ev.formulario)} de {ev.lider}</p>
       {estado.cargando && <p style={{ ...ayuda, margin: 0 }}>Buscando…</p>}
-      {!estado.cargando && !u && <p style={{ ...ayuda, margin: 0 }}>Es la primera {nombreEval(ev.formulario)} de este líder con este formulario: no hay oportunidades ni compromisos anteriores.</p>}
+      {!estado.cargando && !u && <p style={{ ...ayuda, margin: 0 }}>Es la primera {nombreEval(ev.formulario)} de este {receptorEval(ev.formulario)} con este formulario: no hay oportunidades ni compromisos anteriores.</p>}
       {!estado.cargando && u && (
         <>
           <p style={{ ...ayuda, margin: "0 0 10px" }}>
@@ -1379,7 +1381,7 @@ function PasoResultado({ ev, cambiar }) {
       <NotasDeTerreno ev={ev} />
 
       <p style={{ ...ayuda, margin: "0 0 12px" }}>
-        <b>El feedback es obligatorio para enviar la {nombreEval(ev.formulario)}:</b> cada fortaleza y oportunidad necesita {fb.situacion ? "criterio, situación, comportamiento e impacto" : "criterio, comportamiento e impacto"}. El compromiso con el líder va en el paso siguiente.
+        <b>El feedback es obligatorio para enviar la {nombreEval(ev.formulario)}:</b> cada fortaleza y oportunidad necesita {fb.situacion ? "criterio, situación, comportamiento e impacto" : "criterio, comportamiento e impacto"}. El compromiso con el {receptorEval(ev.formulario)} va en el paso siguiente.
       </p>
 
       {["fortalezas", "oportunidades"].map((tipo) => fb[tipo] && (
@@ -1395,7 +1397,7 @@ function PasoResultado({ ev, cambiar }) {
                 <button style={{ ...btn, color: "var(--rojo)", marginLeft: "auto" }} onClick={() => cambiar((c) => c.feedback[tipo].splice(i, 1))}>Quitar</button>
               </div>
               {fb.situacion && casilla("Situación", "¿Cuándo y dónde ocurrió?", `${tipo}-${it.id}-s`, it.situacion, (v) => cambiar((c) => (c.feedback[tipo][i].situacion = v)))}
-              {casilla("Comportamiento", "¿Qué hizo o dejó de hacer el líder? (hechos observables)", `${tipo}-${it.id}-c`, it.comportamiento, (v) => cambiar((c) => (c.feedback[tipo][i].comportamiento = v)))}
+              {casilla("Comportamiento", `¿Qué hizo o dejó de hacer el ${receptorEval(ev.formulario)}? (hechos observables)`, `${tipo}-${it.id}-c`, it.comportamiento, (v) => cambiar((c) => (c.feedback[tipo][i].comportamiento = v)))}
               {casilla("Impacto", "¿Qué efecto tuvo en el equipo o en la rutina?", `${tipo}-${it.id}-i`, it.impacto, (v) => cambiar((c) => (c.feedback[tipo][i].impacto = v)))}
             </div>
           ))}
@@ -1441,9 +1443,9 @@ function PasoCompromiso({ ev, cambiar, anterior }) {
 
       {fb.compromisoMejora && (
         <div className="ca-card">
-          <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Compromiso de mejora acordado con el líder <span style={{ color: "var(--rojo)", fontWeight: 700, fontSize: 12.5 }}>· obligatorio</span></p>
+          <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Compromiso de mejora acordado con el {receptorEval(ev.formulario)} <span style={{ color: "var(--rojo)", fontWeight: 700, fontSize: 12.5 }}>· obligatorio</span></p>
           <p style={{ ...ayuda, margin: "0 0 10px" }}>Acción concreta, quién la hace y para cuándo. Se revisará en la próxima {nombreEval(ev.formulario)} de esta {objetoEval(ev.formulario)}.</p>
-          {casilla("Acción", "¿Qué se compromete a hacer el líder?", "compromiso", ev.feedback.compromiso.accion, (v) => cambiar((c) => (c.feedback.compromiso.accion = v)))}
+          {casilla("Acción", `¿Qué se compromete a hacer el ${receptorEval(ev.formulario)}?`, "compromiso", ev.feedback.compromiso.accion, (v) => cambiar((c) => (c.feedback.compromiso.accion = v)))}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 240px" }}>
               <label className="ca-label">Responsable</label>
@@ -1539,7 +1541,7 @@ function ResumenEvaluacion({ ev, ocultarEvaluador = false }) {
           <span className={`ca-pill ${CLASE_RESULTADO[r.clasificacion]}`} style={{ fontSize: 14 }}>{ETIQUETA_CLASIFICACION[r.clasificacion]}</span>
           {r.criticosEnCero?.length > 0 && <span className="ca-pill ca-pill-rojo">Crítico en 0: {r.criticosEnCero.join(", ")}</span>}
         </div>
-        <p style={{ ...ayuda, margin: "10px 0 0" }}>Esta {nombreEval(ev.formulario)} fue enviada y está bloqueada.{ev.liderTomoConocimiento ? " El líder tomó conocimiento del feedback." : ""}</p>
+        <p style={{ ...ayuda, margin: "10px 0 0" }}>Esta {nombreEval(ev.formulario)} fue enviada y está bloqueada.{ev.liderTomoConocimiento ? ` El ${receptorEval(ev.formulario)} tomó conocimiento del feedback.` : ""}</p>
       </div>
 
       <Titulo t="Nota por bloque" />

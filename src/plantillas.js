@@ -404,8 +404,8 @@ export function formularioEnBlanco() {
     descripcion: "",
     parametros: { umbralEfectiva: 85, umbralDesarrollo: 70 },
     seccionA: [
-      { id: "a1", etiqueta: "Diálogo o rutina", tipo: "rutina", opciones: [], obligatorio: true },
-      { id: "a2", etiqueta: "Líder del diálogo", tipo: "lider", opciones: [], obligatorio: true },
+      { id: "a1", etiqueta: "Reunión o actividad", tipo: "rutina", opciones: [], obligatorio: true },
+      { id: "a2", etiqueta: "Recibe evaluación", tipo: "lider", opciones: [], obligatorio: true },
       { id: "a3", etiqueta: "Evaluador", tipo: "evaluador", opciones: [], obligatorio: true },
       { id: "a4", etiqueta: "Fecha", tipo: "fecha", opciones: [], obligatorio: true },
     ],

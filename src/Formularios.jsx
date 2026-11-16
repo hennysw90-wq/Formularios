@@ -497,10 +497,13 @@ function TabGeneral({ form, cambiar }) {
         <Campo etiqueta="Qué se evalúa (palabra)">
           <input className="rp-input" style={{ width: 200 }} value={form.objeto || ""} placeholder="rutina" aria-label="Qué se evalúa" onChange={(e) => cambiar((f) => (f.objeto = e.target.value))} />
         </Campo>
+        <Campo etiqueta="Quién recibe la evaluación (palabra)">
+          <input className="rp-input" style={{ width: 200 }} value={form.receptor || ""} placeholder="líder" aria-label="Quién recibe la evaluación" onChange={(e) => cambiar((f) => (f.receptor = e.target.value))} />
+        </Campo>
       </div>
       <p style={{ fontSize: 12.5, color: "var(--texto-suave)", margin: "-6px 0 12px" }}>
-        Se usan en los textos al evaluar, ej. «Es la primera {form.sigla?.trim() || "CdR"} registrada para esta {form.objeto?.trim() || "rutina"}» o «Se revisará en la próxima {form.sigla?.trim() || "CdR"}…». Vacío = CdR / rutina.
-        El nombre del líder (ej. «Líder de la actividad») se cambia en A · Datos generales.
+        Se usan en los textos al evaluar, ej. «Es la primera {form.sigla?.trim() || "CdR"} registrada para esta {form.objeto?.trim() || "rutina"}» o «Se revisará en la próxima {form.sigla?.trim() || "CdR"}…». «Compromiso de mejora acordado con el {form.receptor?.trim() || "líder"}». Vacío = CdR / rutina / líder.
+        El nombre del campo (ej. «Recibe evaluación») se cambia en A · Datos generales.
       </p>
       <p style={{ fontWeight: 800, margin: "18px 0 8px" }}>Rangos del resultado</p>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
@@ -535,13 +538,13 @@ const TIPOS_AUTOMATICOS = ["rutina", "lider", "evaluador"];
 // En un formulario nuevo se pueden quitar, avisando qué deja de funcionar.
 const AVISO_QUITAR_AUTOMATICO = {
   rutina: "¿Quitar «Reunión»? Las evaluaciones de este formulario no quedarán asociadas a una reunión (las asignaciones y estadísticas por reunión no las contarán).",
-  lider: "¿Quitar «Líder»? Las evaluaciones no tendrán líder: no aparecerán en Evaluaciones recibidas ni generarán Compromisos de mejora para un líder.",
+  lider: "¿Quitar «Recibe evaluación»? Las evaluaciones no tendrán a quién se le entregan: no aparecerán en Evaluaciones recibidas ni generarán Compromisos de mejora para un líder.",
   evaluador: "¿Quitar «Evaluador»? Igual se registrará quién evalúa (se pide aparte al responder).",
 };
 
 const TIPOS_A = [
   ["rutina", "Reunión (automática: de la asignación)"],
-  ["lider", "Líder (automático: de la asignación)"],
+  ["lider", "Recibe evaluación / líder (automático: de la asignación)"],
   ["evaluador", "Evaluador (automático: quien evalúa)"],
   ["texto", "Texto"],
   ["usuario", "Usuario (del directorio; se puede crear)"],
@@ -561,7 +564,7 @@ function TabA({ form, cambiar, enUso, listados }) {
       </p>
       {enUso ? (
         <p style={{ ...E.ayuda, background: "var(--fondo)", borderRadius: 8, padding: "8px 10px" }}>
-          🔒 Este formulario ya tiene asignaciones o evaluaciones: los datos automáticos (reunión, líder y evaluador) no se cambian{form.seccionA.some((x) => x.asignable) ? " (como se asigna por listado, «Reunión» y «Líder» sí se pueden quitar)" : ""}. Si necesitas otra dinámica, crea un formulario nuevo o usa «Duplicar».
+          🔒 Este formulario ya tiene asignaciones o evaluaciones: los datos automáticos (reunión, líder y evaluador) no se cambian{form.seccionA.some((x) => x.asignable) ? " (como se asigna por listado, «Reunión» y «Recibe evaluación» sí se pueden quitar; si quitas este último no habrá Evaluaciones recibidas ni compromisos para esa persona)" : ""}. Si necesitas otra dinámica, crea un formulario nuevo o usa «Duplicar».
         </p>
       ) : (
         <p style={{ ...E.ayuda, background: "#E1F5EE", borderRadius: 8, padding: "8px 10px" }}>
