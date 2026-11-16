@@ -8,7 +8,7 @@ def req(url,data=None,method="GET",token=None):
     try:
         with urllib.request.urlopen(r) as x: return x.status,json.loads(x.read() or b"{}")
     except urllib.error.HTTPError as e: return e.code,json.loads(e.read() or b"{}")
-_,a=req(f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={KEY}",{"returnSecureToken":True},"POST"); T=a["idToken"]
+_,a=req(f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={KEY}",{"returnSecureToken":True},"POST"); T=a.get("idToken"); print("AUTH", "anonima" if T else "sin sesion")
 docs=[];tok=""
 while True:
     s,r=req(f"{BASE}/usuarios?pageSize=300"+(f"&pageToken={tok}" if tok else ""),token=T); docs+=r.get("documents",[]); tok=r.get("nextPageToken")
