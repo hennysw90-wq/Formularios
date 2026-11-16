@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import AlcanceEvaluador from "./AlcanceEvaluador.jsx";
 import { useListados, datosDePregunta, campoAsignable, esAsignacionPorValor, PREFIJO_VALOR, textoAlcance } from "./listados.js";
-import { APP_ACTUAL_ID } from "./auth.js";
+import { APP_ACTUAL_ID, cambiarAppsUsuario } from "./auth.js";
+import PlanMasivo from "./PlanMasivo.jsx";
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
 import {
@@ -266,6 +267,36 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
   );
   const [buscaLider, setBuscaLider] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const [masivo, setMasivo] = useState(false);
+  const [habilitando, setHabilitando] = useState("");
+  // Da acceso a la app (lo mismo que marcarla en Administración); el directorio se actualiza solo.
+  async function habilitarAcceso(usuarios) {
+    try {
+      for (const u of usuarios) {
+        if (!u?.uid || tieneAcceso(u)) continue;
+        setHabilitando(u.uid);
+        await cambiarAppsUsuario(u.uid, [...new Set([...(Array.isArray(u.apps) ? u.apps : []), APP_ACTUAL_ID])]);
+      }
+    } catch (e) {
+      setError(`No se pudo habilitar el acceso (${e.code || e.message}).`);
+    } finally {
+      setHabilitando("");
+    }
+  }
+  async function aplicarPlanMasivo(usuarios, plan, habilitar) {
+    const base = { cantidad: plan.cantidad, frecuencia: plan.frecuencia, desde: plan.desde || "", hasta: plan.hasta || "", ...(plan.alcance ? { alcance: plan.alcance } : {}) };
+    setA((x) => {
+      const personas = [...(x.personas || [])];
+      usuarios.forEach((u) => {
+        const i = personas.findIndex((p) => esLaPersona(p, u));
+        if (i >= 0) personas[i] = { ...personas[i], ...base };
+        else personas.push({ uid: u.uid, nombre: u.nombreUsuario, ...base });
+      });
+      return { ...x, personas };
+    });
+    setError("");
+    if (habilitar) await habilitarAcceso(usuarios);
+  }
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -416,8 +447,28 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <label className="ca-label">Evaluadores *</label>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <label className="ca-label" style={{ margin: 0 }}>Evaluadores *</label>
+          {!masivo && <button style={{ ...chipBtn, fontWeight: 700 }} onClick={() => setMasivo(true)}>＋ Agregar varios con el mismo plan</button>}
+          {(() => {
+            const sin = (a.personas || []).map((p) => directorio.find((d) => esLaPersona(p, d))).filter((u) => u && !tieneAcceso(u));
+            return sin.length > 1 ? (
+              <button style={chipBtn} disabled={!!habilitando} onClick={() => habilitarAcceso(sin)}>Habilitar acceso a los {sin.length} sin acceso</button>
+            ) : null;
+          })()}
+        </div>
         <p style={{ ...ayuda, margin: "0 0 8px", fontSize: 12.5 }}>Cada uno con su propia cadencia.</p>
+        {masivo && (
+          <PlanMasivo
+            activos={activos}
+            elegidos={a.personas || []}
+            campo={campo}
+            datosCampo={datosCampo}
+            tieneAcceso={tieneAcceso}
+            onAplicar={aplicarPlanMasivo}
+            onCerrar={() => setMasivo(false)}
+          />
+        )}
         {elegidos.map((p) => {
           const u = directorio.find((d) => esLaPersona(p, d));
           const sinAcceso = u && !tieneAcceso(u);
@@ -425,7 +476,17 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
             <div key={p.uid || p.nombre} style={filaPersona}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <b style={{ flex: 1, minWidth: 0 }}>{p.nombre}</b>
-                {sinAcceso && <span className="ca-pill ca-pill-ambar" title="Puede evaluar por QR, pero no iniciar sesión hasta que se le marque la app en Administración">Sin acceso a la app</span>}
+                {sinAcceso && (
+                  <button
+                    className="ca-pill ca-pill-ambar"
+                    style={{ border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                    disabled={!!habilitando}
+                    title="Puede evaluar por QR, pero no iniciar sesión. Toca para darle acceso a la app."
+                    onClick={() => habilitarAcceso([u])}
+                  >
+                    {habilitando === u.uid ? "Habilitando…" : "Sin acceso a la app · Habilitar"}
+                  </button>
+                )}
                 <button style={x} title="Quitar" onClick={() => alternarPersona({ uid: p.uid, nombreUsuario: p.nombre })}>✕</button>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
