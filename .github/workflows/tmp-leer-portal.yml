@@ -1,0 +1,21 @@
+name: tmp leer estandares Portal EO (solo lectura)
+on:
+  push:
+    branches: [tmp-leer-portal]
+jobs:
+  leer:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Leer estándares (solo lectura)
+        run: |
+          KEY=AIzaSyCI8oXECFRvZLev2__iMGggeAAs4VSjDms
+          TOKEN=$(curl -s -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$KEY" -H 'Content-Type: application/json' -d '{"returnSecureToken":true}' | python3 -c 'import sys,json;print(json.load(sys.stdin).get("idToken",""))')
+          curl -s "https://firestore.googleapis.com/v1/projects/gestionar-mi-agenda/databases/(default)/documents/estandares?pageSize=500" -H "Authorization: Bearer $TOKEN" > est.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open("est.json"))
+          if "documents" not in d: print("ERROR", json.dumps(d)[:500])
+          for doc in d.get("documents",[]):
+              f=doc["fields"]; g=lambda k:(f.get(k,{}).get("stringValue") or "")
+              print("EST|"+g("codigo")+"|"+g("nombre")+"|"+g("gerencia")+"|"+g("area"))
+          PY
