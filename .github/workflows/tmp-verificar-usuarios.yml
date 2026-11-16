@@ -1,0 +1,10 @@
+name: tmp listar usuarios (una vez)
+on:
+  push:
+    branches: [tmp-listar-usuarios2]
+jobs:
+  ver:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tmpver/ver.py
