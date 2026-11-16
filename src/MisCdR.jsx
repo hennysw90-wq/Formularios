@@ -37,7 +37,7 @@ function coincideCriterio(texto, codigo) {
 /** Copia congelada del formulario: si luego se edita, las CdR ya hechas no cambian. */
 function instantanea(f) {
   const n = normalizarFormulario(f);
-  return { id: f.id, nombre: n.nombre, descripcion: n.descripcion, version: f.version || 1, parametros: n.parametros, seccionA: n.seccionA, rutinas: n.rutinas, seccionB: n.seccionB, bloques: n.bloques, feedback: n.feedback, evaluadores: (f.asignados || []).map((a) => ({ uid: a.uid, nombre: a.nombre })) };
+  return { id: f.id, nombre: n.nombre, descripcion: n.descripcion, sigla: f.sigla || "", objeto: f.objeto || "", receptor: f.receptor || "", version: f.version || 1, parametros: n.parametros, seccionA: n.seccionA, rutinas: n.rutinas, seccionB: n.seccionB, bloques: n.bloques, feedback: n.feedback, evaluadores: (f.asignados || []).map((a) => ({ uid: a.uid, nombre: a.nombre })) };
 }
 
 // Los formularios tipo CdR (con dato «Líder») mantienen sus textos de siempre; los demás usan "evaluación".
@@ -49,6 +49,9 @@ const nombreEval = (f) => String(f?.sigla || "").trim() || siglaDelNombre(f) || 
 // Cómo se rotula a quien recibe (ej. "Líder o Responsable Actividad"); por defecto "Líder".
 const rotuloReceptor = (f) => String(f?.receptor || "").trim().replace(/^./, (x) => x.toUpperCase()) || "Líder";
 const objetoEval = (f) => String(f?.objeto || "").trim() || "rutina";
+const porListadoF = (f) => (f?.seccionA || []).some((c) => c.asignable && (c.tipo === "busqueda" || c.tipo === "seleccion"));
+// "esta rutina" / "esta actividad" / (formularios por listado sin personalizar) "este estándar".
+const estaObjeto = (f) => (String(f?.objeto || "").trim() ? `esta ${objetoEval(f)}` : porListadoF(f) ? "este estándar" : "esta rutina");
 // Quien recibe la evaluación (y los compromisos): "líder" en las CdR; personalizable (ej. "evaluado").
 const receptorEval = (f) => String(f?.receptor || "").trim() || "líder";
 
@@ -683,6 +686,28 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
     return () => window.removeEventListener("beforeunload", aviso);
   }, [sucio]);
 
+  // Al continuar un borrador, toma los nombres vigentes del formulario (sigla, qué se evalúa, quién recibe y los
+  // nombres de los datos), sin cambiar su estructura ni lo ya respondido.
+  useEffect(() => {
+    if (evaluacionInicial.estado !== "borrador" || !evaluacionInicial.formularioId) return undefined;
+    let vivo = true;
+    obtenerFormulario(evaluacionInicial.formularioId)
+      .then((f) => {
+        if (!vivo || !f) return;
+        const a = ev.formulario || {};
+        const etqs = new Map((f.seccionA || []).map((c) => [c.id, c.etiqueta]));
+        const cambia = ["sigla", "objeto", "receptor", "nombre"].some((k) => (f[k] || "") !== (a[k] || "")) || (a.seccionA || []).some((c) => etqs.has(c.id) && etqs.get(c.id) !== c.etiqueta);
+        if (!cambia) return;
+        cambiar((c) => {
+          ["sigla", "objeto", "receptor", "nombre"].forEach((k) => (c.formulario[k] = f[k] || ""));
+          (c.formulario.seccionA || []).forEach((x) => { if (etqs.has(x.id)) x.etiqueta = etqs.get(x.id); });
+        });
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Lista de asistentes de Asistencia, para sugerir el evaluador.
   useEffect(() => {
     if (evaluacionInicial.estado === "enviada") return undefined;
@@ -740,8 +765,10 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
     if (typeof window.scrollTo === "function") window.scrollTo({ top: 0 });
   }
 
-  async function volver() {
-    if (sucio && !soloLectura) await guardarAhora();
+  function volver() {
+    // Sale de inmediato; si había cambios, se guardan en segundo plano (no se queda pegado en "Guardando…").
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (sucio && !soloLectura) guardarAhora();
     onCerrar();
   }
 
@@ -767,7 +794,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
         evaluadorEnLista: !!(ev.evaluadorUid || ev.evaluadorPersonaId),
         resultado: { indice: res.indice, clasificacion: res.clasificacion, criticosEnCero: res.criticosEnCero, bloques: res.bloques },
       };
-      final.feedback = { ...final.feedback, compromiso: { ...final.feedback.compromiso, responsable: (final.feedback.compromiso.responsable || "").trim() || ev.lider } };
+      final.feedback = { ...final.feedback, compromiso: { ...final.feedback.compromiso, responsable: porListadoF(ev.formulario) ? ev.lider || "" : (final.feedback.compromiso.responsable || "").trim() || ev.lider } };
       if (!anterior) final.feedback = { ...final.feedback, seguimiento: "primera" };
       await guardarEvaluacion(final);
       verRef.current += 1;
@@ -1532,7 +1559,7 @@ function PasoCompromiso({ ev, cambiar, anterior }) {
               {casilla("Comentario (opcional)", "¿Qué se vio respecto de ese compromiso?", "seguimiento", ev.feedback.seguimientoComentario, (v) => cambiar((c) => (c.feedback.seguimientoComentario = v)))}
             </>
           ) : (
-            <p style={{ ...ayuda, margin: 0 }}>{ev.rutinaSesionId ? (nombreEval(ev.formulario) !== "evaluación" ? `Es la primera ${nombreEval(ev.formulario)} registrada para esta ${objetoEval(ev.formulario)}: no hay compromiso anterior que revisar.` : "Es la primera evaluación registrada: no hay compromiso anterior que revisar.") : `Elige la ${objetoEval(ev.formulario)} en el paso 1 para ver si hay un compromiso anterior.`}</p>
+            <p style={{ ...ayuda, margin: 0 }}>{ev.rutinaSesionId ? (nombreEval(ev.formulario) !== "evaluación" ? `Es la primera ${nombreEval(ev.formulario)} registrada para ${estaObjeto(ev.formulario)}: no hay compromiso anterior que revisar.` : "Es la primera evaluación registrada: no hay compromiso anterior que revisar.") : `Elige la ${objetoEval(ev.formulario)} en el paso 1 para ver si hay un compromiso anterior.`}</p>
           )}
         </div>
       )}
@@ -1540,12 +1567,16 @@ function PasoCompromiso({ ev, cambiar, anterior }) {
       {fb.compromisoMejora && (
         <div className="ca-card">
           <p style={{ fontWeight: 800, margin: "0 0 4px" }}>Compromiso de mejora acordado con el {receptorEval(ev.formulario)} <span style={{ color: "var(--rojo)", fontWeight: 700, fontSize: 12.5 }}>· obligatorio</span></p>
-          <p style={{ ...ayuda, margin: "0 0 10px" }}>Acción concreta, quién la hace y para cuándo. Se revisará en la próxima {nombreEval(ev.formulario)} de esta {objetoEval(ev.formulario)}.</p>
+          <p style={{ ...ayuda, margin: "0 0 10px" }}>Acción concreta, quién la hace y para cuándo. Se revisará en la próxima {nombreEval(ev.formulario)} de {estaObjeto(ev.formulario)}.</p>
           {casilla("Acción", `¿Qué se compromete a hacer el ${receptorEval(ev.formulario)}?`, "compromiso", ev.feedback.compromiso.accion, (v) => cambiar((c) => (c.feedback.compromiso.accion = v)))}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 240px" }}>
               <label className="ca-label">Responsable</label>
-              <input className="rp-input" value={ev.feedback.compromiso.responsable} placeholder={ev.lider || "Nombre"} onChange={(e) => cambiar((c) => (c.feedback.compromiso.responsable = e.target.value))} />
+              {porListadoF(ev.formulario) ? (
+                <div className="rp-input" style={{ background: "var(--fondo)", display: "flex", alignItems: "center" }} title="Es quien recibe la evaluación">{ev.lider || <span style={{ color: "var(--texto-suave)" }}>Primero indica quién recibe la evaluación (paso 1)</span>}</div>
+              ) : (
+                <input className="rp-input" value={ev.feedback.compromiso.responsable} placeholder={ev.lider || "Nombre"} onChange={(e) => cambiar((c) => (c.feedback.compromiso.responsable = e.target.value))} />
+              )}
             </div>
             <div style={{ flex: "0 1 180px" }}>
               <label className="ca-label">Fecha</label>
@@ -1609,7 +1640,7 @@ function PasoCierre({ ev, cambiar, anterior, errores, onEnviar, enviando }) {
       )}
       <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14, margin: "14px 0", cursor: "pointer" }}>
         <input type="checkbox" checked={!!ev.liderTomoConocimiento} onChange={(e) => cambiar((c) => (c.liderTomoConocimiento = e.target.checked))} />
-        El líder tomó conocimiento del feedback entregado
+        {rotuloReceptor(ev.formulario)} tomó conocimiento del feedback entregado
       </label>
       {errores.length > 0 && <ul style={{ color: "var(--rojo)", fontSize: 13.5, paddingLeft: 20 }}>{errores.map((e) => <li key={e}>{e}</li>)}</ul>}
       <button style={btnPrim} disabled={enviando} onClick={onEnviar}>{enviando ? "Enviando…" : `Enviar y bloquear la ${nombreEval(ev.formulario)}`}</button>
