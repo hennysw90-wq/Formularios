@@ -22,6 +22,8 @@ import {
   APPS_DISPONIBLES,
   APPS_HEREDADAS,
   APP_ACTUAL_ID,
+  claveInicial,
+  APPS_POR_DEFECTO,
 } from "./auth.js";
 
 // Nombre legible de una lista de ids de apps (ej. ["asistencia","rdp"] ->
@@ -92,7 +94,7 @@ function FilaValidacion({ u, areas, usuarios, esMaster, onValidar, onRechazar })
   const [nombreUsuario, setNombreUsuario] = useState(u.nombreUsuario);
   const [cargo, setCargo] = useState(u.cargo || "");
   const [correo, setCorreo] = useState(u.correo || correoPorDefecto(u.nombreUsuario));
-  const [password, setPassword] = useState("RdPTracker");
+  const [password, setPassword] = useState(claveInicial(u.nombreUsuario));
   const [rol, setRol] = useState("usuario");
   const [area, setArea] = useState(u.area || "");
   // Henny: el directorio es compartido con Asistencia y RdP. Al validar a
@@ -197,7 +199,7 @@ function FilaValidacion({ u, areas, usuarios, esMaster, onValidar, onRechazar })
           value={password}
           onChange={(ev) => setPassword(ev.target.value)}
           style={{ maxWidth: 190 }}
-          title="Por defecto: RdPTracker (puedes cambiarla)"
+          title="Por defecto: 4 primeras letras del nombre + 26, ej. seba26 (puedes cambiarla)"
         />
         {esMaster && (
           <select className="rp-select" value={rol} onChange={(ev) => setRol(ev.target.value)} style={{ maxWidth: 140 }}>
@@ -328,12 +330,12 @@ export default function Administracion({ usuarioActual }) {
   const esMaster = usuarioActual?.rol === "master";
 
   const [nombreNuevo, setNombreNuevo] = useState("");
-  const [passwordNuevo, setPasswordNuevo] = useState("RdPTracker");
+  const [passwordNuevo, setPasswordNuevo] = useState(""); // vacío = clave inicial (4 letras del nombre + 26)
   const [rolNuevo, setRolNuevo] = useState("usuario");
   const [areaNueva, setAreaNueva] = useState("");
   const [cargoNuevo, setCargoNuevo] = useState("");
   const [correoNuevo, setCorreoNuevo] = useState("");
-  const [appsNuevo, setAppsNuevo] = useState([APP_ACTUAL_ID]);
+  const [appsNuevo, setAppsNuevo] = useState(APPS_POR_DEFECTO);
   const [creando, setCreando] = useState(false);
   const [error, setError] = useState("");
   const [exito, setExito] = useState("");
@@ -397,7 +399,8 @@ export default function Administracion({ usuarioActual }) {
     ev.preventDefault();
     setError("");
     setExito("");
-    if (!nombreNuevo.trim() || passwordNuevo.length < 6) {
+    const claveNueva = passwordNuevo || claveInicial(nombreNuevo);
+    if (!nombreNuevo.trim() || (claveNueva.length < 6 && claveNueva !== claveInicial(nombreNuevo))) {
       setError("Escribe un nombre de usuario y una contraseña de al menos 6 caracteres.");
       return;
     }
@@ -409,7 +412,7 @@ export default function Administracion({ usuarioActual }) {
     try {
       const resultado = await crearUsuario(
         nombreNuevo,
-        passwordNuevo,
+        claveNueva,
         rolNuevo,
         areaNueva,
         cargoNuevo,
@@ -429,7 +432,7 @@ export default function Administracion({ usuarioActual }) {
       setAreaNueva("");
       setCargoNuevo("");
       setCorreoNuevo("");
-      setAppsNuevo([APP_ACTUAL_ID]);
+      setAppsNuevo(APPS_POR_DEFECTO);
     } catch (e) {
       setError(e.message || "No se pudo crear el usuario. Intenta de nuevo.");
     } finally {
@@ -495,7 +498,7 @@ export default function Administracion({ usuarioActual }) {
     <div style={{ maxWidth: 1480, margin: "0 auto", padding: "0 4px" }}>
       <h2 style={estilos.titulo}>Crear nuevo usuario</h2>
       <p style={estilos.ayudaSeccion}>
-        La contraseña queda por defecto en <strong>RdPTracker</strong>; puedes cambiarla antes de crear.
+        La contraseña queda por defecto en las <strong>4 primeras letras del nombre + 26</strong> (ej. Sebastián → <strong>seba26</strong>) y queda habilitado en Asistencia, RdP y Formularios; puedes cambiarlo antes de crear.
         {!esMaster && " Quedará habilitado solo en esta app y con rol Usuario (solo un Master puede asignar Administrador o Master)."}
       </p>
       <form onSubmit={crear} style={estilos.formulario}>
@@ -509,11 +512,11 @@ export default function Administracion({ usuarioActual }) {
         <input
           className="rp-input"
           type="password"
-          placeholder="Contraseña (mín. 6 caracteres)"
+          placeholder={nombreNuevo.trim() ? `Contraseña: ${claveInicial(nombreNuevo)} (por defecto)` : "Contraseña (por defecto: 4 letras + 26)"}
           value={passwordNuevo}
           onChange={(ev) => setPasswordNuevo(ev.target.value)}
           style={{ maxWidth: 200 }}
-          title="Por defecto: RdPTracker (puedes cambiarla)"
+          title="Por defecto: 4 primeras letras del nombre + 26, ej. seba26 (puedes cambiarla)"
         />
         {esMaster && (
           <select

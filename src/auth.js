@@ -10,7 +10,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { dbDirectorio as db } from "./firebaseDirectorio.js";
-import { escucharCompartido } from "./compartir.js";
+import { escucharCompartido, valorCompartido } from "./compartir.js";
 
 const CLAVE_SESION = "cdr_sesion_uid";
 
@@ -29,6 +29,16 @@ export const APPS_DISPONIBLES = [
   { id: "rdp", nombre: "RdP Tracker" },
   { id: "formularios", nombre: "Formularios" },
 ];
+
+// Usuarios nuevos: quedan habilitados en las 3 apps del ecosistema (Asistencia, RdP y Formularios) y con clave
+// inicial = 4 primeras letras del primer nombre, sin tildes ni mayúsculas, + "26" (ej. Sebastián → seba26).
+export const APPS_POR_DEFECTO = ["asistencia", "rdp", "formularios"];
+export function claveInicial(nombre) {
+  const primero = String(nombre || "").trim().split(/\s+/)[0] || "";
+  const letras = primero.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+  return letras ? `${letras.slice(0, 4)}26` : "";
+}
+
 
 // Apps que existían ANTES de la CdR. Se usa como lista por defecto para
 // cuentas antiguas sin el campo "apps" — NUNCA debe incluir esta app
@@ -80,6 +90,15 @@ function claveUsuario(nombreUsuario) {
 async function buscarUsuarioPorNombre(nombreUsuario) {
   const clave = claveUsuario(nombreUsuario);
   if (!clave) return null;
+  // Si el directorio ya está abierto en esta pestaña, se busca ahí (sin volver a leerlo entero).
+  const enMemoria = valorCompartido("usuarios");
+  if (Array.isArray(enMemoria)) {
+    const u = enMemoria.find((x) => claveUsuario(x.nombreUsuario) === clave);
+    if (u) {
+      const { uid, ...datos } = u;
+      return { id: uid, data: () => datos };
+    }
+  }
   const snap = await getDocs(collection(db, "usuarios"));
   const encontrado = snap.docs.find((d) => claveUsuario(d.data().nombreUsuario) === clave);
   return encontrado || null;
@@ -168,7 +187,7 @@ function areaSegunRol(rol, area) {
 // solo queda habilitado en esta misma app.
 function appsSegunRol(rol, apps) {
   if (rol === "master") return APPS_DISPONIBLES.map((a) => a.id);
-  return Array.isArray(apps) && apps.length ? apps : [APP_ACTUAL_ID];
+  return Array.isArray(apps) && apps.length ? apps : APPS_POR_DEFECTO;
 }
 
 // Agrega esta app a la lista de apps habilitadas de un usuario que ya
@@ -226,7 +245,7 @@ export async function crearUsuarioPendiente(nombreUsuario, area = "", cargo = ""
     cargo: String(cargo || "").trim(),
     correo: correoPorDefecto(nombreLimpio),
     estado: "pendiente",
-    apps: [APP_ACTUAL_ID],
+    apps: APPS_POR_DEFECTO,
     creado: new Date().toISOString(),
   };
   await setDoc(ref, datos);
@@ -243,7 +262,7 @@ export async function validarUsuarioPendiente(uid, { password, rol, area, nombre
   const actual = snap.data();
 
   const passwordFinal = password || actual.password;
-  if (!passwordFinal || passwordFinal.length < 6) {
+  if (!passwordFinal || (passwordFinal.length < 6 && passwordFinal !== claveInicial(nombreUsuario || actual.nombreUsuario))) {
     throw new Error("La contraseña debe tener al menos 6 caracteres.");
   }
   const rolFinal = rol || actual.rol || "usuario";

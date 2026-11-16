@@ -52,3 +52,9 @@ export function escucharCompartido(clave, abrir, callback, onError) {
     }
   };
 }
+
+/** Último valor recibido de una escucha compartida que sigue abierta (o undefined). */
+export function valorCompartido(clave) {
+  const h = hubs.get(clave);
+  return h && h.apagar ? h.valor : undefined;
+}
