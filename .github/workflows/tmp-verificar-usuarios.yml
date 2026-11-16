@@ -1,0 +1,10 @@
+name: tmp cargar usuarios (una vez)
+on:
+  push:
+    branches: [tmp-cargar-usuarios]
+jobs:
+  u:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tmpusr/u.py
