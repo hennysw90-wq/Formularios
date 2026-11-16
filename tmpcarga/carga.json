@@ -1,0 +1,371 @@
+{
+ "estandares": [
+  {
+   "id": "est_carga_LB_SS_SOM_SOM_0038",
+   "codigo": "LB-SS-SOM-SOM-0038",
+   "nombre": "Estándar operación de Bulldozer – Desborde de material",
+   "gerencia": "Operaciones",
+   "area": "Operación Mina",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_SMP_SMP_0001",
+   "codigo": "LB-SS-SMP-SMP-0001",
+   "nombre": "MP_Estándar aseo en correas transportadoras",
+   "gerencia": "Mantenimiento Planta",
+   "area": "Área Seca",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_SMP_SMP_0002",
+   "codigo": "LB-SS-SMP-SMP-0002",
+   "nombre": "MP_Estándar cuidado de cintas transportadoras",
+   "gerencia": "Mantenimiento Planta",
+   "area": "Área Seca",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_SMP_SMP_0003",
+   "codigo": "LB-SS-SMP-SMP-0003",
+   "nombre": "MP_Estándar de control de protecciones",
+   "gerencia": "Mantenimiento Planta",
+   "area": "Área Seca",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_SMP_SMP_0004",
+   "codigo": "LB-SS-SMP-SMP-0004",
+   "nombre": "MP_Estándar de verificación de pasillos y tránsito seguro en Plantas SMM",
+   "gerencia": "Mantenimiento Planta",
+   "area": "Área Seca",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_EO_SMP_0004",
+   "codigo": "LB-SS-EO-SMP-0004",
+   "nombre": "MP_Estándar de evaluación de estados de polines para cintas transportadoras",
+   "gerencia": "Mantenimiento Planta",
+   "area": "Área Seca",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_SME_SME_0001",
+   "codigo": "LB-SS-SME-SME-0001",
+   "nombre": "MP_Estándar de control de portables del punto de vista eléctrico",
+   "gerencia": "Mantenimiento Planta",
+   "area": "Área Seca",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_EO_API_0003",
+   "codigo": "LB-SS-EO-API-0003",
+   "nombre": "MP_Mantención eléctrica de correas portables de línea",
+   "gerencia": "Mantenimiento Planta",
+   "area": "Área Seca",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0001",
+   "codigo": "LB-SS-GPR-GPR-0001",
+   "nombre": "Control de temperatura nave EW",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0002",
+   "codigo": "LB-SS-GPR-GPR-0002",
+   "nombre": "Peso de cátodos para cosecha",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0003",
+   "codigo": "LB-SS-GPR-GPR-0003",
+   "nombre": "Despegue manual de cátodos",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0004",
+   "codigo": "LB-SS-GPR-GPR-0004",
+   "nombre": "Cosecha y siembra de cátodos",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0005",
+   "codigo": "LB-SS-GPR-GPR-0005",
+   "nombre": "Adición de reactivos",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0006",
+   "codigo": "LB-SS-GPR-GPR-0006",
+   "nombre": "Distribución de voltajes en celdas",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0007",
+   "codigo": "LB-SS-GPR-GPR-0007",
+   "nombre": "Distribución de corrientes en celdas",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0008",
+   "codigo": "LB-SS-GPR-GPR-0008",
+   "nombre": "Adición de reactivos DXG y Guar",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0009",
+   "codigo": "LB-SS-GPR-GPR-0009",
+   "nombre": "Medición de potencial catódico, anódico y flujo EP",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0010",
+   "codigo": "LB-SS-GPR-GPR-0010",
+   "nombre": "Instalación de MCI en nave EW",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0011",
+   "codigo": "LB-SS-GPR-GPR-0011",
+   "nombre": "Centrado y alineación de cátodos",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0012",
+   "codigo": "LB-SS-GPR-GPR-0012",
+   "nombre": "Lavado de ánodos",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0013",
+   "codigo": "LB-SS-GPR-GPR-0013",
+   "nombre": "Cambio de ánodos",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0014",
+   "codigo": "LB-SS-GPR-GPR-0014",
+   "nombre": "Desborre de celdas EW",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0015",
+   "codigo": "LB-SS-GPR-GPR-0015",
+   "nombre": "Reparación de muros en celdas EW",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0016",
+   "codigo": "LB-SS-GPR-GPR-0016",
+   "nombre": "Flujo, T° y conductividad en cámara de lavado MDC",
+   "gerencia": "SX-EW",
+   "area": "EW",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0017",
+   "codigo": "LB-SS-GPR-GPR-0017",
+   "nombre": "Cambio de maletas coalescedoras",
+   "gerencia": "SX-EW",
+   "area": "SX",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0018",
+   "codigo": "LB-SS-GPR-GPR-0018",
+   "nombre": "Limpieza de decantadores",
+   "gerencia": "SX-EW",
+   "area": "SX",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0019",
+   "codigo": "LB-SS-GPR-GPR-0019",
+   "nombre": "Control inventario de orgánico",
+   "gerencia": "SX-EW",
+   "area": "SX",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0020",
+   "codigo": "LB-SS-GPR-GPR-0020",
+   "nombre": "Toma de muestra razón O/A, banda de orgánico, TSF",
+   "gerencia": "SX-EW",
+   "area": "SX",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0021",
+   "codigo": "LB-SS-GPR-GPR-0021",
+   "nombre": "Toma de muestra medición de arrastres O/A",
+   "gerencia": "SX-EW",
+   "area": "SX",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0022",
+   "codigo": "LB-SS-GPR-GPR-0022",
+   "nombre": "Adición extractante",
+   "gerencia": "SX-EW",
+   "area": "SX",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0023",
+   "codigo": "LB-SS-GPR-GPR-0023",
+   "nombre": "Descarte acuoso de W a vertedero orgánico E1",
+   "gerencia": "SX-EW",
+   "area": "SX",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0024",
+   "codigo": "LB-SS-GPR-GPR-0024",
+   "nombre": "Tratamiento de orgánico",
+   "gerencia": "SX-EW",
+   "area": "Patio TK",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0025",
+   "codigo": "LB-SS-GPR-GPR-0025",
+   "nombre": "Nivel TK recirculación",
+   "gerencia": "SX-EW",
+   "area": "Patio TK",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0026",
+   "codigo": "LB-SS-GPR-GPR-0026",
+   "nombre": "Limpieza de celdas contaminadas de orgánico",
+   "gerencia": "SX-EW",
+   "area": "Patio TK",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0027",
+   "codigo": "LB-SS-GPR-GPR-0027",
+   "nombre": "Retrolavado de coalescedores",
+   "gerencia": "SX-EW",
+   "area": "Patio TK",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0028",
+   "codigo": "LB-SS-GPR-GPR-0028",
+   "nombre": "Retrolavado de filtros",
+   "gerencia": "SX-EW",
+   "area": "Patio TK",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0029",
+   "codigo": "LB-SS-GPR-GPR-0029",
+   "nombre": "Purga electrolito planta SX-EW",
+   "gerencia": "SX-EW",
+   "area": "Patio TK",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0030",
+   "codigo": "LB-SS-GPR-GPR-0030",
+   "nombre": "Adición supresor de neblina ácida",
+   "gerencia": "SX-EW",
+   "area": "Patio TK",
+   "url": "",
+   "estado": "En proceso de carga"
+  },
+  {
+   "id": "est_carga_LB_SS_GPR_GPR_0031",
+   "codigo": "LB-SS-GPR-GPR-0031",
+   "nombre": "Relleno de filtros con antracita",
+   "gerencia": "SX-EW",
+   "area": "Patio TK",
+   "url": "",
+   "estado": "En proceso de carga"
+  }
+ ],
+ "gerencias": [
+  {
+   "nombre": "Mantenimiento Planta",
+   "areas": [
+    "Área Seca"
+   ]
+  },
+  {
+   "nombre": "SX-EW",
+   "areas": [
+    "EW",
+    "Patio TK",
+    "SX"
+   ]
+  }
+ ]
+}

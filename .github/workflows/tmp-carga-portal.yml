@@ -1,0 +1,10 @@
+name: tmp carga estándares al Portal EO (una vez)
+on:
+  push:
+    branches: [tmp-carga-portal]
+jobs:
+  cargar:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tmpcarga/cargar.py
