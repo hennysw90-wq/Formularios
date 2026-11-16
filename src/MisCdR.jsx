@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import BuscarOpcion from "./BuscarOpcion.jsx";
 import SelectorUsuario from "./SelectorUsuario.jsx";
+import EtiquetaOpcion, { nombreOpcion } from "./EtiquetaOpcion.jsx";
 import FotoRespaldo, { pesoFotos } from "./FotoRespaldo.jsx";
 import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, opcionesDelAlcance, numeroDePeriodo } from "./listados.js";
 import { listarEvaluacionesDesde, listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
@@ -843,6 +844,70 @@ function OpcionesLider({ lideres, valor, area, onElegir }) {
   );
 }
 
+/**
+ * Lo que le toca evaluar (por alcance): tarjeta con lo elegido y, al tocar «Cambiar», la lista de lo que le tocó al
+ * azar y del resto de su alcance (agrupado por sub área y con buscador si son muchos).
+ */
+const btnChico = { flexShrink: 0, border: "1px solid var(--borde, #D3D1C7)", background: "#fff", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "var(--verde-oscuro, #0F6E56)" };
+export function ElegirDelAlcance({ tocan, otros, subareas, hechos, valor, etiqueta, etiquetaPeriodo, onElegir }) {
+  const [abierto, setAbierto] = useState(!valor);
+  const [busca, setBusca] = useState("");
+  const cambiado = valor && !tocan.includes(valor);
+  const q = norm(busca);
+  const filtra = (o) => !q || norm(`${o} ${subareas[o] || ""}`).includes(q);
+  const tarjeta = (o, marca) => (
+    <button key={o} type="button" onClick={() => { onElegir(o); setAbierto(false); setBusca(""); }}
+      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", fontFamily: "inherit", cursor: "pointer", padding: "10px 12px", marginBottom: 6, borderRadius: 12,
+        border: o === valor ? "2px solid var(--verde, #009899)" : "1px solid var(--borde, #D3D1C7)", background: o === valor ? "#E9F6F4" : "#fff", color: "inherit" }}>
+      <span style={{ flex: 1, minWidth: 0 }}><EtiquetaOpcion texto={o} extra={subareas[o] || ""} /></span>
+      {marca}
+      {o === valor && <span style={{ color: "var(--verde-oscuro, #0F6E56)", fontWeight: 800 }}>✓</span>}
+    </button>
+  );
+  const grupos = {};
+  otros.filter(filtra).forEach((o) => (grupos[subareas[o] || "Sin sub área"] = grupos[subareas[o] || "Sin sub área"] || []).push(o));
+  const titulo = (t) => <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--texto-suave)", margin: "10px 0 6px" }}>{t}</div>;
+  return (
+    <div>
+      {valor && !abierto && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${cambiado ? "#BA7517" : "#0F6E56"}`, background: cambiado ? "#FFF7E8" : "#E9F6F4" }}>
+          <span style={{ flex: 1, minWidth: 0 }}><EtiquetaOpcion texto={valor} extra={subareas[valor] || ""} /></span>
+          {otros.length + tocan.length > 1 && <button type="button" style={btnChico} onClick={() => setAbierto(true)} aria-label={`Cambiar ${etiqueta}`}>Cambiar</button>}
+        </div>
+      )}
+      {(abierto || !valor) && (
+        <div>
+          {titulo(`Te ${tocan.length === 1 ? "tocó" : "tocaron"} al azar ${etiquetaPeriodo}`)}
+          {tocan.map((o) => tarjeta(o, hechos.includes(o) ? <span className="ca-pill ca-pill-verde" style={{ fontSize: 11 }}>✓ hecho</span> : null))}
+          {otros.length > 0 && (
+            <>
+              {titulo(`Otros de tu alcance (${otros.length})`)}
+              {otros.length > 6 && <input className="rp-input" style={{ marginBottom: 8 }} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nombre, código o sub área…" aria-label={`Buscar ${etiqueta}`} />}
+              {Object.keys(grupos).sort((a, b) => a.localeCompare(b, "es")).map((g) => (
+                <div key={g}>
+                  {Object.keys(grupos).length > 1 && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--verde-oscuro, #0F6E56)", margin: "8px 0 4px" }}>{g}</div>}
+                  {grupos[g].map((o) => tarjeta(o, null))}
+                </div>
+              ))}
+              {q && !Object.keys(grupos).length && <div style={{ fontSize: 13, color: "var(--texto-suave)" }}>Nada coincide con «{busca.trim()}».</div>}
+            </>
+          )}
+          {valor && <button type="button" style={{ ...btnChico, marginTop: 4 }} onClick={() => { setAbierto(false); setBusca(""); }}>Listo</button>}
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 6 }}>
+        {cambiado ? (
+          <>Cambiado por ti · lo sugerido {etiquetaPeriodo} era {tocan.map(nombreOpcion).join(" · ")}.{" "}
+            {tocan.length === 1 && <button type="button" style={{ border: "none", background: "none", padding: 0, color: "var(--verde-oscuro, #0F6E56)", fontWeight: 700, cursor: "pointer", fontSize: 12, textDecoration: "underline" }} onClick={() => onElegir(tocan[0])}>Volver al sugerido</button>}
+          </>
+        ) : valor && !abierto ? (
+          <>Te tocó al azar {etiquetaPeriodo}.{otros.length ? " Si necesitas, puedes cambiarlo por otro de tu alcance." : ""}</>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
   const f = ev.formulario;
   const listados = useListados();
@@ -919,7 +984,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
       {ev.rutinaSesionId && (
         <div className="cdr-reunion">
           <span className="cdr-reunion-etq">{campoAsig ? `${campoAsig.etiqueta} ${ev.rutinaBloqueada ? "asignado" : "elegido"}` : ev.rutinaBloqueada ? "Reunión asignada" : "Reunión elegida"}</span>
-          <span className="cdr-reunion-nom">{porAlcance ? valorAsig || (yoEnAsig ? "—" : "Se define al indicar quién evalúa") : ev.rutinaNombre}</span>
+          <span className="cdr-reunion-nom">{porAlcance ? (valorAsig ? <EtiquetaOpcion texto={valorAsig} grande extra={datosDePregunta(campoAsig, listados).subareas?.[valorAsig] || ""} /> : yoEnAsig ? "—" : "Se define al indicar quién evalúa") : ev.rutinaNombre}</span>
           {detalleReunion && <span className="cdr-reunion-sub">{detalleReunion}</span>}
         </div>
       )}
@@ -978,30 +1043,16 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                 ) : tocan.length === 0 ? (
                   <p style={{ ...ayuda, margin: 0, color: "var(--rojo)" }}>No tienes {c.etiqueta.toLowerCase()} asignados. Pídele a un administrador que revise tu asignación.</p>
                 ) : (
-                  <div>
-                    <select className="rp-select" value={valorAsig} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} aria-label={`Elegir ${c.etiqueta}`}
-                      style={{ background: valorAsig ? (cambioSugerido ? "#FFF7E8" : "#E1F5EE") : undefined, fontWeight: valorAsig ? 700 : undefined }}>
-                      {tocan.length !== 1 && <option value="">¿Cuál vas a evaluar ahora?</option>}
-                      <optgroup label={`Te ${tocan.length === 1 ? "tocó" : "tocaron"} al azar ${etiquetaPeriodo}`}>
-                        {tocan.map((o) => <option key={o} value={o}>{o}</option>)}
-                      </optgroup>
-                      {ordenAlcance.length > tocan.length && (
-                        <optgroup label="Otros de tu alcance">
-                          {ordenAlcance.slice(tocan.length).map((o) => <option key={o} value={o}>{o}</option>)}
-                        </optgroup>
-                      )}
-                    </select>
-                    <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 3 }}>
-                      {cambioSugerido ? (
-                        <>
-                          Cambiado por ti · lo sugerido {etiquetaPeriodo} era {tocan.join(" · ")}.{" "}
-                          {tocan.length === 1 && <button type="button" style={{ border: "none", background: "none", padding: 0, color: "var(--verde-oscuro, #0F6E56)", fontWeight: 700, cursor: "pointer", fontSize: 12, textDecoration: "underline" }} onClick={() => cambiar((x) => (x.datos[c.id] = tocan[0]))}>Volver al sugerido</button>}
-                        </>
-                      ) : (
-                        <>Te {tocan.length === 1 ? "tocó" : "tocaron"} al azar {etiquetaPeriodo}{tocan.length > 1 ? `: ${tocan.map((o) => (yaEvaluadas.includes(o) ? `${o} (✓ hecho)` : o)).join(" · ")}` : ""}. Puedes cambiarlo por otro de tu alcance{delAlcance.length > 1 ? ` (${delAlcance.length})` : ""}.</>
-                      )}
-                    </div>
-                  </div>
+                  <ElegirDelAlcance
+                    tocan={tocan}
+                    otros={ordenAlcance.slice(tocan.length)}
+                    subareas={datosDePregunta(campoAsig, listados).subareas || {}}
+                    hechos={yaEvaluadas}
+                    valor={valorAsig}
+                    etiqueta={c.etiqueta}
+                    etiquetaPeriodo={etiquetaPeriodo}
+                    onElegir={(o) => cambiar((x) => (x.datos[c.id] = o))}
+                  />
                 )
               ) : c.asignable && c.id === campoAsig?.id ? (
                 ev.rutinaBloqueada || soloLectura ? (

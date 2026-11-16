@@ -1,4 +1,5 @@
 import { useState } from "react";
+import EtiquetaOpcion from "./EtiquetaOpcion.jsx";
 
 // Pregunta "Lista con búsqueda": quien responde escribe parte del texto (sin importar mayúsculas, acentos ni
 // espacios) y elige de las coincidencias. Solo se puede elegir algo de la lista.
@@ -27,7 +28,7 @@ export default function BuscarOpcion({ opciones = [], valor, onCambiar, soloLect
   if (valor) {
     return (
       <div style={L.elegido}>
-        <b style={{ color: "#0F3D33", fontSize: 14.5 }}>{valor}</b>
+        <EtiquetaOpcion texto={valor} color="#0F3D33" />
         {!soloLectura && (
           <button type="button" style={L.boton} onClick={() => { onCambiar(""); setTexto(""); }} aria-label={`Cambiar ${etiqueta}`.trim()}>Cambiar</button>
         )}
@@ -49,7 +50,7 @@ export default function BuscarOpcion({ opciones = [], valor, onCambiar, soloLect
       {texto.trim() && (
         <div style={L.lista} role="listbox">
           {encontrados.map((o) => (
-            <button key={o} type="button" role="option" style={L.fila} onClick={() => { onCambiar(o); setTexto(""); }}>{o}</button>
+            <button key={o} type="button" role="option" style={{ ...L.fila, fontWeight: 400 }} onClick={() => { onCambiar(o); setTexto(""); }}><EtiquetaOpcion texto={o} /></button>
           ))}
           {encontrados.length === 0 && <div style={{ fontSize: 13, color: "#8A877D", padding: "8px 12px" }}>No hay opciones que coincidan con "{texto.trim()}".</div>}
         </div>
