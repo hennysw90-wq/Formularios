@@ -7,8 +7,8 @@ import ModalQR from "./ModalQR.jsx";
 import { useListados, opcionesDePregunta } from "./listados.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { contarEvaluacionesDeFormulario } from "./evaluaciones.js";
-import {
 import { etiquetaCampo } from "./referencia.js";
+import {
   repartirIgual,
   repartirProporcional,
   sumar,
