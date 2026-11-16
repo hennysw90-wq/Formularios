@@ -779,6 +779,9 @@ function TabC({ form, cambiar }) {
                   <label style={E.check}>
                     <input type="checkbox" checked={!!c.admiteNA} onChange={(e) => cambiar((f) => (f.bloques[bi].criterios[ci].admiteNA = e.target.checked))} /> Admite N/A
                   </label>
+                  <label style={E.check} title="Al responder, se pide tomar o cargar una foto como respaldo (obligatoria, salvo que se marque N/A)">
+                    <input type="checkbox" checked={!!c.requiereFoto} onChange={(e) => cambiar((f) => (f.bloques[bi].criterios[ci].requiereFoto = e.target.checked))} /> 📷 Requiere respaldo fotográfico
+                  </label>
                 </div>
               </div>
             ))}

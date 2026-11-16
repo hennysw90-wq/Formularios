@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import BuscarOpcion from "./BuscarOpcion.jsx";
+import FotoRespaldo, { pesoFotos } from "./FotoRespaldo.jsx";
 import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, numeroDePeriodo } from "./listados.js";
 import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
@@ -152,6 +153,15 @@ function erroresDeEnvio(ev, anterior) {
     }
   }
   if (sinCalificar.length) errores.push(`Faltan por calificar: ${sinCalificar.join(", ")} (paso 3).`);
+  // Respaldo fotográfico obligatorio en los criterios que lo piden (salvo que se marquen N/A).
+  const sinFoto = [];
+  for (const b of f.bloques) {
+    for (const c of b.criterios) {
+      const r = ev.respuestas[c.codigo];
+      if (c.requiereFoto && r?.nivel !== "NA" && !r?.foto) sinFoto.push(c.codigo);
+    }
+  }
+  if (sinFoto.length) errores.push(`Falta el respaldo fotográfico de: ${sinFoto.join(", ")} (paso 3).`);
 
   // El feedback es obligatorio: lo que el formulario incluya debe venir completo.
   const fb = f.feedback;
@@ -1132,6 +1142,12 @@ function PasoRubrica({ ev, cambiar }) {
       c.respuestas[cod] = r;
     });
   }
+  const fijarFoto = (cod, valor) =>
+    cambiar((x) => {
+      const rr = x.respuestas[cod] || { nivel: "", nota: "" };
+      rr.foto = valor || "";
+      x.respuestas[cod] = rr;
+    });
   const fijarNota = (cod, valor) =>
     cambiar((x) => {
       const rr = x.respuestas[cod] || { nivel: "", nota: "" };
@@ -1166,7 +1182,7 @@ function PasoRubrica({ ev, cambiar }) {
             <div key={c.id} id={`crit-${c.codigo}`} className={`cdr-criterio ${claseNivel}`}>
               <span className="cdr-chip-bloque">{b.nombre}</span>
               <p className="cdr-pregunta">
-                <span className="cod">{c.codigo}</span> {c.nombre} {c.critico && <span className="ca-pill ca-pill-rojo">★ Crítico</span>}
+                <span className="cod">{c.codigo}</span> {c.nombre} {c.critico && <span className="ca-pill ca-pill-rojo">★ Crítico</span>} {c.requiereFoto && <span className="ca-pill ca-pill-ambar">📷 Foto</span>}
               </p>
 
               <div className="cdr-niveles" style={{ gridTemplateColumns: `repeat(${c.admiteNA ? 4 : 3}, 1fr)` }} role="group" aria-label={`Nivel de ${c.codigo}`}>
@@ -1183,6 +1199,10 @@ function PasoRubrica({ ev, cambiar }) {
                   </button>
                 )}
               </div>
+
+              {c.requiereFoto && r.nivel !== "NA" && (
+                <FotoRespaldo codigo={c.codigo} foto={r.foto || ""} pesoOtras={pesoFotos(ev.respuestas) - (r.foto ? r.foto.length * 0.75 : 0)} onCambiar={(v) => fijarFoto(c.codigo, v)} />
+              )}
 
               <button type="button" className="cdr-link" aria-expanded={abierto} onClick={() => setAbiertos((a) => ({ ...a, [c.codigo]: !a[c.codigo] }))}>
                 {abierto ? "Ocultar explicación ▴" : "¿Qué mide? ▾"}
@@ -1492,7 +1512,10 @@ function ResumenEvaluacion({ ev, ocultarEvaluador = false }) {
                 <tr key={c.id}>
                   <td><b>{c.codigo}</b> {c.nombre}{c.critico ? " ★" : ""}</td>
                   <td data-label="Nivel" style={{ whiteSpace: "nowrap", fontWeight: 800, color: e ? e.color : "var(--texto-suave)" }}>{x.nivel === "NA" ? "N/A" : x.nivel === undefined || x.nivel === "" ? "—" : `${x.nivel} · ${e.etiqueta}`}</td>
-                  <td className="cdr-libre" data-label="Justificación / comentario" style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{x.nota || "—"}</td>
+                  <td className="cdr-libre" data-label="Justificación / comentario" style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>
+                    {x.nota || (x.foto ? "" : "—")}
+                    {x.foto && <FotoRespaldo soloLectura codigo={c.codigo} foto={x.foto} />}
+                  </td>
                 </tr>
               );
             }),
