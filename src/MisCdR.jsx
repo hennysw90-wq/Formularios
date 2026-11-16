@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import BuscarOpcion from "./BuscarOpcion.jsx";
 import FotoRespaldo, { pesoFotos } from "./FotoRespaldo.jsx";
-import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, numeroDePeriodo } from "./listados.js";
+import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, opcionesDelAlcance, numeroDePeriodo } from "./listados.js";
 import { listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import { useAgenda, ListaAgenda, PildoraPendientes } from "./MiAgenda.jsx";
@@ -873,11 +873,16 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
     ? opcionesQueTocan({ asignacionId: yoEnAsig.asignacionId || ev.rutinaSesionId, persona: yoEnAsig, alcance: yoEnAsig.alcance, datos: datosDePregunta(campoAsig, listados), frecuencia: yoEnAsig.frecuencia, cantidad: yoEnAsig.cantidad, fecha: fechaEval })
     : [];
   const valorAsig = campoAsig ? ev.datos[campoAsig.id] || "" : "";
+  // El evaluador puede cambiar lo sugerido por otra opción de SU alcance (sub áreas / opciones asignadas).
+  const delAlcance = yoEnAsig ? opcionesDelAlcance(yoEnAsig.alcance, datosDePregunta(campoAsig, listados)) : [];
+  const ordenAlcance = [...tocan, ...delAlcance.filter((o) => !tocan.includes(o))];
   useEffect(() => {
     if (!porAlcance || soloLectura) return;
-    const nuevo = tocan.length === 1 ? tocan[0] : tocan.includes(valorAsig) ? valorAsig : "";
-    if (nuevo !== valorAsig) cambiar((c) => { c.datos[campoAsig.id] = nuevo; });
-  }, [porAlcance, soloLectura, tocan.join("|"), valorAsig]); // eslint-disable-line react-hooks/exhaustive-deps
+    const nuevo = delAlcance.includes(valorAsig) ? valorAsig : tocan.length === 1 ? tocan[0] : "";
+    const sugerido = tocan.join(" · ");
+    if (nuevo !== valorAsig || (ev.asignacionSugerida || "") !== sugerido) cambiar((c) => { c.datos[campoAsig.id] = nuevo; c.asignacionSugerida = sugerido; });
+  }, [porAlcance, soloLectura, tocan.join("|"), delAlcance.join("|"), valorAsig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cambioSugerido = porAlcance && valorAsig && !tocan.includes(valorAsig);
   const etiquetaPeriodo = { diaria: "hoy", semanal: "esta semana", quincenal: "esta quincena", mensual: "este mes", unica: "en esta asignación" }[yoEnAsig?.frecuencia] || "en este periodo";
   function elegirRutina(id) {
     const r = f.rutinas.find((x) => x.sesionId === id);
@@ -939,18 +944,30 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                   <input className="rp-input" disabled readOnly value="Primero indica quién evalúa" />
                 ) : tocan.length === 0 ? (
                   <p style={{ ...ayuda, margin: 0, color: "var(--rojo)" }}>No tienes {c.etiqueta.toLowerCase()} asignados. Pídele a un administrador que revise tu asignación.</p>
-                ) : tocan.length === 1 ? (
-                  <div>
-                    <div className="rp-input" style={{ background: "#E1F5EE", fontWeight: 700 }}>{tocan[0]}</div>
-                    <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 3 }}>Te tocó al azar {etiquetaPeriodo}, dentro de tu alcance.</div>
-                  </div>
                 ) : (
                   <div>
-                    <select className="rp-select" value={valorAsig} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} aria-label={`Elegir ${c.etiqueta}`}>
-                      <option value="">¿Cuál vas a evaluar ahora?</option>
-                      {tocan.map((o) => <option key={o} value={o}>{o}</option>)}
+                    <select className="rp-select" value={valorAsig} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} aria-label={`Elegir ${c.etiqueta}`}
+                      style={{ background: valorAsig ? (cambioSugerido ? "#FFF7E8" : "#E1F5EE") : undefined, fontWeight: valorAsig ? 700 : undefined }}>
+                      {tocan.length !== 1 && <option value="">¿Cuál vas a evaluar ahora?</option>}
+                      <optgroup label={`Te ${tocan.length === 1 ? "tocó" : "tocaron"} al azar ${etiquetaPeriodo}`}>
+                        {tocan.map((o) => <option key={o} value={o}>{o}</option>)}
+                      </optgroup>
+                      {ordenAlcance.length > tocan.length && (
+                        <optgroup label="Otros de tu alcance">
+                          {ordenAlcance.slice(tocan.length).map((o) => <option key={o} value={o}>{o}</option>)}
+                        </optgroup>
+                      )}
                     </select>
-                    <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 3 }}>Te tocaron al azar {etiquetaPeriodo}: {tocan.join(" · ")}.</div>
+                    <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 3 }}>
+                      {cambioSugerido ? (
+                        <>
+                          Cambiado por ti · lo sugerido {etiquetaPeriodo} era {tocan.join(" · ")}.{" "}
+                          {tocan.length === 1 && <button type="button" style={{ border: "none", background: "none", padding: 0, color: "var(--verde-oscuro, #0F6E56)", fontWeight: 700, cursor: "pointer", fontSize: 12, textDecoration: "underline" }} onClick={() => cambiar((x) => (x.datos[c.id] = tocan[0]))}>Volver al sugerido</button>}
+                        </>
+                      ) : (
+                        <>Te {tocan.length === 1 ? "tocó" : "tocaron"} al azar {etiquetaPeriodo}{tocan.length > 1 ? `: ${tocan.join(" · ")}` : ""}. Puedes cambiarlo por otro de tu alcance{delAlcance.length > 1 ? ` (${delAlcance.length})` : ""}.</>
+                      )}
+                    </div>
                   </div>
                 )
               ) : c.asignable && c.id === campoAsig?.id ? (
