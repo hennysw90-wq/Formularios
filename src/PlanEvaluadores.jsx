@@ -10,6 +10,11 @@ import {
   etiquetaCadencia,
   listarAsignaciones,
   guardarAsignacion,
+  versionarAsignacion,
+  desactivarAsignacion,
+  reactivarAsignacion,
+  estaActiva,
+  tramosDe,
   eliminarAsignacion,
   nuevoIdAsignacion,
   filaDeEvaluador,
@@ -87,7 +92,7 @@ export default function PlanEvaluadores({ todas, formularios, usuario, usuarios 
   }
 
   async function borrar(a) {
-    if (!window.confirm(`¿Eliminar la asignación de "${a.reunionNombre}" (${a.formularioNombre})? Las CdR ya hechas no se borran.`)) return;
+    if (!window.confirm(`¿Eliminar la asignación de "${a.reunionNombre}" (${a.formularioNombre})?\n\nSe borra también su historial de cumplimiento (las evaluaciones ya hechas no se borran). Si solo quieres dejar de exigirla y conservar el historial, usa «Desactivar».`)) return;
     try {
       await eliminarAsignacion(a.id);
       setAviso({ tipo: "ok", texto: "Asignación eliminada." });
@@ -146,6 +151,18 @@ export default function PlanEvaluadores({ todas, formularios, usuario, usuarios 
           formPorId={formPorId}
           onEditar={(a) => { setAviso({ tipo: "", texto: "" }); setEditando({ ...JSON.parse(JSON.stringify(a)), esNueva: false }); }}
           onEliminar={borrar}
+          onActivar={async (a, activar) => {
+            const msg = activar
+              ? `¿Reactivar la asignación "${a.reunionNombre}"? Desde hoy se vuelve a exigir; los días que estuvo desactivada no cuentan.`
+              : `¿Desactivar la asignación "${a.reunionNombre}"? Desde hoy no se exige ni aparece en pendientes. Su cumplimiento anterior se conserva.`;
+            if (!window.confirm(msg)) return;
+            try {
+              await (activar ? reactivarAsignacion(a) : desactivarAsignacion(a));
+              setAviso({ tipo: "ok", texto: activar ? "Asignación reactivada." : "Asignación desactivada (su historial se conserva)." });
+            } catch (e) {
+              setAviso({ tipo: "error", texto: `No se pudo guardar (${e.code || e.message}).` });
+            }
+          }}
           onNueva={nueva}
           directorio={directorio}
         />
@@ -162,7 +179,7 @@ export default function PlanEvaluadores({ todas, formularios, usuario, usuarios 
 /*  Lista de asignaciones                                              */
 /* ------------------------------------------------------------------ */
 
-function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNueva, directorio = [] }) {
+function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [] }) {
   const tieneUsuario = (nombre) => directorio.some((u) => u.rol !== "deshabilitado" && esLaPersona({ nombre }, u));
   if (asignaciones === null) return <p style={ayuda}>Cargando asignaciones…</p>;
   if (asignaciones.length === 0) {
@@ -205,7 +222,13 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNu
                             ? a.lideres.map((l, i) => <span key={l}>{i ? ", " : ""}{l}{directorio.length && !tieneUsuario(l) ? <b style={{ color: "#993c1d" }}> (sin usuario)</b> : ""}</span>)
                             : esAsignacionPorValor(a.reunionId) ? <span>—</span> : <span style={{ color: "#993c1d" }}>sin líder: edítala para agregarlo</span>}
                         </div>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                        {((a.tramos || []).length > 0 || a.vigenteDesde) && (
+                          <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 2 }}>
+                            {a.vigenteDesde ? `Configuración vigente desde ${a.vigenteDesde.split("-").reverse().join("-")}` : ""}
+                            {(a.tramos || []).length ? ` · ${(a.tramos || []).length} cambio${(a.tramos || []).length === 1 ? "" : "s"} anterior${(a.tramos || []).length === 1 ? "" : "es"} guardado${(a.tramos || []).length === 1 ? "" : "s"} (el cumplimiento pasado se mide con sus reglas de entonces)` : ""}
+                          </div>
+                        )}
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, opacity: estaActiva(a) ? 1 : 0.55 }}>
                           {(a.personas || []).map((p) => (
                             <span key={p.uid || p.nombre} className="ca-chip" style={{ fontWeight: 600 }} title={p.desde ? `Se controla desde ${p.desde}` : ""}>
                               {p.nombre} · {etiquetaCadencia(p.cantidad, p.frecuencia, p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{p.alcance ? ` · ${textoAlcance(p.alcance)}` : ""}
@@ -214,8 +237,10 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onNu
                           {!(a.personas || []).length && <span style={{ fontSize: 13, color: "var(--rojo)" }}>Sin evaluadores</span>}
                         </div>
                       </div>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button style={btn} onClick={() => onEditar(a)}>Editar</button>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                        {!estaActiva(a) && <span className="ca-pill" style={{ background: "#eef0f3", color: "#5b6472" }}>Desactivada desde {String(a.inactivaDesde || "").split("-").reverse().join("-")}</span>}
+                        {estaActiva(a) && <button style={btn} onClick={() => onEditar(a)}>Editar</button>}
+                        <button style={btn} onClick={() => onActivar(a, !estaActiva(a))}>{estaActiva(a) ? "Desactivar" : "Reactivar"}</button>
                         <button style={btnPel} onClick={() => onEliminar(a)}>Eliminar</button>
                       </div>
                     </div>
@@ -315,7 +340,9 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
       const { esNueva, ...datos } = a;
       // Asignación por listado: una "reunión" propia de esta asignación; el valor sale del alcance de cada persona.
       const porListado = campo ? { reunionId: `${PREFIJO_VALOR}@${datos.id}`, reunionNombre: `${campo.etiqueta} (asignado por evaluador)`, area: "", horaInicio: "", horaFin: "", campoAsignacion: campo.etiqueta } : {};
-      await guardarAsignacion({ ...datos, ...porListado, creado: datos.creado || new Date().toISOString() });
+      const nueva = { ...datos, ...porListado, creado: datos.creado || new Date().toISOString() };
+      // Modificar una asignación no reescribe el pasado: lo anterior queda como tramo del historial.
+      await guardarAsignacion(esNueva ? nueva : versionarAsignacion(inicial, nueva));
       onGuardada(esNueva ? `Asignación creada: ${porListado.reunionNombre || a.reunionNombre}.` : "Asignación guardada.");
     } catch (e) {
       setError(`No se pudo guardar (${e.code || e.message}).`);
@@ -472,7 +499,7 @@ function Cumplimiento({ asignaciones, todas, directorio, cargandoDirectorio, onI
     // Personas: todas las que aparecen en alguna asignación + quienes tienen acceso y no tienen ninguna.
     const personas = new Map();
     asignaciones.forEach((a) =>
-      (a.personas || []).forEach((p) => {
+      tramosDe(a).flatMap((t) => t.personas || []).forEach((p) => {
         const u = directorio.find((d) => esLaPersona(p, d));
         const k = p.uid || `n:${p.nombre}`;
         if (!personas.has(k)) personas.set(k, { uid: p.uid, nombre: u?.nombreUsuario || p.nombre, area: u?.area || "" });

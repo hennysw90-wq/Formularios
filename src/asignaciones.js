@@ -105,7 +105,10 @@ export function fechaLocal(iso) {
  *   exigidoVencido → solo los periodos que ya cerraron (lo que ya se debe)
  * `hechas` = lista de { periodo, fecha } (una por CdR enviada).
  */
-export function celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahora = new Date(), hasta = "") {
+export function celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahora = new Date(), hasta = "", controlHasta = "") {
+  // controlHasta (exclusivo): fin de un tramo del historial; los periodos que cierran ese día o después ya no le tocan.
+  const tope = controlHasta ? fechaLocal(controlHasta) : null;
+  if (tope) tope.setHours(0, 0, 0, 0);
   const lista = hechas || [];
   const periodos = periodosDelMes(frecuencia, anio, mes);
 
@@ -131,7 +134,7 @@ export function celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahor
 
   const actual = periodoVigente(frecuencia, ahora);
   const considerados = periodos.filter(
-    (p) => (p.cierra <= ahora || p.clave === actual) && periodoDentroDelControl(p.cierra, desde)
+    (p) => (p.cierra <= ahora || p.clave === actual) && periodoDentroDelControl(p.cierra, desde) && (!tope || p.cierra < tope)
   );
   const cerrados = considerados.filter((p) => p.cierra <= ahora && p.clave !== actual);
   const contar = (ps, tope = true) =>
@@ -262,7 +265,7 @@ export function asignacionesDe(asignaciones, usuario) {
  * El resto de la CdR (evaluar, QR, estadísticas) trabaja sobre este resultado sin cambios.
  */
 export function proyectarFormulario(form, asignaciones, usuario = null) {
-  const propias = (asignaciones || []).filter((a) => a.formularioId === form.id && a.reunionId);
+  const propias = soloActivas(asignaciones).filter((a) => a.formularioId === form.id && a.reunionId);
   const visibles = usuario ? asignacionesDe(propias, usuario) : propias;
   const rutinas = new Map();
   visibles.forEach((a) => {
@@ -323,12 +326,12 @@ export function hechasEnAsignacion(asignacion, persona, evals, frecuencia) {
 
 /** Lo que le toca a la persona ahora mismo, asignación por asignación (periodo vigente). */
 export function agendaDePersona(asignaciones, usuario, evals, ahora = new Date()) {
-  return asignacionesDe(asignaciones, usuario)
+  return asignacionesDe(soloActivas(asignaciones), usuario)
     .map((a) => {
       const p = a.personas.find((x) => esLaPersona(x, usuario));
       const cantidad = Math.max(1, Number(p.cantidad) || 1);
       const frecuencia = p.frecuencia || "semanal";
-      const desde = desdeEfectivo(a, p);
+      const desde = desdeDelTramo(a, p);
       const empezo = !desde || (fechaLocal(desde) || ahora) <= ahora;
       const hechas = hechasEnAsignacion(a, p, evals, frecuencia);
       const periodo = periodoVigente(frecuencia, ahora);
@@ -359,27 +362,29 @@ export function agendaDePersona(asignaciones, usuario, evals, ahora = new Date()
 
 /** Una fila por persona para un mes: el detalle de cada asignación y el total. */
 export function filaDeEvaluador(persona, asignaciones, evals, anio, mes, ahora = new Date()) {
-  const detalle = asignacionesDe(asignaciones, persona).map((a) => {
+  const detalle = asignacionesConHistorialDe(asignaciones, persona).map((a0) => {
+    // Lo vigente hoy (o el último tramo donde estuvo) para mostrar; el cálculo suma tramo por tramo.
+    const a = ultimoTramoDe(a0, persona);
     const p = a.personas.find((x) => esLaPersona(x, persona));
     const cantidad = Math.max(1, Number(p.cantidad) || 1);
     const frecuencia = p.frecuencia || "semanal";
     const hechas = hechasEnAsignacion(a, p, evals, frecuencia);
     const hasta = frecuencia === "unica" ? p.hasta || "" : "";
-    const c = celdaDelMes(frecuencia, cantidad, desdeEfectivo(a, p), hechas, anio, mes, ahora, hasta);
+    const c = celdaConHistorial(a0, persona, evals, anio, mes, ahora);
     const periodo = periodoVigente(frecuencia, ahora);
     const enCurso =
       frecuencia === "unica"
         ? hasta ? hechas.filter((h) => dentroDelPlazo(h.fecha, desdeEfectivo(a, p), hasta)).length : hechas.length
         : hechas.filter((h) => h.periodo === periodo).length;
     return {
-      asignacion: a,
+      asignacion: a0,
       cantidad,
       frecuencia,
       hasta,
-      desde: desdeEfectivo(a, p),
+      desde: desdeDelTramo(a, p),
       ...c,
       estado: estadoDelPlan({ ...c, anio, mes, ahora }),
-      pendienteAhora: Math.max(0, cantidad - enCurso),
+      pendienteAhora: estaActiva(a0) && (a0.personas || []).some((x) => esLaPersona(x, persona)) ? Math.max(0, cantidad - enCurso) : 0,
     };
   });
   const exigido = detalle.reduce((s, d) => s + d.exigido, 0);
@@ -464,4 +469,97 @@ export function propuestasDesdeModeloAnterior(formularios, asignaciones, planes 
     });
   });
   return propuestas;
+}
+
+
+// ─── Historial de una asignación (cumplimiento no retroactivo) ─────────────
+// Cada vez que se modifica una asignación, su configuración anterior queda como un "tramo" con fecha de término:
+//   tramos: [{ desde, hasta, personas, formularioId, reunionId, lideres }]   (hasta = día del cambio, exclusivo)
+//   vigenteDesde: desde cuándo rige la configuración actual (vacío = desde siempre, como las antiguas)
+//   activa: false + inactivaDesde → desactivada (no se exige nada desde ese día).
+// El cumplimiento de cada periodo se calcula con el tramo vigente en ese momento.
+export const estaActiva = (a) => a?.activa !== false;
+export const soloActivas = (asignaciones) => (asignaciones || []).filter(estaActiva);
+
+const CAMPOS_CONFIG = ["personas", "formularioId", "formularioNombre", "reunionId", "reunionNombre", "lideres", "area", "campoAsignacion"];
+
+/** Los tramos de una asignación como asignaciones "virtuales" con su ventana de control (_desde, _hasta). */
+export function tramosDe(a) {
+  const pasados = (a.tramos || []).map((t) => ({ ...a, ...t, _desde: t.desde || "", _hasta: t.hasta || "" }));
+  const actual = { ...a, _desde: a.vigenteDesde || "", _hasta: estaActiva(a) ? "" : a.inactivaDesde || hoyLocalISO() };
+  return [...pasados, actual];
+}
+/** Desde cuándo se controla a la persona en un tramo: lo más tarde entre su "desde" y el inicio del tramo. */
+export function desdeDelTramo(a, p) {
+  const inicioTramo = "_desde" in a ? a._desde : a.vigenteDesde || "";
+  return [desdeEfectivo(a, p), inicioTramo].filter(Boolean).sort().pop() || "";
+}
+/** Asignaciones donde la persona está hoy o estuvo en algún tramo (para no perder su historial). */
+export function asignacionesConHistorialDe(asignaciones, persona) {
+  return (asignaciones || []).filter((a) => tramosDe(a).some((t) => (t.personas || []).some((p) => esLaPersona(p, persona))));
+}
+/** El tramo más reciente donde aparece la persona. */
+export function ultimoTramoDe(a, persona) {
+  return [...tramosDe(a)].reverse().find((t) => (t.personas || []).some((p) => esLaPersona(p, persona))) || a;
+}
+/** Celda del mes sumando todos los tramos donde la persona estuvo, cada uno con sus reglas. */
+export function celdaConHistorial(a, persona, evals, anio, mes, ahora = new Date()) {
+  const total = { hechas: 0, reales: 0, exigido: 0, exigidoVencido: 0 };
+  tramosDe(a).forEach((t) => {
+    const p = (t.personas || []).find((x) => esLaPersona(x, persona));
+    if (!p) return;
+    const cantidad = Math.max(1, Number(p.cantidad) || 1);
+    const frecuencia = p.frecuencia || "semanal";
+    const hechas = hechasEnAsignacion(t, p, evals, frecuencia);
+    let hasta = frecuencia === "unica" ? p.hasta || "" : "";
+    if (hasta && t._hasta && hasta >= t._hasta) {
+      const d = fechaLocal(t._hasta);
+      d.setDate(d.getDate() - 1);
+      hasta = hoyLocalISO(d);
+    }
+    const c = celdaDelMes(frecuencia, cantidad, desdeDelTramo(t, p), hechas, anio, mes, ahora, hasta, t._hasta);
+    total.hechas += c.hechas;
+    total.reales += c.reales;
+    total.exigido += c.exigido;
+    total.exigidoVencido += c.exigidoVencido;
+  });
+  return total;
+}
+
+const configDe = (a) =>
+  JSON.stringify(
+    CAMPOS_CONFIG.map((k) =>
+      k === "personas"
+        ? (a?.personas || []).map((p) => [p.uid || "", p.nombre || "", Math.max(1, Math.floor(Number(p.cantidad)) || 1), p.frecuencia || "semanal", p.desde || "", (p.frecuencia === "unica" && p.hasta) || "", p.alcance ? [[...(p.alcance.opciones || [])].sort(), [...(p.alcance.subareas || [])].sort()] : null])
+        : k === "lideres" ? [...(a?.lideres || [])].map((l) => String(l).trim()).filter(Boolean) : a?.[k] ?? null
+    )
+  );
+
+/**
+ * Al guardar una asignación ya existente: si cambió algo que afecta el cumplimiento, la configuración anterior
+ * queda como tramo hasta hoy y la nueva rige desde hoy. (Si se crea y se corrige el mismo día, solo se reemplaza.)
+ */
+export function versionarAsignacion(anterior, nueva, hoy = hoyLocalISO()) {
+  if (!anterior || configDe(anterior) === configDe(nueva)) return { ...nueva, tramos: anterior?.tramos || nueva.tramos || [] };
+  const inicio = anterior.vigenteDesde || String(anterior.creado || "").slice(0, 10) || "";
+  if (inicio === hoy) return { ...nueva, tramos: anterior.tramos || [], vigenteDesde: anterior.vigenteDesde || "" };
+  const tramo = Object.fromEntries(CAMPOS_CONFIG.map((k) => [k, anterior[k] ?? null]));
+  return { ...nueva, tramos: [...(anterior.tramos || []), { ...tramo, desde: anterior.vigenteDesde || "", hasta: hoy }], vigenteDesde: hoy };
+}
+
+/** Desactivar: desde hoy no se exige nada; el historial queda. */
+export async function desactivarAsignacion(a) {
+  await guardarAsignacion({ ...a, activa: false, inactivaDesde: hoyLocalISO() });
+}
+/** Reactivar: lo que rigió hasta que se desactivó queda como tramo; los días desactivada no cuentan. */
+export async function reactivarAsignacion(a) {
+  const hoy = hoyLocalISO();
+  const tramo = Object.fromEntries(CAMPOS_CONFIG.map((k) => [k, a[k] ?? null]));
+  await guardarAsignacion({
+    ...a,
+    tramos: [...(a.tramos || []), { ...tramo, desde: a.vigenteDesde || "", hasta: a.inactivaDesde || hoy }],
+    vigenteDesde: hoy,
+    activa: true,
+    inactivaDesde: "",
+  });
 }

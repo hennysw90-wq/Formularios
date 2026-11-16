@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { fechaCdR } from "./estadisticas.js";
-import { celdaDelMes, hechasEnAsignacion, asignacionesDe, esLaPersona, etiquetaCadencia, desdeEfectivo } from "./asignaciones.js";
+import { celdaDelMes, hechasEnAsignacion, asignacionesDe, esLaPersona, etiquetaCadencia, desdeEfectivo, asignacionesConHistorialDe, celdaConHistorial, ultimoTramoDe, desdeDelTramo } from "./asignaciones.js";
 
 const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const MESES_CORTOS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
@@ -43,19 +43,20 @@ export default function CumplimientoPlan({ persona, asignaciones, evals, titulo 
   }, [rango]);
 
   const filas = useMemo(() => {
-    return asignacionesDe(asignaciones || [], persona)
-      .map((a) => {
+    // Con historial: cada mes se mide con las reglas que regían entonces (no retroactivo).
+    return asignacionesConHistorialDe(asignaciones || [], persona)
+      .map((a0) => {
+        const a = ultimoTramoDe(a0, persona);
         const p = a.personas.find((x) => esLaPersona(x, persona));
         const cantidad = Math.max(1, Number(p.cantidad) || 1);
         const frecuencia = p.frecuencia || "semanal";
-        const desde = desdeEfectivo(a, p);
-        const hechas = hechasEnAsignacion(a, p, evals || [], frecuencia);
+        const desde = desdeDelTramo(a, p);
         const hasta = frecuencia === "unica" ? p.hasta || "" : "";
-        const celdas = columnas.map(({ anio, mes }) => celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahora, hasta));
+        const celdas = columnas.map(({ anio, mes }) => celdaConHistorial(a0, persona, evals || [], anio, mes, ahora));
         const totalExigido = celdas.reduce((s, c) => s + c.exigido, 0);
         const totalHecho = celdas.reduce((s, c) => s + c.hechas, 0);
         const totalReal = celdas.reduce((s, c) => s + (c.reales ?? c.hechas), 0);
-        return { asignacion: a, cantidad, frecuencia, desde, hasta, celdas, totalExigido, totalHecho, totalReal, porcentaje: totalExigido > 0 ? Math.round((totalHecho / totalExigido) * 100) : null };
+        return { asignacion: a0, cantidad, frecuencia, desde, hasta, celdas, totalExigido, totalHecho, totalReal, porcentaje: totalExigido > 0 ? Math.round((totalHecho / totalExigido) * 100) : null };
       })
       .sort((x, y) => (x.porcentaje ?? 999) - (y.porcentaje ?? 999));
     // eslint-disable-next-line react-hooks/exhaustive-deps
