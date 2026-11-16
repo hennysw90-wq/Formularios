@@ -95,7 +95,8 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
     if (!quien) return [];
     const porForm = new Map();
     agendaDePersona(asignaciones, quien, evals)
-      .filter((it) => formPorId.has(it.asignacion.formularioId))
+      // Cada QR es de un formulario: solo sus pendientes (los de otros formularios tienen su propio QR).
+      .filter((it) => it.asignacion.formularioId === formularioId && formPorId.has(it.asignacion.formularioId))
       .forEach((it) => {
         const g = porForm.get(it.asignacion.formularioId) || [];
         g.push(it);
@@ -177,8 +178,11 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
     );
   }
 
+  // Cada QR muestra solo lo de su formulario: cumplimiento, evaluaciones recibidas y compromisos.
+  const evalsDelForm = evals.filter((e) => e.formularioId === formularioId);
+  const asignacionesDelForm = asignaciones.filter((a) => a.formularioId === formularioId);
   // Compromisos que le acordaron y todavía no cierra (pendientes o vencidos).
-  const abiertos = compromisosRecibidos(evals, persona, cierres).filter((c) => !estaCerrado(c));
+  const abiertos = compromisosRecibidos(evalsDelForm, persona, cierres).filter((c) => !estaCerrado(c));
   const compromisosAbiertos = abiertos.length;
   // Rojo si alguno ya venció; verde si todos están dentro de plazo.
   const hayVencidos = abiertos.some((c) => c.estado === "vencido");
@@ -213,12 +217,12 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
             <PedirClave persona={persona} onOk={() => { setDesbloqueado(true); setEjecutando(porVer); setPorVer(null); }} />
           </>
         ) : (
-          <CumplimientoPlan persona={quien} asignaciones={asignaciones} evals={evals} titulo="" compacto conHistorial
+          <CumplimientoPlan persona={quien} asignaciones={asignacionesDelForm} evals={evalsDelForm} titulo="" compacto conHistorial
             onVer={(e) => (desbloqueado ? setEjecutando(e) : setPorVer(e))} />
         ))}
       {pestana === "resultados" &&
         (desbloqueado ? (
-          <ResultadosQR persona={persona} evals={evals} vista={vistaRes} onVista={setVistaRes} onVer={(e) => { setAnonima(true); setEjecutando(e); }} />
+          <ResultadosQR persona={persona} evals={evalsDelForm} vista={vistaRes} onVista={setVistaRes} onVer={(e) => { setAnonima(true); setEjecutando(e); }} />
         ) : (
           <PedirClave persona={persona} onOk={() => setDesbloqueado(true)} />
         ))}
@@ -226,8 +230,8 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
         (desbloqueado ? (
           <CompromisosMejora
             compacto
-            recibidos={compromisosRecibidos(evals, persona, cierres)}
-            entregados={compromisosEntregados(evals, persona, cierres)}
+            recibidos={compromisosRecibidos(evalsDelForm, persona, cierres)}
+            entregados={compromisosEntregados(evalsDelForm, persona, cierres)}
             usuario={{ uid: persona.uid, nombreUsuario: persona.nombreUsuario }}
           />
         ) : (

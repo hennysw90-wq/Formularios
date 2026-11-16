@@ -851,60 +851,66 @@ function OpcionesLider({ lideres, valor, area, onElegir }) {
  */
 const btnChico = { flexShrink: 0, border: "1px solid var(--borde, #D3D1C7)", background: "#fff", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", color: "var(--verde-oscuro, #0F6E56)" };
 export function ElegirDelAlcance({ tocan, otros, subareas, hechos, valor, etiqueta, etiquetaPeriodo, onElegir }) {
-  const [abierto, setAbierto] = useState(!valor);
+  const [abierto, setAbierto] = useState(false);
   const [busca, setBusca] = useState("");
   const cambiado = valor && !tocan.includes(valor);
   const q = norm(busca);
-  const filtra = (o) => !q || norm(`${o} ${subareas[o] || ""}`).includes(q);
-  const tarjeta = (o, marca) => (
-    <button key={o} type="button" onClick={() => { onElegir(o); setAbierto(false); setBusca(""); }}
-      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", fontFamily: "inherit", cursor: "pointer", padding: "10px 12px", marginBottom: 6, borderRadius: 12,
-        border: o === valor ? "2px solid var(--verde, #009899)" : "1px solid var(--borde, #D3D1C7)", background: o === valor ? "#E9F6F4" : "#fff", color: "inherit" }}>
+  const elegir = (o) => { onElegir(o); setAbierto(false); setBusca(""); };
+  const tarjeta = (o, marca, ambar = false) => (
+    <button key={o} type="button" onClick={() => elegir(o)}
+      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", fontFamily: "inherit", cursor: "pointer", padding: "10px 12px", marginBottom: 6, borderRadius: 12, color: "inherit",
+        border: o === valor ? `2px solid ${ambar ? "#BA7517" : "var(--verde, #009899)"}` : "1px solid var(--borde, #D3D1C7)", background: o === valor ? (ambar ? "#FFF7E8" : "#E9F6F4") : "#fff" }}>
       <span style={{ flex: 1, minWidth: 0 }}><EtiquetaOpcion texto={o} extra={subareas[o] || ""} /></span>
       {marca}
-      {o === valor && <span style={{ color: "var(--verde-oscuro, #0F6E56)", fontWeight: 800 }}>✓</span>}
+      {o === valor && <span style={{ color: ambar ? "#BA7517" : "var(--verde-oscuro, #0F6E56)", fontWeight: 800 }}>✓</span>}
     </button>
   );
+  // Lista compacta (solo nombres) del resto del alcance, agrupada por sub área.
   const grupos = {};
-  otros.filter(filtra).forEach((o) => (grupos[subareas[o] || "Sin sub área"] = grupos[subareas[o] || "Sin sub área"] || []).push(o));
-  const titulo = (t) => <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--texto-suave)", margin: "10px 0 6px" }}>{t}</div>;
+  otros.filter((o) => !q || norm(`${o} ${subareas[o] || ""}`).includes(q)).forEach((o) => (grupos[subareas[o] || "Sin sub área"] = grupos[subareas[o] || "Sin sub área"] || []).push(o));
+  const nombresGrupos = Object.keys(grupos).sort((x, y) => x.localeCompare(y, "es"));
   return (
     <div>
-      {valor && !abierto && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, border: `1.5px solid ${cambiado ? "#BA7517" : "#0F6E56"}`, background: cambiado ? "#FFF7E8" : "#E9F6F4" }}>
-          <span style={{ flex: 1, minWidth: 0 }}><EtiquetaOpcion texto={valor} extra={subareas[valor] || ""} /></span>
-          {otros.length + tocan.length > 1 && <button type="button" style={btnChico} onClick={() => setAbierto(true)} aria-label={`Cambiar ${etiqueta}`}>Cambiar</button>}
-        </div>
-      )}
-      {(abierto || !valor) && (
-        <div>
-          {titulo(`Te ${tocan.length === 1 ? "tocó" : "tocaron"} al azar ${etiquetaPeriodo}`)}
-          {tocan.map((o) => tarjeta(o, hechos.includes(o) ? <span className="ca-pill ca-pill-verde" style={{ fontSize: 11 }}>✓ hecho</span> : null))}
-          {otros.length > 0 && (
-            <>
-              {titulo(`Otros de tu alcance (${otros.length})`)}
-              {otros.length > 6 && <input className="rp-input" style={{ marginBottom: 8 }} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nombre, código o sub área…" aria-label={`Buscar ${etiqueta}`} />}
-              {Object.keys(grupos).sort((a, b) => a.localeCompare(b, "es")).map((g) => (
-                <div key={g}>
-                  {Object.keys(grupos).length > 1 && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--verde-oscuro, #0F6E56)", margin: "8px 0 4px" }}>{g}</div>}
-                  {grupos[g].map((o) => tarjeta(o, null))}
-                </div>
-              ))}
-              {q && !Object.keys(grupos).length && <div style={{ fontSize: 13, color: "var(--texto-suave)" }}>Nada coincide con «{busca.trim()}».</div>}
-            </>
-          )}
-          {valor && <button type="button" style={{ ...btnChico, marginTop: 4 }} onClick={() => { setAbierto(false); setBusca(""); }}>Listo</button>}
-        </div>
-      )}
-      <div style={{ fontSize: 12, color: "var(--texto-suave)", marginTop: 6 }}>
-        {cambiado ? (
-          <>Cambiado por ti · lo sugerido {etiquetaPeriodo} era {tocan.map(nombreOpcion).join(" · ")}.{" "}
-            {tocan.length === 1 && <button type="button" style={{ border: "none", background: "none", padding: 0, color: "var(--verde-oscuro, #0F6E56)", fontWeight: 700, cursor: "pointer", fontSize: 12, textDecoration: "underline" }} onClick={() => onElegir(tocan[0])}>Volver al sugerido</button>}
-          </>
-        ) : valor && !abierto ? (
-          <>Te tocó al azar {etiquetaPeriodo}.{otros.length ? " Si necesitas, puedes cambiarlo por otro de tu alcance." : ""}</>
-        ) : null}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "2px 0 6px" }}>
+        <span style={{ flex: 1, fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--texto-suave)" }}>
+          Te {tocan.length === 1 ? "tocó" : "tocaron"} al azar {etiquetaPeriodo}
+        </span>
+        {otros.length > 0 && (
+          <button type="button" style={btnChico} onClick={() => { setAbierto(!abierto); setBusca(""); }} aria-expanded={abierto} aria-label={`Cambiar ${etiqueta}`}>
+            {abierto ? "Cerrar" : "Cambiar ▾"}
+          </button>
+        )}
       </div>
+      {abierto && (
+        <div style={{ border: "1px solid var(--borde, #D3D1C7)", borderRadius: 12, background: "#fff", marginBottom: 8, overflow: "hidden" }}>
+          <div style={{ padding: 8, borderBottom: "1px solid #EEECE6" }}>
+            <input className="rp-input" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={`Buscar entre ${otros.length} de tu alcance…`} aria-label={`Buscar ${etiqueta}`} autoFocus />
+          </div>
+          <div style={{ maxHeight: 300, overflowY: "auto" }}>
+            {nombresGrupos.map((g) => (
+              <div key={g}>
+                {nombresGrupos.length > 1 && <div style={{ position: "sticky", top: 0, background: "#F7F6F2", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--verde-oscuro, #0F6E56)", padding: "5px 12px" }}>{g}</div>}
+                {grupos[g].map((o) => (
+                  <button key={o} type="button" onClick={() => elegir(o)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", border: "none", borderBottom: "1px solid #F3F1EC", background: o === valor ? "#FFF7E8" : "#fff", padding: "9px 12px", fontFamily: "inherit", fontSize: 14, color: "inherit", cursor: "pointer" }}>
+                    <span style={{ flex: 1 }}>{nombreOpcion(o)}</span>
+                    {o === valor && <span style={{ color: "#BA7517", fontWeight: 800 }}>✓</span>}
+                  </button>
+                ))}
+              </div>
+            ))}
+            {!nombresGrupos.length && <div style={{ fontSize: 13, color: "var(--texto-suave)", padding: "10px 12px" }}>Nada coincide con «{busca.trim()}».</div>}
+          </div>
+        </div>
+      )}
+      {tocan.map((o) => tarjeta(o, hechos.includes(o) ? <span className="ca-pill ca-pill-verde" style={{ fontSize: 11 }}>✓ hecho</span> : null))}
+      {cambiado && (
+        <>
+          <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "#BA7517", margin: "8px 0 6px" }}>Elegido por ti</div>
+          {tarjeta(valor, null, true)}
+          {tocan.length === 1 && <button type="button" style={{ border: "none", background: "none", padding: 0, color: "var(--verde-oscuro, #0F6E56)", fontWeight: 700, cursor: "pointer", fontSize: 12.5, textDecoration: "underline" }} onClick={() => onElegir(tocan[0])}>Volver al sugerido</button>}
+        </>
+      )}
     </div>
   );
 }
