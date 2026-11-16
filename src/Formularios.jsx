@@ -8,6 +8,7 @@ import { useListados, opcionesDePregunta } from "./listados.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { contarEvaluacionesDeFormulario } from "./evaluaciones.js";
 import { etiquetaCampo } from "./referencia.js";
+import { useConfirmarConClave } from "./ConfirmarConClave.jsx";
 import {
   repartirIgual,
   repartirProporcional,
@@ -69,6 +70,7 @@ export default function Formularios({ usuario }) {
   const [modalNuevo, setModalNuevo] = useState(false);
   const [qrDe, setQrDe] = useState(null);
   const inputArchivo = useRef(null);
+  const [modalClave, pedirClave] = useConfirmarConClave(usuario);
 
   useEffect(() => {
     const c1 = listarFormularios(setLista, (e) =>
@@ -158,7 +160,7 @@ export default function Formularios({ usuario }) {
   }
 
   async function borrar(f) {
-    if (!window.confirm(`¿Eliminar el formulario "${f.nombre}"? Esta acción no se puede deshacer.`)) return;
+    if (!(await pedirClave(`Eliminar el formulario «${f.nombre}»`, "Esta acción no se puede deshacer."))) return;
     try {
       await eliminarFormulario(f.id);
     } catch (e) {
@@ -246,6 +248,7 @@ export default function Formularios({ usuario }) {
       )}
 
       {qrDe && <ModalQR form={qrDe} onCerrar={() => setQrDe(null)} />}
+      {modalClave}
 
       {modalNuevo && (
         <Modal titulo="Nuevo formulario" onCerrar={() => setModalNuevo(false)}>

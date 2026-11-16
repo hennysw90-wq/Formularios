@@ -86,7 +86,11 @@ export default function ResultadosQR({ persona, evals, vista, onVista, onVer, mo
   );
   const mias = recibidas.filter((e) => fechaCdR(e) >= desde);
 
-  const formularios = useMemo(() => agrupar(mias, (e) => e.formularioId, (e) => e.formulario?.nombre || "Formulario"), [mias]);
+  // Formularios: todos los que alguna vez tuvo (aunque en el periodo elegido no haya), con lo del periodo.
+  const formularios = useMemo(() => {
+    const delPeriodo = new Map(agrupar(mias, (e) => e.formularioId, (e) => e.formulario?.nombre || "Formulario").map((g) => [g.clave, g]));
+    return agrupar(recibidas, (e) => e.formularioId, (e) => e.formulario?.nombre || "Formulario").map((g) => delPeriodo.get(g.clave) || { ...g, n: 0, promedio: null, clasificacion: "", items: [] });
+  }, [mias, recibidas]);
   const delForm = mias.filter((e) => e.formularioId === formularioId);
   const reuniones = useMemo(() => agrupar(delForm, claveRutina, (e) => referenciaEval(e)), [delForm]);
   const deReunion = delForm.filter((e) => claveRutina(e) === reunion);
@@ -128,7 +132,7 @@ export default function ResultadosQR({ persona, evals, vista, onVista, onVer, mo
         />
       )}
       {formularioId && !reunion && (
-        <Lista titulo="Elige la reunión" vacio="Sin evaluaciones de este formulario en el periodo." grupos={reuniones} onElegir={(g) => cambiar({ reunion: g.clave })} />
+        <Lista titulo={`Elige ${(delForm[0] || recibidas.find((e) => e.formularioId === formularioId))?.formulario?.seccionA?.some((c) => c.asignable) ? "el estándar" : "la reunión"}`} vacio="Sin evaluaciones de este formulario en el periodo. Prueba con un periodo más largo (3 meses, 6 meses o el año)." grupos={reuniones} onElegir={(g) => cambiar({ reunion: g.clave })} />
       )}
       {formularioId && reunion && (
         <HojaResumen lista={deReunion} historico={historicoReunion} rango={rango} nombreForm={nombreForm} nombreReunion={nombreReunion} onVer={onVer} conLider={realizadas} />
@@ -164,7 +168,7 @@ function Lista({ titulo, vacio, grupos, onElegir }) {
           <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{g.nombre}</div>
             <div style={{ ...gris, fontSize: 12 }}>
-              {g.n} CdR · última {g.ultima.split("-").reverse().join("-")}
+              {g.n ? `${g.n} ${pluralSigla(g.items[0]?.formulario)} · última ${g.ultima.split("-").reverse().join("-")}` : "Sin evaluaciones en este periodo"}
             </div>
           </div>
           <span className={`ca-pill ${clasePill(g.clasificacion)}`} style={{ fontSize: 13 }}>{pct(g.promedio)}</span>

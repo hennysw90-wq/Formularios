@@ -5,6 +5,7 @@ import { APP_ACTUAL_ID, cambiarAppsUsuario } from "./auth.js";
 import PlanMasivo from "./PlanMasivo.jsx";
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
+import { useConfirmarConClave } from "./ConfirmarConClave.jsx";
 import {
   FRECUENCIAS,
   ETIQUETA_ESTADO,
@@ -52,6 +53,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
   const [vista, setVista] = useState(null); // "cumplimiento" | "asignaciones"
   const [editando, setEditando] = useState(null); // asignación en edición (copia)
   const [aviso, setAviso] = useState({ tipo: "", texto: "" });
+  const [modalClave, pedirClave] = useConfirmarConClave(usuario);
 
   useEffect(
     () =>
@@ -94,7 +96,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
   }
 
   async function borrar(a) {
-    if (!window.confirm(`¿Eliminar la asignación de "${a.reunionNombre}" (${a.formularioNombre})?\n\nSe borra también su historial de cumplimiento (las evaluaciones ya hechas no se borran). Si solo quieres dejar de exigirla y conservar el historial, usa «Desactivar».`)) return;
+    if (!(await pedirClave(`Eliminar la asignación «${a.reunionNombre}» (${a.formularioNombre})`, "Se borra también su historial de cumplimiento (las evaluaciones ya hechas no se borran). Si solo quieres dejar de exigirla y conservar el historial, usa «Desactivar»."))) return;
     try {
       await eliminarAsignacion(a.id);
       setAviso({ tipo: "ok", texto: "Asignación eliminada." });
@@ -105,6 +107,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
 
   return (
     <div>
+      {modalClave}
       <p style={ayuda}>
         Cada asignación dice qué formulario se usa en qué reunión, a qué líderes se evalúa y quiénes evalúan, cada uno con
         su propia cadencia (por ejemplo, 2 veces a la semana). El formulario no queda atado a ninguna reunión: se elige acá.

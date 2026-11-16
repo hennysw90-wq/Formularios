@@ -101,7 +101,7 @@ export default function App() {
           <div className="ca-card">
             <p style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 18 }}>Evaluaciones recibidas</p>
             <p style={{ margin: "0 0 12px", color: "var(--texto-suave)", fontSize: 14 }}>
-              Las CdR que te han realizado como líder (igual que al revisarlas desde el QR): elige el periodo, el formulario y la reunión para ver tu hoja resumen.
+              Las evaluaciones que te han realizado (igual que al revisarlas desde el QR): elige el periodo, el formulario y la reunión o el estándar para ver tu hoja resumen.
             </p>
             {enviadas === null ? <p style={{ color: "var(--texto-suave)" }}>Cargando…</p>
               : <ResultadosQR persona={{ uid: usuario.uid, nombreUsuario: usuario.nombreUsuario }} evals={enviadas} vista={vistaResultados} onVista={setVistaResultados} onVer={setVerRecibida} />}
