@@ -8,6 +8,7 @@ import { useListados, opcionesDePregunta } from "./listados.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { contarEvaluacionesDeFormulario } from "./evaluaciones.js";
 import {
+import { etiquetaCampo } from "./referencia.js";
   repartirIgual,
   repartirProporcional,
   sumar,
@@ -502,7 +503,7 @@ function TabGeneral({ form, cambiar }) {
         </Campo>
       </div>
       <p style={{ fontSize: 12.5, color: "var(--texto-suave)", margin: "-6px 0 12px" }}>
-        Se usan en los textos al evaluar, ej. «Es la primera {form.sigla?.trim() || "CdR"} registrada para esta {form.objeto?.trim() || "rutina"}» o «Se revisará en la próxima {form.sigla?.trim() || "CdR"}…». «Compromiso de mejora acordado con el {form.receptor?.trim() || "líder"}». Vacío = CdR / rutina / líder.
+        Se usan en los textos al evaluar, ej. «Es la primera {form.sigla?.trim() || "CdR"} registrada para esta {form.objeto?.trim() || "rutina"}» o «Se revisará en la próxima {form.sigla?.trim() || "CdR"}…». «Compromiso de mejora acordado con el {form.receptor?.trim() || "líder"}». «Qué se evalúa» y «Quién recibe» también dan nombre a los datos de reunión y líder en A · Datos generales. Vacío = CdR / rutina / líder.
         El nombre del campo (ej. «Recibe evaluación») se cambia en A · Datos generales.
       </p>
       <p style={{ fontWeight: 800, margin: "18px 0 8px" }}>Rangos del resultado</p>
@@ -575,6 +576,7 @@ function TabA({ form, cambiar, enUso, listados }) {
         <div key={c.id} style={E.fila}>
           <div style={{ flex: "2 1 220px" }}>
             <input className="rp-input" value={c.etiqueta} placeholder="Etiqueta" onChange={(e) => cambiar((f) => (f.seccionA[i].etiqueta = e.target.value))} />
+            {etiquetaCampo(c, form) !== c.etiqueta && <div style={{ fontSize: 12, color: "var(--verde-oscuro, #0F6E56)", marginTop: 2 }}>Se muestra como «{etiquetaCampo(c, form)}» (definido en General).</div>}
           </div>
           <div style={{ flex: "1 1 220px" }}>
             {TIPOS_AUTOMATICOS.includes(c.tipo) && enUso ? (
@@ -941,6 +943,11 @@ function TabE({ form, cambiar, formularios = [] }) {
 
 function CampoPrevio({ c, form }) {
   const base = { className: "rp-input", disabled: true };
+  const porListado = (form.seccionA || []).find((x) => x.asignable);
+  if (c.tipo === "rutina" && porListado) return <input {...base} readOnly value={`(no se usa: se asigna por «${porListado.etiqueta}»; puedes quitarlo)`} />;
+  if (c.tipo === "lider" && porListado) return <input {...base} readOnly value="Busca a la persona en el directorio (o la crea por validar)" />;
+  if (c.tipo === "usuario") return <input {...base} readOnly value="Busca a la persona en el directorio (o la crea por validar)" />;
+  if (c.tipo === "busqueda" && c.asignable) return <input {...base} readOnly value={`Viene de la asignación (le toca uno al azar; puede cambiarlo dentro de su alcance)`} />;
   if (c.tipo === "rutina") {
     return (
       <select className="rp-select" disabled>
@@ -980,7 +987,7 @@ function VistaPrevia({ form, listados }) {
       <div className="ca-card" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
         {form.seccionA.map((c) => (
           <div key={c.id}>
-            <label className="ca-label">{c.etiqueta || "(sin etiqueta)"}{c.obligatorio ? " *" : ""}</label>
+            <label className="ca-label">{etiquetaCampo(c, form) || "(sin etiqueta)"}{c.obligatorio ? " *" : ""}</label>
             <CampoPrevio c={{ ...c, opciones: opcionesDePregunta(c, listados) }} form={form} />
           </div>
         ))}

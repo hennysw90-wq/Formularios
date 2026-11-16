@@ -20,3 +20,14 @@ export function claveReferencia(e) {
   const v = valorAsignado(e);
   return v ? `val:${normRef(v)}` : e?.rutinaSesionId || normRef(e?.rutinaNombre);
 }
+
+/**
+ * Nombre a mostrar de un dato de A · Datos generales. Si el formulario personalizó «Quién recibe la evaluación» o
+ * «Qué se evalúa» (pestaña General), los campos automáticos de líder y de reunión usan esos nombres.
+ */
+export function etiquetaCampo(c, form) {
+  const may = (t) => String(t || "").trim().replace(/^./, (x) => x.toUpperCase());
+  if (c?.tipo === "lider" && String(form?.receptor || "").trim()) return may(form.receptor);
+  if (c?.tipo === "rutina" && String(form?.objeto || "").trim()) return may(form.objeto);
+  return c?.etiqueta || "";
+}

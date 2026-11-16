@@ -18,6 +18,7 @@ import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { nuevoId } from "./formularios.js";
 import { calcularResultado, normalizarFormulario, ETIQUETA_CLASIFICACION } from "./calculo.js";
 import { referenciaEval, valorAsignado } from "./referencia.js";
+import { etiquetaCampo } from "./referencia.js";
 
 const clonar = (x) => JSON.parse(JSON.stringify(x));
 const fmt = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
@@ -149,7 +150,7 @@ function erroresDeEnvio(ev, anterior) {
     else if (c.tipo === "lider") v = ev.lider;
     else if (c.tipo === "evaluador") v = ev.evaluadorNombre;
     else v = ev.datos[c.id];
-    if (!v || !String(v).trim()) errores.push(`Falta completar "${c.etiqueta}" (paso 1).`);
+    if (!v || !String(v).trim()) errores.push(`Falta completar "${etiquetaCampo(c, f)}" (paso 1).`);
   }
   if (!f.seccionA.some((c) => c.tipo === "evaluador" && c.obligatorio) && !(ev.evaluadorNombre || "").trim()) {
     errores.push("Falta indicar quién evalúa (paso 1).");
@@ -1005,7 +1006,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
           const lideresComoTarjetas = c.tipo === "lider" && ev.rutinaSesionId && lideres.length >= 1 && lideres.length <= 6;
           return (
             <div key={c.id} style={lideresComoTarjetas || (c.tipo === "lider" && ev.lider && !soloLectura) ? { gridColumn: "1 / -1" } : undefined}>
-              <label className="ca-label">{c.etiqueta}{c.obligatorio ? " *" : ""}</label>
+              <label className="ca-label">{etiquetaCampo(c, f)}{c.obligatorio ? " *" : ""}</label>
               {c.tipo === "rutina" && (
                 <select className="rp-select" value={ev.rutinaSesionId} onChange={(e) => elegirRutina(e.target.value)}>
                   <option value="">Elige la reunión…</option>
@@ -1014,7 +1015,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
               )}
               {c.tipo === "lider" && liderLibre && (
                 soloLectura ? <div className="rp-input" style={{ background: "var(--fondo)" }}>{ev.lider || "—"}</div>
-                : <SelectorUsuario valor={ev.lider || ""} etiqueta={c.etiqueta} onCambiar={(n, uid) => cambiar((x) => { x.lider = n; x.liderUid = uid || ""; })} />
+                : <SelectorUsuario valor={ev.lider || ""} etiqueta={etiquetaCampo(c, f)} onCambiar={(n, uid) => cambiar((x) => { x.lider = n; x.liderUid = uid || ""; })} />
               )}
               {c.tipo === "lider" && !liderLibre && (
                 !ev.rutinaSesionId ? <input className="rp-input" disabled value="Primero elige la reunión" readOnly />
