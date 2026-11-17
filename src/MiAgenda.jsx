@@ -2,7 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { listarFormulariosPublicados, listarEvaluacionesDesde } from "./evaluaciones.js";
 import { listarAsignaciones, agendaDePersona, proyectarFormulario, etiquetaCadencia } from "./asignaciones.js";
 
-export const TEXTO_PERIODO = { diaria: "hoy", semanal: "esta semana", quincenal: "esta quincena", mensual: "este mes", unica: "en total" };
+export const TEXTO_PERIODO = { diaria: "hoy", semanal: "esta semana", quincenal: "esta quincena", mensual: "este mes", unica: "en total", programada: "en tu fecha" };
+
+/** Programado al azar: qué fecha le toca (ej. "Te toca la del mié 18-11"). */
+const DIA_CORTO = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+const diaFecha = (f) => { const [a, m, d] = String(f || "").split("-").map(Number); return a ? `${DIA_CORTO[new Date(a, m - 1, d).getDay()]} ${String(d).padStart(2, "0")}-${String(m).padStart(2, "0")}` : ""; };
+export function textoProgramada(it) {
+  if (!it.empezo) return it.proxima ? `Primera fecha: ${diaFecha(it.proxima)}` : "Sin fechas programadas";
+  if (it.completa) return `✓ Hecha la del ${diaFecha(it.fechaProgramada)}${it.proxima ? ` · próxima ${diaFecha(it.proxima)}` : ""}`;
+  return `Te toca la del ${diaFecha(it.fechaProgramada)}${it.proxima ? ` · próxima ${diaFecha(it.proxima)}` : ""}`;
+}
 
 // Las CdR de los últimos ~12 meses bastan para cualquier cadencia (incluida "una sola vez" reciente).
 const desdeAgenda = () => new Date(Date.now() - 370 * 86400000).toISOString().slice(0, 10);
@@ -77,7 +86,9 @@ export function ListaAgenda({ items, onIniciar }) {
                 </div>
               </div>
               <div style={{ flex: "0 0 auto", fontSize: 13.5, fontWeight: 700, color: !it.empezo ? "var(--texto-suave)" : it.completa ? "#0f6e56" : it.vencida ? "#993c1d" : "#ba7517" }}>
-                {!it.empezo
+                {it.frecuencia === "programada"
+                  ? textoProgramada(it)
+                  : !it.empezo
                   ? `Empieza el ${it.desde.split("-").reverse().join("-")}`
                   : it.vencida
                   ? `Vencido el ${it.hasta.split("-").reverse().join("-")} · ${it.hechasReales} de ${it.cantidad}`

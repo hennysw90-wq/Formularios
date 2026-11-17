@@ -72,7 +72,7 @@ export default function PlanMasivo({ activos, elegidos, campo, datosCampo, tiene
         <div style={{ flex: "1 1 150px" }}>
           <label style={mini}>Frecuencia</label>
           <select className="rp-select" value={plan.frecuencia} onChange={(e) => setPlan({ ...plan, frecuencia: e.target.value })} aria-label="Frecuencia del plan masivo">
-            {FRECUENCIAS.map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
+            {FRECUENCIAS.filter((f) => f.valor !== "programada").map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
           </select>
         </div>
         <div style={{ flex: "0 0 160px" }}>

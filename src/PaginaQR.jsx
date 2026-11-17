@@ -14,7 +14,7 @@ import {
   ETIQUETA_ESTADO,
 } from "./asignaciones.js";
 import { Ejecutar, nuevaEvaluacion } from "./MisCdR.jsx";
-import { TEXTO_PERIODO } from "./MiAgenda.jsx";
+import { TEXTO_PERIODO, textoProgramada } from "./MiAgenda.jsx";
 import CompromisosMejora from "./CompromisosMejora.jsx";
 import { listarCierres, compromisosRecibidos, compromisosEntregados, estaCerrado } from "./compromisosLider.js";
 import { referenciaEval } from "./referencia.js";
@@ -418,13 +418,13 @@ function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBor
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 14 }}>{a.reunionNombre || "Sin reunión"}</p>
                       <p style={{ ...gris, fontSize: 12, margin: 0 }}>
-                        {etiquetaCadencia(it.cantidad, it.frecuencia)} · {it.hechasReales} de {it.cantidad} {periodo}
+                        {it.frecuencia === "programada" ? textoProgramada(it) : <>{etiquetaCadencia(it.cantidad, it.frecuencia)} · {it.hechasReales} de {it.cantidad} {periodo}</>}
                       </p>
                       {(a.lideres || []).length > 0 && <p style={{ ...gris, fontSize: 12, margin: "2px 0 0" }}>Líder: {a.lideres.join(", ")}</p>}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                       {!it.empezo ? (
-                        <span style={chipNeutro}>Desde {it.desde.split("-").reverse().join("-")}</span>
+                        <span style={chipNeutro}>{it.frecuencia === "programada" ? "Aún no le toca" : `Desde ${it.desde.split("-").reverse().join("-")}`}</span>
                       ) : it.completa ? (
                         <span style={chipOk}>✓ Al día</span>
                       ) : it.vencida ? (

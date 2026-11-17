@@ -6,6 +6,7 @@ import PlanMasivo from "./PlanMasivo.jsx";
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
 import { useConfirmarConClave } from "./ConfirmarConClave.jsx";
+import ProgramacionAzar, { firmaSorteo } from "./ProgramacionAzar.jsx";
 import {
   FRECUENCIAS,
   ETIQUETA_ESTADO,
@@ -24,6 +25,7 @@ import {
   esLaPersona,
   listarPlanesAnteriores,
   propuestasDesdeModeloAnterior,
+  sortearProgramacion,
 } from "./asignaciones.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -273,10 +275,13 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
   const [busqueda, setBusqueda] = useState("");
   const [masivo, setMasivo] = useState(false);
   // Plan común de la asignación: se define una vez y lo heredan todos los evaluadores que no estén "personalizados".
-  const PLAN_VACIO = { cantidad: 1, frecuencia: "semanal", desde: "", hasta: "", alcance: { opciones: [], subareas: [] } };
-  const planDe = (p) => ({ cantidad: p.cantidad ?? 1, frecuencia: p.frecuencia || "semanal", desde: p.desde || "", hasta: p.hasta || "", alcance: p.alcance || { opciones: [], subareas: [] } });
+  const PLAN_VACIO = { cantidad: 1, frecuencia: "semanal", desde: "", hasta: "", dias: [1, 2, 3, 4, 5], alcance: { opciones: [], subareas: [] } };
+  const planDe = (p) => ({ cantidad: p.cantidad ?? 1, frecuencia: p.frecuencia || "semanal", desde: p.desde || "", hasta: p.hasta || "", dias: p.dias || [1, 2, 3, 4, 5], alcance: p.alcance || { opciones: [], subareas: [] } });
   const mismoPlan = (x, y) => JSON.stringify(planDe(x)) === JSON.stringify(planDe(y));
   const [planComun, setPlanComun] = useState(() => (inicial.planComun ? planDe(inicial.planComun) : (inicial.personas || [])[0] ? planDe(inicial.personas[0]) : PLAN_VACIO));
+  // Programado al azar: firma del último sorteo (días, fechas y evaluadores) para avisar si hay que volver a sortear.
+  const [firma, setFirma] = useState(() => inicial.planComun?.firmaSorteo || "");
+  const claveP = (p) => p.uid || `n:${p.nombre}`;
   useEffect(() => {
     // Asignaciones anteriores (sin plan común guardado): quien no coincida con el plan del primero queda personalizado.
     if (inicial.planComun || !(inicial.personas || []).length) return;
@@ -288,6 +293,26 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     setError("");
     setA((x) => ({ ...x, planComun: nuevo, personas: (x.personas || []).map((p) => (p.personalizado ? p : { ...p, ...nuevo, ...(campo ? {} : { alcance: undefined }) })) }));
   }
+  function sortear() {
+    const siguen = (a.personas || []).filter((p) => !p.personalizado);
+    const desde = planComun.desde || new Date().toISOString().slice(0, 10);
+    const r = sortearProgramacion(siguen.map(claveP), [desde, new Date().toISOString().slice(0, 10)].sort().pop(), planComun.hasta, planComun.dias || []);
+    setA((x) => ({ ...x, personas: (x.personas || []).map((p) => (p.personalizado ? p : { ...p, fechas: r[claveP(p)] || [] })) }));
+    setFirma(firmaSorteo(planComun, siguen.map(claveP)));
+    setError("");
+  }
+  function moverFecha(fecha, de, aClave) {
+    if (de === aClave) return;
+    setA((x) => ({ ...x, personas: (x.personas || []).map((p) => {
+      const k = claveP(p);
+      if (k === de) return { ...p, fechas: (p.fechas || []).filter((f) => f !== fecha) };
+      if (k === aClave) return { ...p, fechas: [...(p.fechas || []), fecha].sort() };
+      return p;
+    }) }));
+  }
+  const esProgramada = planComun.frecuencia === "programada";
+  const siguenPlan = (a.personas || []).filter((p) => !p.personalizado);
+  const sorteoDesactualizado = esProgramada && firma !== firmaSorteo(planComun, siguenPlan.map(claveP));
   function personalizar(uid, si) {
     setA((x) => ({ ...x, personas: x.personas.map((p) => (p.uid === uid ? (si ? { ...p, personalizado: true } : { ...p, ...planComun, ...(campo ? {} : { alcance: undefined }), personalizado: false }) : p)) }));
   }
@@ -383,6 +408,10 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
       return setError(`Elige en el plan común qué ${campo.etiqueta.toLowerCase()} les tocan.`);
     }
     if (planComun.frecuencia === "unica" && !planComun.hasta && (a.personas || []).some((p) => !p.personalizado)) return setError("Pon en el plan común hasta qué fecha tienen para ejecutarlo (plazo).");
+    if (esProgramada && siguenPlan.length) {
+      if (!planComun.hasta || !(planComun.dias || []).length) return setError("Elige los días de la semana y hasta qué fecha se programa.");
+      if (sorteoDesactualizado || !siguenPlan.some((p) => (p.fechas || []).length)) return setError("Toca «Sortear calendario» (o «Volver a sortear») antes de guardar.");
+    }
     if (campo) {
       const sinAlcance = a.personas.filter((p) => !(p.alcance?.opciones || []).length && !(p.alcance?.subareas || []).length);
       if (sinAlcance.length) return setError(`Elige qué ${campo.etiqueta.toLowerCase()} le tocan a: ${sinAlcance.map((p) => p.nombre).join(", ")}.`);
@@ -399,7 +428,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
       const { esNueva, ...datos } = a;
       // Asignación por listado: una "reunión" propia de esta asignación; el valor sale del alcance de cada persona.
       const porListado = campo ? { reunionId: `${PREFIJO_VALOR}@${datos.id}`, reunionNombre: `${campo.etiqueta} (asignado por evaluador)`, area: "", horaInicio: "", horaFin: "", campoAsignacion: campo.etiqueta } : {};
-      const nueva = { ...datos, ...porListado, planComun: { ...planComun, ...(campo ? {} : { alcance: null }) }, creado: datos.creado || new Date().toISOString() };
+      const nueva = { ...datos, ...porListado, planComun: { ...planComun, ...(campo ? {} : { alcance: null }), ...(esProgramada ? { firmaSorteo: firma } : {}) }, creado: datos.creado || new Date().toISOString() };
       // Modificar una asignación no reescribe el pasado: lo anterior queda como tramo del historial.
       await guardarAsignacion(esNueva ? nueva : versionarAsignacion(inicial, nueva));
       onGuardada(esNueva ? `Asignación creada: ${porListado.reunionNombre || a.reunionNombre}.` : "Asignación guardada.");
@@ -490,10 +519,12 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
         <div style={{ border: "1.5px solid var(--verde)", borderRadius: 10, padding: "10px 12px", marginBottom: 10, background: "#F4FBF9" }}>
           <b style={{ fontSize: 14 }}>Plan común</b>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
+            {!esProgramada && (
             <div style={{ flex: "0 0 86px" }}>
               <label style={mini}>Cantidad</label>
               <input className="rp-input" type="number" min="1" value={planComun.cantidad} onChange={(e) => cambiarPlanComun({ cantidad: e.target.value })} aria-label="Cantidad del plan común" />
             </div>
+            )}
             <div style={{ flex: "1 1 150px" }}>
               <label style={mini}>Frecuencia</label>
               <select className="rp-select" value={planComun.frecuencia} onChange={(e) => cambiarPlanComun({ frecuencia: e.target.value })} aria-label="Frecuencia del plan común">
@@ -501,7 +532,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
               </select>
             </div>
             <div style={{ flex: "0 0 160px" }}>
-              <label style={mini}>{planComun.frecuencia === "unica" ? "Ejecutar desde" : "Controlar desde"}</label>
+              <label style={mini}>{planComun.frecuencia === "unica" ? "Ejecutar desde" : esProgramada ? "Programar desde" : "Controlar desde"}</label>
               <input className="rp-input" type="date" value={planComun.desde} title="Vacío = desde que se crea la asignación" onChange={(e) => cambiarPlanComun({ desde: e.target.value })} aria-label="Desde del plan común" />
             </div>
             {planComun.frecuencia === "unica" && (
@@ -511,9 +542,19 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
               </div>
             )}
           </div>
+          {esProgramada && (
+            <ProgramacionAzar
+              plan={planComun}
+              personas={siguenPlan.map((p) => ({ clave: claveP(p), nombre: p.nombre, fechas: p.fechas || [] }))}
+              desactualizado={sorteoDesactualizado}
+              onCambiar={cambiarPlanComun}
+              onSortear={sortear}
+              onMover={moverFecha}
+            />
+          )}
           {campo && <AlcanceEvaluador etiqueta={campo.etiqueta} nombre="el plan común" datos={datosCampo} alcance={planComun.alcance} onCambiar={(al) => cambiarPlanComun({ alcance: al })} />}
           <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>
-            {etiquetaCadencia(planComun.cantidad || 1, planComun.frecuencia, planComun.frecuencia === "unica" ? planComun.hasta : "")}
+            {etiquetaCadencia(planComun.cantidad || 1, planComun.frecuencia, planComun.frecuencia === "unica" || esProgramada ? planComun.hasta : "")}
             {planComun.desde ? ` · desde ${planComun.desde.split("-").reverse().join("-")}` : ""}
             {(a.personas || []).length ? ` · lo siguen ${(a.personas || []).filter((p) => !p.personalizado).length} de ${(a.personas || []).length}` : ""}
           </div>
@@ -543,7 +584,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
               </div>
               {!p.personalizado ? (
                 <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginTop: 2 }}>
-                  Plan común · {etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{campo && p.alcance ? ` · ${textoAlcance(p.alcance) || "sin alcance"}` : ""}
+                  Plan común · {p.frecuencia === "programada" ? `${(p.fechas || []).length} días programados${(() => { const hoy = new Date().toISOString().slice(0, 10); const prox = [...(p.fechas || [])].sort().find((f) => f >= hoy); return prox ? ` · próximo ${prox.split("-").reverse().join("-")}` : ""; })()}` : etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{campo && p.alcance ? ` · ${textoAlcance(p.alcance) || "sin alcance"}` : ""}
                 </div>
               ) : (<>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
@@ -554,7 +595,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
                 <div style={{ flex: "1 1 150px" }}>
                   <label style={mini}>Frecuencia</label>
                   <select className="rp-select" value={p.frecuencia || "semanal"} onChange={(e) => cambiarPersona(p.uid, "frecuencia", e.target.value)} aria-label={`Frecuencia de ${p.nombre}`}>
-                    {FRECUENCIAS.map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
+                    {FRECUENCIAS.filter((f) => f.valor !== "programada" || p.frecuencia === "programada").map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
                   </select>
                 </div>
                 <div style={{ flex: "0 0 160px" }}>

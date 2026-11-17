@@ -16,6 +16,7 @@ export const FRECUENCIAS = [
   { valor: "quincenal", etiqueta: "A la quincena" },
   { valor: "mensual", etiqueta: "Al mes" },
   { valor: "unica", etiqueta: "Una sola vez" },
+  { valor: "programada", etiqueta: "Programado al azar (días)" },
 ];
 
 export function etiquetaFrecuencia(valor) {
@@ -29,6 +30,7 @@ export function etiquetaCadencia(cantidad, frecuencia, hasta = "") {
   const n = Number(cantidad) || 1;
   const veces = n === 1 ? "1 vez" : `${n} veces`;
   if (frecuencia === "unica") return (n === 1 ? "Una sola vez" : `${veces} en total`) + (hasta ? ` · hasta ${ddmmaaaa(hasta)}` : "");
+  if (frecuencia === "programada") return `Programado al azar${hasta ? ` hasta ${ddmmaaaa(hasta)}` : ""}`;
   return `${veces} ${etiquetaFrecuencia(frecuencia).toLowerCase()}`;
 }
 
@@ -43,8 +45,16 @@ function claveSemana(fecha) {
   return `${d.getUTCFullYear()}-W${String(semana).padStart(2, "0")}`;
 }
 
-/** Clave del periodo al que pertenece una fecha según la frecuencia. */
-export function periodoVigente(frecuencia, ahora = new Date()) {
+/**
+ * Clave del periodo al que pertenece una fecha según la frecuencia.
+ * "programada": cada fecha sorteada de la persona es un periodo; una evaluación cuenta para la última fecha
+ * programada que ya llegó (si se atrasa, cuenta igual mientras no llegue su siguiente fecha).
+ */
+export function periodoVigente(frecuencia, ahora = new Date(), fechas = []) {
+  if (frecuencia === "programada") {
+    const hoy = hoyLocalISO(ahora);
+    return [...(fechas || [])].sort().filter((f) => f <= hoy).pop() || "";
+  }
   const a = ahora.getFullYear();
   const m = String(ahora.getMonth() + 1).padStart(2, "0");
   const d = String(ahora.getDate()).padStart(2, "0");
@@ -61,8 +71,12 @@ export function diasDelMes(anio, mes) {
 }
 
 /** Periodos que caen en un mes, cada uno con el día en que cierra dentro de ese mes. */
-export function periodosDelMes(frecuencia, anio, mes) {
+export function periodosDelMes(frecuencia, anio, mes, fechas = []) {
   if (frecuencia === "unica") return [];
+  if (frecuencia === "programada") {
+    const pref = `${anio}-${String(mes + 1).padStart(2, "0")}-`;
+    return [...new Set(fechas || [])].filter((f) => f.startsWith(pref)).sort().map((f) => ({ clave: f, cierra: fechaLocal(f) }));
+  }
   const porClave = new Map();
   for (const dia of diasDelMes(anio, mes)) {
     const clave = periodoVigente(frecuencia, dia);
@@ -106,12 +120,13 @@ export function fechaLocal(iso) {
  *   exigidoVencido → solo los periodos que ya cerraron (lo que ya se debe)
  * `hechas` = lista de { periodo, fecha } (una por CdR enviada).
  */
-export function celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahora = new Date(), hasta = "", controlHasta = "") {
+export function celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahora = new Date(), hasta = "", controlHasta = "", fechas = []) {
+  if (frecuencia === "programada") cantidad = 1; // una evaluación por fecha programada
   // controlHasta (exclusivo): fin de un tramo del historial; los periodos que cierran ese día o después ya no le tocan.
   const tope = controlHasta ? fechaLocal(controlHasta) : null;
   if (tope) tope.setHours(0, 0, 0, 0);
   const lista = hechas || [];
-  const periodos = periodosDelMes(frecuencia, anio, mes);
+  const periodos = periodosDelMes(frecuencia, anio, mes, fechas);
 
   // "Una sola vez" con plazo: se exige en el mes en que vence el plazo, contando lo hecho dentro del rango.
   // Mientras el plazo no termina no cuenta como atraso.
@@ -133,7 +148,7 @@ export function celdaDelMes(frecuencia, cantidad, desde, hechas, anio, mes, ahor
     return { hechas: Math.min(n, cantidad), reales: n, exigido, exigidoVencido: exigido };
   }
 
-  const actual = periodoVigente(frecuencia, ahora);
+  const actual = periodoVigente(frecuencia, ahora, fechas);
   const considerados = periodos.filter(
     (p) => (p.cierra <= ahora || p.clave === actual) && periodoDentroDelControl(p.cierra, desde) && (!tope || p.cierra < tope)
   );
@@ -287,7 +302,7 @@ export function proyectarFormulario(form, asignaciones, usuario = null) {
       if (!r.lideres.includes(l)) r.lideres.push(l);
     });
     (a.personas || []).forEach((p) => {
-      if (!r.evaluadores.some((x) => esLaPersona(x, p))) r.evaluadores.push({ uid: p.uid || "", nombre: p.nombre || "", ...(p.alcance ? { alcance: p.alcance, cantidad: p.cantidad || 1, frecuencia: p.frecuencia || "semanal", asignacionId: a.id } : {}) });
+      if (!r.evaluadores.some((x) => esLaPersona(x, p))) r.evaluadores.push({ uid: p.uid || "", nombre: p.nombre || "", ...(p.alcance ? { alcance: p.alcance, cantidad: p.cantidad || 1, frecuencia: p.frecuencia || "semanal", asignacionId: a.id, ...(p.fechas ? { fechas: p.fechas } : {}) } : {}) });
     });
     rutinas.set(a.reunionId, r);
   });
@@ -325,7 +340,7 @@ export function hechasEnAsignacion(asignacion, persona, evals, frecuencia) {
     .map((e) => {
       const fecha = fechaCdR(e);
       const f = fechaLocal(fecha);
-      return { id: e.id, fecha, periodo: f ? periodoVigente(frecuencia, f) : "" };
+      return { id: e.id, fecha, periodo: f ? periodoVigente(frecuencia, f, persona?.fechas) : "" };
     });
 }
 
@@ -334,12 +349,14 @@ export function agendaDePersona(asignaciones, usuario, evals, ahora = new Date()
   return asignacionesDe(soloActivas(asignaciones), usuario)
     .map((a) => {
       const p = a.personas.find((x) => esLaPersona(x, usuario));
-      const cantidad = Math.max(1, Number(p.cantidad) || 1);
       const frecuencia = p.frecuencia || "semanal";
+      const cantidad = frecuencia === "programada" ? 1 : Math.max(1, Number(p.cantidad) || 1);
       const desde = desdeDelTramo(a, p);
-      const empezo = !desde || (fechaLocal(desde) || ahora) <= ahora;
       const hechas = hechasEnAsignacion(a, p, evals, frecuencia);
-      const periodo = periodoVigente(frecuencia, ahora);
+      const periodo = periodoVigente(frecuencia, ahora, p.fechas);
+      // Programada: empieza con su primera fecha; "proxima" es la siguiente fecha que le toca.
+      const empezo = frecuencia === "programada" ? !!periodo : !desde || (fechaLocal(desde) || ahora) <= ahora;
+      const proxima = frecuencia === "programada" ? [...(p.fechas || [])].sort().find((f) => f > hoyLocalISO(ahora)) || "" : "";
       const hasta = frecuencia === "unica" ? p.hasta || "" : "";
       const enPeriodo =
         frecuencia === "unica"
@@ -354,6 +371,8 @@ export function agendaDePersona(asignaciones, usuario, evals, ahora = new Date()
         desde,
         hasta,
         empezo,
+        fechaProgramada: frecuencia === "programada" ? periodo : "",
+        proxima,
         hechasEnPeriodo: Math.min(enPeriodo, cantidad),
         hechasReales: enPeriodo,
         pendientes: empezo && !plazoTerminado ? Math.max(0, cantidad - enPeriodo) : 0,
@@ -371,12 +390,12 @@ export function filaDeEvaluador(persona, asignaciones, evals, anio, mes, ahora =
     // Lo vigente hoy (o el último tramo donde estuvo) para mostrar; el cálculo suma tramo por tramo.
     const a = ultimoTramoDe(a0, persona);
     const p = a.personas.find((x) => esLaPersona(x, persona));
-    const cantidad = Math.max(1, Number(p.cantidad) || 1);
     const frecuencia = p.frecuencia || "semanal";
+    const cantidad = frecuencia === "programada" ? 1 : Math.max(1, Number(p.cantidad) || 1);
     const hechas = hechasEnAsignacion(a, p, evals, frecuencia);
     const hasta = frecuencia === "unica" ? p.hasta || "" : "";
     const c = celdaConHistorial(a0, persona, evals, anio, mes, ahora);
-    const periodo = periodoVigente(frecuencia, ahora);
+    const periodo = periodoVigente(frecuencia, ahora, p.fechas);
     const enCurso =
       frecuencia === "unica"
         ? hasta ? hechas.filter((h) => dentroDelPlazo(h.fecha, desdeEfectivo(a, p), hasta)).length : hechas.length
@@ -522,7 +541,7 @@ export function celdaConHistorial(a, persona, evals, anio, mes, ahora = new Date
       d.setDate(d.getDate() - 1);
       hasta = hoyLocalISO(d);
     }
-    const c = celdaDelMes(frecuencia, cantidad, desdeDelTramo(t, p), hechas, anio, mes, ahora, hasta, t._hasta);
+    const c = celdaDelMes(frecuencia, cantidad, desdeDelTramo(t, p), hechas, anio, mes, ahora, hasta, t._hasta, p.fechas);
     total.hechas += c.hechas;
     total.reales += c.reales;
     total.exigido += c.exigido;
@@ -535,7 +554,7 @@ const configDe = (a) =>
   JSON.stringify(
     CAMPOS_CONFIG.map((k) =>
       k === "personas"
-        ? (a?.personas || []).map((p) => [p.uid || "", p.nombre || "", Math.max(1, Math.floor(Number(p.cantidad)) || 1), p.frecuencia || "semanal", p.desde || "", (p.frecuencia === "unica" && p.hasta) || "", p.alcance ? [[...(p.alcance.opciones || [])].sort(), [...(p.alcance.subareas || [])].sort()] : null])
+        ? (a?.personas || []).map((p) => [p.uid || "", p.nombre || "", Math.max(1, Math.floor(Number(p.cantidad)) || 1), p.frecuencia || "semanal", p.desde || "", (p.frecuencia === "unica" && p.hasta) || "", (p.frecuencia === "programada" && [...(p.fechas || [])].sort().join(",")) || "", p.alcance ? [[...(p.alcance.opciones || [])].sort(), [...(p.alcance.subareas || [])].sort()] : null])
         : k === "lideres" ? [...(a?.lideres || [])].map((l) => String(l).trim()).filter(Boolean) : a?.[k] ?? null
     )
   );
@@ -567,4 +586,40 @@ export async function reactivarAsignacion(a) {
     activa: true,
     inactivaDesde: "",
   });
+}
+
+
+// ─── Programación al azar ───────────────────────────────────────────────────
+/**
+ * Reparte los días (de `desde` a `hasta`, solo los días de la semana elegidos: 0 = domingo … 6 = sábado) entre las
+ * personas, al azar pero equitativo: cada día le toca a una sola persona y, ronda a ronda, a todas por igual
+ * (como mucho 1 de diferencia). Devuelve { [clavePersona]: ["AAAA-MM-DD", …] }.
+ */
+export function sortearProgramacion(claves, desde, hasta, dias) {
+  const res = Object.fromEntries(claves.map((k) => [k, []]));
+  if (!claves.length || !desde || !hasta || !(dias || []).length) return res;
+  const fechas = [];
+  for (let d = fechaLocal(desde); d && hoyLocalISO(d) <= hasta; d.setDate(d.getDate() + 1)) if (dias.includes(d.getDay())) fechas.push(hoyLocalISO(d));
+  const barajar = (l) => {
+    const a = [...l];
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  };
+  let ronda = [];
+  let anterior = "";
+  fechas.forEach((f) => {
+    if (!ronda.length) {
+      ronda = barajar(claves);
+      // Que nadie repita dos días seguidos entre una ronda y la siguiente (si se puede).
+      if (ronda.length > 1 && ronda[0] === anterior) [ronda[0], ronda[1]] = [ronda[1], ronda[0]];
+    }
+    const k = ronda.shift();
+    res[k].push(f);
+    anterior = k;
+  });
+  return res;
+}
+/** Calendario de una asignación programada: [{ fecha, clave }] ordenado por fecha. */
+export function calendarioDe(personas, claveDe) {
+  return (personas || []).flatMap((p) => (p.fechas || []).map((f) => ({ fecha: f, clave: claveDe(p) }))).sort((a, b) => a.fecha.localeCompare(b.fecha));
 }

@@ -1029,11 +1029,11 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
     if (!porAlcance || soloLectura) return undefined;
     return listarEvaluacionesDesde(new Date(Date.now() - 40 * 86400000).toISOString().slice(0, 10), setEnviadasRecientes, () => setEnviadasRecientes([]));
   }, [porAlcance, soloLectura]);
-  const periodoActual = yoEnAsig ? periodoVigente(yoEnAsig.frecuencia || "semanal", fechaEval) : "";
+  const periodoActual = yoEnAsig ? periodoVigente(yoEnAsig.frecuencia || "semanal", fechaEval, yoEnAsig.fechas) : "";
   const yaEvaluadas = (enviadasRecientes || [])
     .filter((e) => e.id !== ev.id && e.estado === "enviada" && !e.anulada && e.formularioId === ev.formularioId && e.rutinaSesionId === ev.rutinaSesionId
       && mismaPersona({ uid: e.evaluadorUid, personaId: e.evaluadorPersonaId, nombre: e.evaluadorNombre }, { uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre })
-      && (() => { const fl = fechaLocal(fechaCdR(e)); return fl && periodoVigente(yoEnAsig.frecuencia || "semanal", fl) === periodoActual; })())
+      && (() => { const fl = fechaLocal(fechaCdR(e)); return fl && periodoVigente(yoEnAsig.frecuencia || "semanal", fl, yoEnAsig.fechas) === periodoActual; })())
     .map((e) => e.datos?.[campoAsig.id]).filter(Boolean);
   const proximaSugerida = tocan.find((o) => !yaEvaluadas.includes(o)) || tocan[0] || "";
   // El evaluador puede cambiar lo sugerido por otra opción de SU alcance (sub áreas / opciones asignadas).

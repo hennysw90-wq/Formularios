@@ -163,7 +163,7 @@ function barajar(lista, clave) {
 export function numeroDePeriodo(frecuencia, fecha = new Date()) {
   const dia = Math.floor(Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate()) / 86400000);
   const meses = (fecha.getFullYear() - 2020) * 12 + fecha.getMonth();
-  if (frecuencia === "diaria") return dia;
+  if (frecuencia === "diaria" || frecuencia === "programada") return dia;
   if (frecuencia === "semanal") return Math.floor((dia + 3) / 7); // semanas que parten el lunes
   if (frecuencia === "quincenal") return meses * 2 + (fecha.getDate() <= 15 ? 0 : 1);
   if (frecuencia === "mensual") return meses;
