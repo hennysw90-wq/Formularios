@@ -18,13 +18,20 @@ const fechaTxt = (f) => {
  * plan: { desde, hasta, dias }  ·  personas: las que siguen el plan común ({ clave, nombre, fechas })
  * desactualizado: true si cambió algo desde el último sorteo  ·  onSortear()  ·  onMover(fecha, deClave, aClave)
  */
-export default function ProgramacionAzar({ plan, personas, desactualizado, onCambiar, onSortear, onMover }) {
+export default function ProgramacionAzar({ plan, personas, desactualizado, onCambiar, onSortear, onMover, bloqueado = false, onDesbloquear }) {
   const [verCalendario, setVerCalendario] = useState(true);
   const dias = plan.dias || [];
   const calendario = personas.flatMap((p) => (p.fechas || []).map((f) => ({ fecha: f, clave: p.clave }))).sort((a, b) => a.fecha.localeCompare(b.fecha));
   const hoy = new Date().toISOString().slice(0, 10);
   return (
     <div style={{ marginTop: 8 }}>
+      {bloqueado && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: "#fff", border: "1px solid #D3D1C7", borderRadius: 10, padding: "8px 10px", marginBottom: 8 }}>
+          <span style={{ flex: 1, fontSize: 13 }}>🔒 <b>Calendario fijo.</b> Se sorteó y guardó; no cambia salvo que lo pidas.</span>
+          <button type="button" style={btn} onClick={onDesbloquear}>Cambiar calendario (pide clave)</button>
+        </div>
+      )}
+      <fieldset disabled={bloqueado} style={{ border: "none", padding: 0, margin: 0, minWidth: 0 }}>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div style={{ flex: "0 0 80px" }}>
           <label style={mini}>Cantidad</label>
@@ -86,6 +93,7 @@ export default function ProgramacionAzar({ plan, personas, desactualizado, onCam
           )}
         </div>
       )}
+      </fieldset>
     </div>
   );
 }

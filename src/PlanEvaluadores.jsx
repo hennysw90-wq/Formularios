@@ -140,6 +140,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
 
       {editando && (
         <EditorAsignacion
+          usuario={usuario}
           inicial={editando}
           formularios={formularios || []}
           reuniones={reuniones}
@@ -272,7 +273,14 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
 /*  Editor de una asignación                                           */
 /* ------------------------------------------------------------------ */
 
-function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCancelar, onGuardada }) {
+function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCancelar, onGuardada, usuario }) {
+  // Programado al azar: una vez guardado, el calendario queda fijo; para cambiarlo se pide la clave.
+  const calendarioGuardado = !inicial.esNueva && (inicial.personas || []).some((p) => (p.fechas || []).length);
+  const [bloqueado, setBloqueado] = useState(calendarioGuardado);
+  const [modalClaveCal, pedirClaveCal] = useConfirmarConClave(usuario);
+  async function desbloquearCalendario() {
+    if (await pedirClaveCal("Cambiar el calendario programado", "El calendario sorteado queda fijo. Para cambiar a alguien de día o volver a sortear, confirma con tu clave.")) setBloqueado(false);
+  }
   const [a, setA] = useState(() =>
     esAsignacionPorValor(inicial.reunionId) && !String(inicial.reunionId).startsWith(PREFIJO_VALOR + "@")
       ? { ...inicial, personas: (inicial.personas || []).map((p) => ({ ...p, alcance: p.alcance || { opciones: [inicial.reunionNombre], subareas: [] } })) }
@@ -417,7 +425,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     if (planComun.frecuencia === "unica" && !planComun.hasta && (a.personas || []).some((p) => !p.personalizado)) return setError("Pon en el plan común hasta qué fecha tienen para ejecutarlo (plazo).");
     if (esProgramada && siguenPlan.length) {
       if (!planComun.hasta || !(planComun.dias || []).length) return setError("Elige los días de la semana y hasta qué fecha se programa.");
-      if (sorteoDesactualizado || !siguenPlan.some((p) => (p.fechas || []).length)) return setError("Toca «Sortear calendario» (o «Volver a sortear») antes de guardar.");
+      if (sorteoDesactualizado || !siguenPlan.some((p) => (p.fechas || []).length)) return setError(bloqueado ? "Cambiaron los evaluadores o las reglas del calendario: toca «Cambiar calendario» (pide clave) y vuelve a sortear antes de guardar." : "Toca «Sortear calendario» (o «Volver a sortear») antes de guardar.");
     }
     if (campo) {
       const sinAlcance = a.personas.filter((p) => !(p.alcance?.opciones || []).length && !(p.alcance?.subareas || []).length);
@@ -451,6 +459,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
   return (
     <div className="ca-card" style={{ marginBottom: 14, borderLeft: "4px solid var(--verde)" }}>
       <p style={{ margin: "0 0 12px", fontWeight: 800, fontSize: 16 }}>{a.esNueva ? "Nueva asignación" : "Editar asignación"}</p>
+      {modalClaveCal}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
         <div>
@@ -534,13 +543,13 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
             )}
             <div style={{ flex: "1 1 150px" }}>
               <label style={mini}>Frecuencia</label>
-              <select className="rp-select" value={planComun.frecuencia} onChange={(e) => cambiarPlanComun({ frecuencia: e.target.value })} aria-label="Frecuencia del plan común">
+              <select className="rp-select" value={planComun.frecuencia} disabled={esProgramada && bloqueado} onChange={(e) => cambiarPlanComun({ frecuencia: e.target.value })} aria-label="Frecuencia del plan común">
                 {FRECUENCIAS.map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
               </select>
             </div>
             <div style={{ flex: "0 0 160px" }}>
               <label style={mini}>{planComun.frecuencia === "unica" ? "Ejecutar desde" : esProgramada ? "Programar desde" : "Controlar desde"}</label>
-              <input className="rp-input" type="date" value={planComun.desde} title="Vacío = desde que se crea la asignación" onChange={(e) => cambiarPlanComun({ desde: e.target.value })} aria-label="Desde del plan común" />
+              <input className="rp-input" type="date" value={planComun.desde} disabled={esProgramada && bloqueado} title="Vacío = desde que se crea la asignación" onChange={(e) => cambiarPlanComun({ desde: e.target.value })} aria-label="Desde del plan común" />
             </div>
             {planComun.frecuencia === "unica" && (
               <div style={{ flex: "0 0 160px" }}>
@@ -554,6 +563,8 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
               plan={planComun}
               personas={siguenPlan.map((p) => ({ clave: claveP(p), nombre: p.nombre, fechas: p.fechas || [] }))}
               desactualizado={sorteoDesactualizado}
+              bloqueado={bloqueado}
+              onDesbloquear={desbloquearCalendario}
               onCambiar={cambiarPlanComun}
               onSortear={sortear}
               onMover={moverFecha}

@@ -247,6 +247,8 @@ export async function guardarAsignacion(a) {
       // Formularios asignados por listado: qué opciones / sub áreas le tocan a esta persona.
       ...(p.alcance ? { alcance: { opciones: p.alcance.opciones || [], subareas: p.alcance.subareas || [] } } : {}),
       ...(p.personalizado ? { personalizado: true } : {}), // distinto del plan común de la asignación
+      // Programado al azar: el calendario sorteado de la persona (queda fijo) y con qué reglas se sorteó.
+      ...(p.frecuencia === "programada" ? { fechas: [...new Set(p.fechas || [])].sort(), dias: p.dias || [], base: p.base || "semanal", hastaProgramado: p.hasta || "" } : {}),
     })),
     lideres: (resto.lideres || []).map((l) => String(l).trim()).filter(Boolean),
     actualizado: new Date().toISOString(),
