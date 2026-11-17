@@ -203,6 +203,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
 
 function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [], evals = [], usuario = null, onGuardarCalendario = null, onAnclar = null }) {
   const [calendarioDe, setCalendarioDe] = useState("");
+  const [anclarDe, setAnclarDe] = useState(""); // abre el calendario directo en «elegir horario para anclar»
   const tieneUsuario = (nombre) => directorio.some((u) => u.rol !== "deshabilitado" && esLaPersona({ nombre }, u));
   if (asignaciones === null) return <p style={ayuda}>Cargando asignaciones…</p>;
   if (asignaciones.length === 0) {
@@ -262,16 +263,24 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                       </div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                         {!estaActiva(a) && <span className="ca-pill" style={{ background: "#eef0f3", color: "#5b6472" }}>Desactivada desde {String(a.inactivaDesde || "").split("-").reverse().join("-")}</span>}
-                        {a.anclarCalendario && estaActiva(a) && <span className="ca-pill" style={{ background: "#EEE9FB", color: "#5B21B6" }} title="Sus fechas aparecen en el Calendario Ejecutivo del portal">📌 Calendario ejecutivo</span>}
+                        {onAnclar && estaActiva(a) && (
+                          <button
+                            style={a.anclarCalendario ? { ...btn, background: "#EEE9FB", borderColor: "#6D28D9", color: "#5B21B6" } : btn}
+                            title={a.anclarCalendario ? "Está en el Calendario Ejecutivo del portal: cambiar horario o quitar" : "Mostrar esta asignación en el Calendario Ejecutivo del portal"}
+                            onClick={() => { setCalendarioDe(a.id); setAnclarDe(a.id); }}
+                          >
+                            {a.anclarCalendario ? `📌 En calendario ejecutivo${a.calendarioHorario?.inicio ? ` · ${a.calendarioHorario.inicio}` : ""}` : "📌 Anclar a calendario ejecutivo"}
+                          </button>
+                        )}
                         {(a.personas || []).length > 0 && (
-                          <button style={{ ...btn, ...(calendarioDe === a.id ? { background: "var(--verde, #009899)", color: "#fff", borderColor: "var(--verde, #009899)" } : {}) }} onClick={() => setCalendarioDe(calendarioDe === a.id ? "" : a.id)}>📅 Calendario</button>
+                          <button style={{ ...btn, ...(calendarioDe === a.id ? { background: "var(--verde, #009899)", color: "#fff", borderColor: "var(--verde, #009899)" } : {}) }} onClick={() => { setAnclarDe(""); setCalendarioDe(calendarioDe === a.id ? "" : a.id); }}>📅 Calendario</button>
                         )}
                         {estaActiva(a) && <button style={btn} onClick={() => onEditar(a)}>Editar</button>}
                         <button style={btn} onClick={() => onActivar(a, !estaActiva(a))}>{estaActiva(a) ? "Desactivar" : "Reactivar"}</button>
                         <button style={btnPel} onClick={() => onEliminar(a)}>Eliminar</button>
                       </div>
                     </div>
-                    {calendarioDe === a.id && <CalendarioProgramado asignacion={a} evals={evals} usuario={usuario} formularioNombre={f ? f.nombre : a.formularioNombre || ""} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} onAnclar={estaActiva(a) && onAnclar ? (si, h) => onAnclar(a, si, f ? f.nombre : a.formularioNombre || "", h) : null} />}
+                    {calendarioDe === a.id && <CalendarioProgramado key={a.id + (anclarDe === a.id ? ":anclar" : "")} pedirAnclaje={anclarDe === a.id} asignacion={a} evals={evals} usuario={usuario} formularioNombre={f ? f.nombre : a.formularioNombre || ""} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} onAnclar={estaActiva(a) && onAnclar ? (si, h) => onAnclar(a, si, f ? f.nombre : a.formularioNombre || "", h) : null} />}
                   </div>
                 ))}
             </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { hechasEnAsignacion, hoyLocalISO, etiquetaCadencia } from "./asignaciones.js";
 import { useConfirmarConClave } from "./ConfirmarConClave.jsx";
 
@@ -21,7 +21,7 @@ const iniciales = (n) => String(n || "").trim().split(/\s+/).slice(0, 2).map((x)
 const btn = { border: "1px solid var(--borde, #D3D1C7)", background: "#fff", borderRadius: 8, padding: "6px 11px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const ddmm = (f) => String(f || "").split("-").reverse().slice(0, 2).join("-");
 
-export default function CalendarioProgramado({ asignacion, evals, usuario = null, onGuardar = null, formularioNombre = "", onAnclar = null }) {
+export default function CalendarioProgramado({ asignacion, evals, usuario = null, onGuardar = null, formularioNombre = "", onAnclar = null, pedirAnclaje = false }) {
   const hoy = hoyLocalISO();
   const [modalClave, pedirClave] = useConfirmarConClave(usuario);
   const [editando, setEditando] = useState(false);
@@ -40,6 +40,8 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
     // Sin días sorteados: qué días de la semana se muestra (lunes a viernes por defecto).
     dias: asignacion.calendarioHorario?.dias?.length ? asignacion.calendarioHorario.dias : [1, 2, 3, 4, 5],
   });
+  // Abierto desde «📌 Anclar» en la lista: parte mostrando el horario a elegir.
+  useEffect(() => { if (pedirAnclaje && onAnclar) pedirHorario(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   async function anclar(si, h = null) {
     if (si && h && !(h.inicio && h.fin && h.fin > h.inicio)) return setAviso("La hora de término debe ser después de la de inicio.");
     if (si && h && !programada && !(h.dias || []).length) return setAviso("Elige al menos un día de la semana.");
