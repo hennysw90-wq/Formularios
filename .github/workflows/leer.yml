@@ -5,12 +5,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          curl -s "https://firestore.googleapis.com/v1/projects/calendario-turnos-oems/databases/(default)/documents/app_data/formularios_programados" > d.json
-          python3 -c "
-          import json;d=json.load(open('d.json'));f=d.get('fields',{});print('TOP',list(f.keys()))
-          it=f.get('items',{}).get('mapValue',{}).get('fields',{})
-          for k,v in it.items():
-            vf=v['mapValue']['fields'];print(k,{x:(y.get('stringValue') or y.get('booleanValue')) for x,y in vf.items() if 'arrayValue' not in y}, 'dias', len(vf.get('dias',{}).get('arrayValue',{}).get('values',[])))
-          "
-          curl -s https://calendario-turnos-oems.web.app/ > i.html; grep -o 'assets/[^"]*\.js' i.html
-          for j in $(grep -o 'assets/[^"]*\.js' i.html); do curl -s https://calendario-turnos-oems.web.app/$j | grep -o 'formularios_programados' | head -2; done
+          npm i playwright@1.47.2 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
+          cat > t.js <<'JS'
+          const { chromium } = require("playwright");
+          (async () => {
+            const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1400, height: 1000 } });
+            p.on("console", (m) => console.log("CONSOLE", m.type(), m.text().slice(0, 300)));
+            p.on("pageerror", (e) => console.log("PAGEERR", e.message));
+            await p.goto("https://calendario-turnos-oems.web.app/"); await p.waitForTimeout(12000);
+            console.log("LEYENDA", await p.locator("text=Formularios programados").count(), "BLOQUES", await p.locator("text=Reunión Especial Lixiviación").count());
+            await p.screenshot({ path: "cal.png" });
+            await b.close();
+          })();
+          JS
+          node t.js
+      - uses: actions/upload-artifact@v4
+        with: { name: cal, path: cal.png }
