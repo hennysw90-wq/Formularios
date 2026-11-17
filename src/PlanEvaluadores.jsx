@@ -29,6 +29,9 @@ import {
   listarPlanesAnteriores,
   propuestasDesdeModeloAnterior,
   sortearProgramacion,
+  hechasEnAsignacion,
+  dentroDelPlazo,
+  hoyLocalISO,
 } from "./asignaciones.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -201,11 +204,46 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
 /*  Lista de asignaciones                                              */
 /* ------------------------------------------------------------------ */
 
-function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [], evals = [], usuario = null, onGuardarCalendario = null, onAnclar = null }) {
+/** Hasta cuándo corre lo de una persona: plazo («una sola vez»), último día programado; "" = sin fin. */
+function finDePersona(p) {
+  if (p.frecuencia === "unica") return p.hasta || "";
+  if (p.frecuencia === "programada") return p.hastaProgramado || p.hasta || [...(p.fechas || [])].sort().slice(-1)[0] || "";
+  return p.hasta || "";
+}
+/** En curso: activa y con alguien cuyo plazo no ha terminado (las que aún no empiezan también cuentan). */
+function enCurso(a, hoy) {
+  return estaActiva(a) && (a.personas || []).some((p) => { const fin = finDePersona(p); return !fin || fin >= hoy; });
+}
+/** Estado de «una sola vez»: cumplida, vencida sin hacer o en plazo. */
+function estadoPlazo(a, p, evals, hoy) {
+  if (p.frecuencia !== "unica" || !p.hasta) return null;
+  const n = hechasEnAsignacion(a, p, evals, "unica").filter((h) => dentroDelPlazo(h.fecha, p.desde || "", p.hasta)).length;
+  const cant = Math.max(1, Number(p.cantidad) || 1);
+  if (n >= cant) return { tipo: "ok", texto: "✓ Cumplida" };
+  if (hoy > p.hasta) return { tipo: "mal", texto: n ? `Vencida · ${n} de ${cant}` : "Vencida · no la hizo" };
+  return { tipo: "curso", texto: hoy < (p.desde || "") ? "Por empezar" : "En plazo" };
+}
+const COLOR_PLAZO = { ok: { background: "#E1F5EE", color: "#0F6E56" }, mal: { background: "#FCEBEB", color: "#A32D2D" }, curso: { background: "#FAEEDA", color: "#854F0B" } };
+
+function ListaAsignaciones({ asignaciones: todasAsig, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [], evals = [], usuario = null, onGuardarCalendario = null, onAnclar = null }) {
+  const hoy = hoyLocalISO();
+  // Por defecto solo las que están en curso; las terminadas y desactivadas se muestran a pedido.
+  const [verTodas, setVerTodas] = useState(false);
+  const ocultas = (todasAsig || []).filter((a) => !enCurso(a, hoy));
+  const asignaciones = todasAsig === null ? null : verTodas ? todasAsig : todasAsig.filter((a) => enCurso(a, hoy));
   const [calendarioDe, setCalendarioDe] = useState("");
   const [anclarDe, setAnclarDe] = useState(""); // abre el calendario directo en «elegir horario para anclar»
   const tieneUsuario = (nombre) => directorio.some((u) => u.rol !== "deshabilitado" && esLaPersona({ nombre }, u));
   if (asignaciones === null) return <p style={ayuda}>Cargando asignaciones…</p>;
+  const barraOcultas = ocultas.length > 0 && (
+    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, cursor: "pointer", margin: "0 0 10px" }}>
+      <input type="checkbox" checked={verTodas} onChange={(e) => setVerTodas(e.target.checked)} />
+      Mostrar también las que no están en curso ({ocultas.length}: plazo terminado o desactivadas)
+    </label>
+  );
+  if (asignaciones.length === 0 && ocultas.length > 0) {
+    return <div>{barraOcultas}<p style={ayuda}>No hay asignaciones en curso.</p></div>;
+  }
   if (asignaciones.length === 0) {
     return (
       <div className="cdr-molde">
@@ -223,6 +261,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
   });
   return (
     <div style={{ display: "grid", gap: 16 }}>
+      {barraOcultas && <div style={{ marginBottom: -8 }}>{barraOcultas}</div>}
       {[...grupos.entries()].map(([fid, lista]) => {
         const f = formPorId.get(fid);
         return (
@@ -253,16 +292,21 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                           </div>
                         )}
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, opacity: estaActiva(a) ? 1 : 0.55 }}>
-                          {(a.personas || []).map((p) => (
-                            <span key={p.uid || p.nombre} className="ca-chip" style={{ fontWeight: 600 }} title={p.desde ? `Se controla desde ${p.desde}` : ""}>
-                              {p.nombre} · {p.frecuencia === "programada" ? `${(p.fechas || []).length} días programados` : etiquetaCadencia(p.cantidad, p.frecuencia, p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{p.alcance ? ` · ${textoAlcance(p.alcance)}` : ""}
-                            </span>
-                          ))}
+                          {(a.personas || []).map((p) => {
+                            const est = estadoPlazo(a, p, evals, hoy);
+                            return (
+                              <span key={p.uid || p.nombre} className="ca-chip" style={{ fontWeight: 600 }} title={p.desde ? `Se controla desde ${p.desde}` : ""}>
+                                {p.nombre} · {p.frecuencia === "programada" ? `${(p.fechas || []).length} días programados` : etiquetaCadencia(p.cantidad, p.frecuencia, p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{p.alcance ? ` · ${textoAlcance(p.alcance)}` : ""}
+                                {est && <span style={{ ...COLOR_PLAZO[est.tipo], marginLeft: 6, padding: "1px 7px", borderRadius: 99, fontSize: 11.5, fontWeight: 800 }}>{est.texto}</span>}
+                              </span>
+                            );
+                          })}
                           {!(a.personas || []).length && <span style={{ fontSize: 13, color: "var(--rojo)" }}>Sin evaluadores</span>}
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                         {!estaActiva(a) && <span className="ca-pill" style={{ background: "#eef0f3", color: "#5b6472" }}>Desactivada desde {String(a.inactivaDesde || "").split("-").reverse().join("-")}</span>}
+                        {estaActiva(a) && !enCurso(a, hoy) && <span className="ca-pill" style={{ background: "#eef0f3", color: "#5b6472" }}>Plazo terminado</span>}
                         {onAnclar && estaActiva(a) && (
                           <button
                             style={a.anclarCalendario ? { ...btn, background: "#EEE9FB", borderColor: "#6D28D9", color: "#5B21B6" } : btn}
