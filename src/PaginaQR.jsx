@@ -436,8 +436,8 @@ function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBor
                       {it.hasta && <span style={chipNeutro}>Hasta {it.hasta.split("-").reverse().join("-")}</span>}
                     </div>
                   </div>
-                  <button className={`cdr-nav-btn ${it.completa || !it.empezo ? "" : "prim"}`} style={{ marginTop: 10, width: "100%" }} onClick={() => onEjecutar(g.formulario.id, a.reunionId)}>
-                    {it.completa ? "Responder otra vez" : "Ejecutar formulario"}
+                  <button className={`cdr-nav-btn ${it.completa || !it.empezo ? "" : "prim"}`} style={{ marginTop: 10, width: "100%" }} disabled={it.bloqueadaHoy} onClick={() => onEjecutar(g.formulario.id, a.reunionId)}>
+                    {it.bloqueadaHoy ? "🔒 Solo el día programado" : it.completa ? "Responder otra vez" : "Ejecutar formulario"}
                   </button>
                 </div>
               );

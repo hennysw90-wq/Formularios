@@ -634,6 +634,15 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
               onMover={moverFecha}
             />
           )}
+          {hayProgramados && (
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 10, fontSize: 13.5, cursor: "pointer", background: "#fff", border: "1px solid #D3D1C7", borderRadius: 10, padding: "8px 10px" }}>
+              <input type="checkbox" checked={!!a.soloDiaProgramado} onChange={(e) => cambiar({ soloDiaProgramado: e.target.checked })} style={{ marginTop: 3, flexShrink: 0 }} />
+              <span>
+                <b>Solo se puede hacer el día que le toca</b>
+                <span style={{ display: "block", fontSize: 12, color: "var(--texto-suave)" }}>Los otros días el botón para ejecutar queda bloqueado, y solo cuenta la evaluación hecha ese mismo día. Si no la hace, queda como no cumplida.</span>
+              </span>
+            </label>
+          )}
           {campo && <AlcanceEvaluador etiqueta={campo.etiqueta} nombre="el plan común" datos={datosCampo} alcance={planComun.alcance} onCambiar={(al) => cambiarPlanComun({ alcance: al })} />}
           <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>
             {etiquetaCadencia(planComun.cantidad || 1, planComun.frecuencia, planComun.frecuencia === "unica" || esProgramada ? planComun.hasta : "", planComun.base)}

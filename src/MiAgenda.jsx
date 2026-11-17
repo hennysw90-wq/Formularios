@@ -8,6 +8,10 @@ export const TEXTO_PERIODO = { diaria: "hoy", semanal: "esta semana", quincenal:
 const DIA_CORTO = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const diaFecha = (f) => { const [a, m, d] = String(f || "").split("-").map(Number); return a ? `${DIA_CORTO[new Date(a, m - 1, d).getDay()]} ${String(d).padStart(2, "0")}-${String(m).padStart(2, "0")}` : ""; };
 export function textoProgramada(it) {
+  if (it.soloDiaProgramado) {
+    if (it.fechaProgramada) return it.completa ? `✓ Hecha hoy${it.proxima ? ` · próxima ${diaFecha(it.proxima)}` : ""}` : "Te toca HOY (solo hoy cuenta)";
+    return it.proxima ? `Solo el día programado · próxima ${diaFecha(it.proxima)}` : "Sin más fechas programadas";
+  }
   if (!it.empezo) return it.proxima ? `Primera fecha: ${diaFecha(it.proxima)}` : "Sin fechas programadas";
   if (it.completa) return `✓ Hecha la del ${diaFecha(it.fechaProgramada)}${it.proxima ? ` · próxima ${diaFecha(it.proxima)}` : ""}`;
   return `Te toca la del ${diaFecha(it.fechaProgramada)}${it.proxima ? ` · próxima ${diaFecha(it.proxima)}` : ""}`;
@@ -97,8 +101,8 @@ export function ListaAgenda({ items, onIniciar }) {
                   : `${it.hechasReales} de ${it.cantidad} ${periodo} · faltan ${it.pendientes}`}
               </div>
               {onIniciar && (
-                <button className={`cdr-nav-btn ${it.pendientes ? "prim" : ""}`} onClick={() => onIniciar(it.formulario, a.reunionId)}>
-                  Iniciar
+                <button className={`cdr-nav-btn ${it.pendientes ? "prim" : ""}`} disabled={it.bloqueadaHoy} title={it.bloqueadaHoy ? "Solo se puede hacer el día programado" : ""} onClick={() => onIniciar(it.formulario, a.reunionId)}>
+                  {it.bloqueadaHoy ? "🔒 Hoy no le toca" : "Iniciar"}
                 </button>
               )}
             </div>
