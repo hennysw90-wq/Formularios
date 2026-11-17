@@ -329,6 +329,33 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     setA((x) => ({ ...x, personas: (x.personas || []).map((y) => (claveP(y) === claveP(p) ? { ...y, fechas: r[claveP(p)] || [], firmaSorteo: firmaSorteo(pl) } : y)) }));
     setError("");
   }
+  // Recalcular todo: vuelve a sortear el plan común y a cada personalizado con su propia programación, repartiendo la carga.
+  async function recalcularTodo() {
+    if (bloqueado && !(await pedirClaveCal("Recalcular todo el sorteo", "Se vuelven a sortear los días de TODOS los evaluadores programados (plan común y personalizados). El calendario actual se reemplaza."))) return;
+    if (!window.confirm("¿Recalcular todo el sorteo? Cambian los días de todos los evaluadores programados.")) return;
+    setBloqueado(false);
+    const hoy = new Date().toISOString().slice(0, 10);
+    const desdeDe = (d) => [d || hoy, hoy].sort().pop();
+    const fechas = {};
+    const ocupadas = [];
+    const comun = esProgramada ? (a.personas || []).filter((p) => !p.personalizado) : [];
+    if (comun.length && planComun.hasta && (planComun.dias || []).length) {
+      const r = sortearProgramacion(comun.map(claveP), desdeDe(planComun.desde), planComun.hasta, planComun.dias, planComun.cantidad, planComun.base || "semanal");
+      Object.entries(r).forEach(([k, l]) => { fechas[k] = l; ocupadas.push(...l); });
+    }
+    const firmas = {};
+    (a.personas || []).filter((p) => p.personalizado && p.frecuencia === "programada").forEach((p) => {
+      const pl = planPersona(p);
+      if (!pl.hasta || !(pl.dias || []).length) return;
+      const r = sortearProgramacion([claveP(p)], desdeDe(pl.desde), pl.hasta, pl.dias, pl.cantidad, pl.base, ocupadas);
+      fechas[claveP(p)] = r[claveP(p)] || [];
+      firmas[claveP(p)] = firmaSorteo(pl);
+      ocupadas.push(...fechas[claveP(p)]);
+    });
+    setA((x) => ({ ...x, personas: (x.personas || []).map((p) => (claveP(p) in fechas ? { ...p, fechas: fechas[claveP(p)], ...(firmas[claveP(p)] ? { firmaSorteo: firmas[claveP(p)] } : {}) } : p)) }));
+    if (comun.length) setFirma(firmaSorteo(planComun));
+    setError("");
+  }
   const personaDesactualizada = (p) => p.personalizado && p.frecuencia === "programada" && !mismasReglas(p.firmaSorteo, planPersona(p));
   function cambiarPersonaVarios(uid, cambios) {
     cambiar({ personas: a.personas.map((p) => (p.uid === uid ? { ...p, ...cambios } : p)) });
@@ -343,6 +370,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     }) }));
   }
   const esProgramada = planComun.frecuencia === "programada";
+  const hayProgramados = esProgramada || (a.personas || []).some((p) => p.frecuencia === "programada");
   const siguenPlan = (a.personas || []).filter((p) => !p.personalizado);
   const reglasCambiaron = esProgramada && !mismasReglas(firma, planComun);
   const nuevosSinDias = esProgramada && !reglasCambiaron ? siguenPlan.filter((p) => !(p.fechas || []).length) : [];
@@ -552,7 +580,14 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
             ) : null;
           })()}
         </div>
-        <p style={{ ...ayuda, margin: "0 0 8px", fontSize: 12.5 }}>Todos siguen el plan común; si alguien necesita algo distinto, tócale «Personalizar».</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "0 0 8px" }}>
+          <p style={{ ...ayuda, margin: 0, fontSize: 12.5, flex: 1 }}>Todos siguen el plan común; si alguien necesita algo distinto, tócale «Personalizar».</p>
+          {hayProgramados && (
+            <button type="button" style={{ ...chipBtn, fontWeight: 700 }} onClick={recalcularTodo} title="Vuelve a sortear los días de todos los evaluadores programados">
+              🔄 Recalcular todo el sorteo{bloqueado ? " (pide clave)" : ""}
+            </button>
+          )}
+        </div>
 
         <div style={{ border: "1.5px solid var(--verde)", borderRadius: 10, padding: "10px 12px", marginBottom: 10, background: "#F4FBF9" }}>
           <b style={{ fontSize: 14 }}>Plan común</b>
