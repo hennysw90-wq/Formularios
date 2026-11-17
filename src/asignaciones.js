@@ -257,9 +257,8 @@ export async function guardarAsignacion(a) {
     actualizado: new Date().toISOString(),
   });
   // Anclada al Calendario Ejecutivo: el calendario se mantiene al día con cada cambio (y se quita si se desancla o desactiva).
-  if (resto.anclarCalendario) {
-    sincronizarCalendarioEjecutivo(a).catch((e) => console.error("Calendario ejecutivo:", e));
-  }
+  // (Si no está anclada, se asegura de que no quede en el calendario: por si la desanclaron al editar.)
+  sincronizarCalendarioEjecutivo(a).catch((e) => console.error("Calendario ejecutivo:", e));
 }
 
 export async function eliminarAsignacion(id) {
