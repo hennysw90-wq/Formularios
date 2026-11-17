@@ -158,6 +158,11 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
         <ListaAsignaciones
           asignaciones={asignaciones === null ? null : lista}
           evals={todas || []}
+          usuario={usuario}
+          onGuardarCalendario={async (a, personas) => {
+            await guardarAsignacion(versionarAsignacion(a, { ...a, personas }));
+            setAviso({ tipo: "ok", texto: `Calendario de «${a.reunionNombre}» actualizado.` });
+          }}
           formPorId={formPorId}
           onEditar={(a) => { setAviso({ tipo: "", texto: "" }); setEditando({ ...JSON.parse(JSON.stringify(a)), esNueva: false }); }}
           onEliminar={borrar}
@@ -189,7 +194,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
 /*  Lista de asignaciones                                              */
 /* ------------------------------------------------------------------ */
 
-function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [], evals = [] }) {
+function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [], evals = [], usuario = null, onGuardarCalendario = null }) {
   const [calendarioDe, setCalendarioDe] = useState("");
   const tieneUsuario = (nombre) => directorio.some((u) => u.rol !== "deshabilitado" && esLaPersona({ nombre }, u));
   if (asignaciones === null) return <p style={ayuda}>Cargando asignaciones…</p>;
@@ -258,7 +263,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                         <button style={btnPel} onClick={() => onEliminar(a)}>Eliminar</button>
                       </div>
                     </div>
-                    {calendarioDe === a.id && <CalendarioProgramado asignacion={a} evals={evals} />}
+                    {calendarioDe === a.id && <CalendarioProgramado asignacion={a} evals={evals} usuario={usuario} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} />}
                   </div>
                 ))}
             </div>

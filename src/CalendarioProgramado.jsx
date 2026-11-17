@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { hechasEnAsignacion, hoyLocalISO } from "./asignaciones.js";
+import { useConfirmarConClave } from "./ConfirmarConClave.jsx";
 
 // Calendario de una asignación «Programado al azar»: cada día con quién le toca y si ya está hecha (✓),
 // atrasada o por venir. Lo hecho sale de las evaluaciones enviadas (cuenta si la hizo ese día o después,
@@ -15,12 +16,22 @@ const ESTILO = {
 const corto = (n) => { const p = String(n || "").trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1][0]}.` : p[0] || ""; };
 const btn = { border: "1px solid var(--borde, #D3D1C7)", background: "#fff", borderRadius: 8, padding: "5px 10px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 
-export default function CalendarioProgramado({ asignacion, evals }) {
+export default function CalendarioProgramado({ asignacion, evals, usuario = null, onGuardar = null }) {
   const hoy = hoyLocalISO();
-  const personas = (asignacion.personas || []).filter((p) => (p.fechas || []).length);
+  // Modo mover (pide clave): se arrastra un nombre a otro día (o se toca el nombre y luego el día). Solo lo que
+  // todavía no está hecho y hacia hoy o después; al guardar queda como cambio de la asignación (con historial).
+  const [modalClave, pedirClave] = useConfirmarConClave(usuario);
+  const [editando, setEditando] = useState(false);
+  const [borrador, setBorrador] = useState(null); // personas con fechas en edición
+  const [elegido, setElegido] = useState(null); // { clave, fecha }
+  const [guardando, setGuardando] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const claveDe = (p) => p.uid || `n:${p.nombre}`;
+  const base = editando && borrador ? borrador : asignacion.personas || [];
+  const personas = base.filter((p) => (p.fechas || []).length);
   const items = personas.flatMap((p) => {
     const hechas = new Set(hechasEnAsignacion(asignacion, p, evals, "programada").map((h) => h.periodo));
-    return (p.fechas || []).map((f) => ({ fecha: f, nombre: p.nombre, estado: hechas.has(f) ? "hecha" : f < hoy ? "atrasada" : f === hoy ? "hoy" : "futura" }));
+    return (p.fechas || []).map((f) => ({ fecha: f, nombre: p.nombre, clave: claveDe(p), estado: hechas.has(f) ? "hecha" : f < hoy ? "atrasada" : f === hoy ? "hoy" : "futura" }));
   });
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [vista, setVista] = useState("calendario"); // "calendario" | "gantt"
@@ -35,6 +46,35 @@ export default function CalendarioProgramado({ asignacion, evals }) {
   const delDia = (d) => items.filter((i) => i.fecha === `${mes}-${String(d).padStart(2, "0")}` && (!soloPendientes || i.estado !== "hecha"));
   const total = (e) => items.filter((i) => i.estado === e).length;
   const mover = (k) => { const i = meses.indexOf(mes); const n = meses[i + k]; if (n) setMes(n); };
+  const movible = (it) => editando && it.estado !== "hecha" && it.fecha >= hoy;
+  function moverA(destino) {
+    if (!elegido || destino < hoy || destino === elegido.fecha) return setElegido(null);
+    const p = borrador.find((x) => claveDe(x) === elegido.clave);
+    if ((p?.fechas || []).includes(destino)) { setAviso(`${p.nombre} ya tiene ese día.`); return setElegido(null); }
+    setBorrador((b) => b.map((x) => (claveDe(x) === elegido.clave ? { ...x, fechas: [...x.fechas.filter((f) => f !== elegido.fecha), destino].sort() } : x)));
+    setAviso("");
+    setElegido(null);
+  }
+  async function empezarEdicion() {
+    if (!(await pedirClave("Mover días del calendario", "Para cambiar a alguien de día confirma con tu clave."))) return;
+    setBorrador(JSON.parse(JSON.stringify(asignacion.personas || [])));
+    setEditando(true);
+    setAviso("");
+  }
+  async function guardar() {
+    setGuardando(true);
+    try {
+      await onGuardar(borrador);
+      setEditando(false);
+      setBorrador(null);
+      setAviso("✓ Calendario guardado.");
+    } catch (e) {
+      setAviso(`No se pudo guardar (${e.code || e.message}).`);
+    } finally {
+      setGuardando(false);
+    }
+  }
+  const cambios = editando && borrador && JSON.stringify(borrador.map((p) => p.fechas || [])) !== JSON.stringify((asignacion.personas || []).map((p) => p.fechas || []));
 
   return (
     <div style={{ marginTop: 10, border: "1px solid #EEECE6", borderRadius: 10, padding: 10, background: "#fff" }}>
@@ -50,10 +90,18 @@ export default function CalendarioProgramado({ asignacion, evals }) {
             <button key={v} type="button" onClick={() => setVista(v)} style={{ border: "none", padding: "5px 10px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: vista === v ? "var(--verde, #009899)" : "#fff", color: vista === v ? "#fff" : "inherit" }}>{t}</button>
           ))}
         </div>
+        {onGuardar && !editando && <button type="button" style={btn} onClick={empezarEdicion}>✋ Mover días (pide clave)</button>}
+        {editando && <>
+          <button type="button" style={{ ...btn, background: "var(--verde, #009899)", color: "#fff", borderColor: "var(--verde, #009899)" }} disabled={!cambios || guardando} onClick={guardar}>{guardando ? "Guardando…" : "Guardar cambios"}</button>
+          <button type="button" style={btn} disabled={guardando} onClick={() => { setEditando(false); setBorrador(null); setElegido(null); setAviso(""); }}>Cancelar</button>
+        </>}
         <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}>
           <input type="checkbox" checked={soloPendientes} onChange={(e) => setSoloPendientes(e.target.checked)} /> Ocultar las hechas
         </label>
       </div>
+      {modalClave}
+      {editando && <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 600, color: "#8A5A12" }}>Modo mover: arrastra un nombre a otro día, o tócalo y luego toca el día (en Gantt, la casilla de su fila). Solo se mueve lo que no está hecho, a hoy o después.</p>}
+      {aviso && <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 700, color: aviso.startsWith("✓") ? "#0F6E56" : "#993C1D" }}>{aviso}</p>}
       {vista === "gantt" ? (
         <div style={{ overflowX: "auto" }}>
           <table style={{ borderCollapse: "separate", borderSpacing: 2, fontSize: 11 }}>
@@ -79,9 +127,12 @@ export default function CalendarioProgramado({ asignacion, evals }) {
                     const iso = `${mes}-${String(i + 1).padStart(2, "0")}`;
                     const it = items.find((x) => x.nombre === p.nombre && x.fecha === iso && (!soloPendientes || x.estado !== "hecha"));
                     const finde = [0, 6].includes(new Date(a, m - 1, i + 1).getDay());
+                    const sel = elegido && elegido.clave === claveDe(p) && elegido.fecha === iso;
+                    const destino = editando && elegido && elegido.clave === claveDe(p) && !it && iso >= hoy;
                     return (
-                      <td key={i} title={it ? `${p.nombre} · ${iso.split("-").reverse().join("-")} · ${it.estado === "hecha" ? "hecha" : it.estado === "atrasada" ? "atrasada" : it.estado === "hoy" ? "le toca hoy" : "por venir"}` : ""}
-                        style={{ height: 22, borderRadius: 4, textAlign: "center", fontWeight: 800, ...(it ? ESTILO[it.estado] : { background: finde ? "#F4F3EF" : "#FAFAF7" }) }}>
+                      <td key={i} onClick={() => { if (!editando) return; if (it && movible(it)) setElegido(sel ? null : { clave: claveDe(p), fecha: iso }); else if (destino) moverA(iso); }}
+                        title={it ? `${p.nombre} · ${iso.split("-").reverse().join("-")} · ${it.estado === "hecha" ? "hecha" : it.estado === "atrasada" ? "atrasada" : it.estado === "hoy" ? "le toca hoy" : "por venir"}` : ""}
+                        style={{ height: 22, borderRadius: 4, textAlign: "center", fontWeight: 800, cursor: editando && ((it && movible(it)) || destino) ? "pointer" : "default", ...(it ? ESTILO[it.estado] : { background: destino ? "#E9F6F4" : finde ? "#F4F3EF" : "#FAFAF7" }), ...(sel ? { outline: "2px solid #009899" } : {}) }}>
                         {it ? (it.estado === "hecha" ? "✓" : "●") : ""}
                       </td>
                     );
@@ -95,11 +146,19 @@ export default function CalendarioProgramado({ asignacion, evals }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 4 }}>
         {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => <div key={d} style={{ fontSize: 11, fontWeight: 800, color: "var(--texto-suave)", textAlign: "center" }}>{d}</div>)}
         {celdas.map((d, i) => (
-          <div key={i} style={{ minHeight: 64, borderRadius: 8, padding: 4, background: d ? (`${mes}-${String(d).padStart(2, "0")}` === hoy ? "#FFFBF3" : "#FAFAF7") : "transparent", border: d ? "1px solid #F1EFE8" : "none" }}>
+          <div key={i}
+            onClick={() => d && elegido && moverA(`${mes}-${String(d).padStart(2, "0")}`)}
+            onDragOver={(e) => { if (d && editando) e.preventDefault(); }}
+            onDrop={(e) => { e.preventDefault(); if (d && elegido) moverA(`${mes}-${String(d).padStart(2, "0")}`); }}
+            style={{ minHeight: 64, borderRadius: 8, padding: 4, cursor: elegido && d ? "pointer" : "default", background: d ? (`${mes}-${String(d).padStart(2, "0")}` === hoy ? "#FFFBF3" : elegido && `${mes}-${String(d).padStart(2, "0")}` >= hoy ? "#F4FBF9" : "#FAFAF7") : "transparent", border: d ? "1px solid #F1EFE8" : "none" }}>
             {d && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--texto-suave)" }}>{d}</div>}
             {d && delDia(d).map((it) => (
-              <div key={it.nombre} title={`${it.nombre} · ${it.estado === "hecha" ? "hecha" : it.estado === "atrasada" ? "atrasada" : it.estado === "hoy" ? "le toca hoy" : "por venir"}`}
-                style={{ ...ESTILO[it.estado], borderRadius: 6, padding: "1px 4px", fontSize: 11, fontWeight: 700, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div key={it.nombre}
+                draggable={movible(it)}
+                onDragStart={() => setElegido({ clave: it.clave, fecha: it.fecha })}
+                onClick={(e) => { if (!movible(it)) return; e.stopPropagation(); setElegido(elegido && elegido.clave === it.clave && elegido.fecha === it.fecha ? null : { clave: it.clave, fecha: it.fecha }); }}
+                title={`${it.nombre} · ${it.estado === "hecha" ? "hecha" : it.estado === "atrasada" ? "atrasada" : it.estado === "hoy" ? "le toca hoy" : "por venir"}`}
+                style={{ ...ESTILO[it.estado], borderRadius: 6, padding: "1px 4px", fontSize: 11, fontWeight: 700, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: movible(it) ? "grab" : "default", ...(elegido && elegido.clave === it.clave && elegido.fecha === it.fecha ? { outline: "2px solid #009899" } : {}) }}>
                 {it.estado === "hecha" ? "✓ " : ""}{corto(it.nombre)}
               </div>
             ))}
