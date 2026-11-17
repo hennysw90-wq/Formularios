@@ -166,7 +166,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
             setAviso({ tipo: "ok", texto: `Calendario de «${a.reunionNombre}» actualizado.` });
           }}
           onAnclar={CALENDARIO_EJECUTIVO ? async (a, si, nombreForm, h) => {
-            const nueva = { ...a, anclarCalendario: si, ...(si && h ? { calendarioHorario: { inicio: h.inicio, fin: h.fin, dias: h.dias || [] } } : {}) };
+            const nueva = { ...a, anclarCalendario: si, ...(si && h ? { calendarioHorario: { inicio: h.sinHorario ? "" : h.inicio, fin: h.sinHorario ? "" : h.fin, dias: h.dias || [], sinHorario: !!h.sinHorario } } : {}) };
             await guardarAsignacion(nueva);
             await sincronizarCalendarioEjecutivo({ ...nueva, formularioSigla: siglaDe(formPorId.get(a.formularioId)) }, nombreForm);
           } : null}
@@ -269,7 +269,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                             title={a.anclarCalendario ? "Está en el Calendario Ejecutivo del portal: cambiar horario o quitar" : "Mostrar esta asignación en el Calendario Ejecutivo del portal"}
                             onClick={() => { setCalendarioDe(a.id); setAnclarDe(a.id); }}
                           >
-                            {a.anclarCalendario ? `📌 En calendario ejecutivo${a.calendarioHorario?.inicio ? ` · ${a.calendarioHorario.inicio}` : ""}` : "📌 Anclar a calendario ejecutivo"}
+                            {a.anclarCalendario ? `📌 En calendario ejecutivo${a.calendarioHorario?.sinHorario ? " · sin horario" : a.calendarioHorario?.inicio ? ` · ${a.calendarioHorario.inicio}` : ""}` : "📌 Anclar a calendario ejecutivo"}
                           </button>
                         )}
                         {(a.personas || []).length > 0 && (
@@ -494,8 +494,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     if (planComun.frecuencia === "unica" && !planComun.hasta && (a.personas || []).some((p) => !p.personalizado)) return setError("Pon en el plan común hasta qué fecha tienen para ejecutarlo (plazo).");
     if (a.anclarCalendario) {
       const h = a.calendarioHorario || {};
-      if (!(h.inicio && h.fin && h.fin > h.inicio)) return setError("Calendario ejecutivo: pon un horario válido (la hora de término después de la de inicio).");
-      if (!esProgramada && !(h.dias || []).length) return setError("Calendario ejecutivo: elige al menos un día de la semana.");
+      if (!h.sinHorario && !(h.inicio && h.fin && h.fin > h.inicio)) return setError("Calendario ejecutivo: pon un horario válido (la hora de término después de la de inicio).");
     }
     const sinProgramar = (a.personas || []).filter((p) => p.personalizado && p.frecuencia === "programada" && (!(p.fechas || []).length || personaDesactualizada(p)));
     if (sinProgramar.length) return setError(`Sortea los días de: ${sinProgramar.map((p) => p.nombre).join(", ")} (programación personalizada).`);
@@ -680,7 +679,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
               <input
                 type="checkbox"
                 checked={!!a.anclarCalendario}
-                onChange={(e) => cambiar({ anclarCalendario: e.target.checked, ...(e.target.checked && !a.calendarioHorario ? { calendarioHorario: { inicio: a.horaInicio || "09:00", fin: a.horaFin || "10:00", dias: [1, 2, 3, 4, 5] } } : {}) })}
+                onChange={(e) => cambiar({ anclarCalendario: e.target.checked, ...(e.target.checked && !a.calendarioHorario ? { calendarioHorario: { inicio: a.horaInicio || "09:00", fin: a.horaFin || "10:00", sinHorario: !esProgramada } } : {}) })}
                 style={{ marginTop: 3, flexShrink: 0 }}
               />
               <span>
@@ -690,24 +689,18 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
             </label>
             {a.anclarCalendario && (
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginTop: 8, paddingLeft: 24 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Desde<br />
-                  <input type="time" step="1800" className="rp-input" style={{ width: 120 }} value={a.calendarioHorario?.inicio || ""} onChange={(e) => cambiar({ calendarioHorario: { ...(a.calendarioHorario || {}), inicio: e.target.value } })} />
+                <label style={{ fontSize: 12.5, fontWeight: 700, color: "#3B2A6B", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", alignSelf: "center" }}>
+                  <input type="checkbox" checked={!!a.calendarioHorario?.sinHorario} onChange={(e) => cambiar({ calendarioHorario: { ...(a.calendarioHorario || {}), sinHorario: e.target.checked, ...(!e.target.checked && !a.calendarioHorario?.inicio ? { inicio: a.horaInicio || "09:00", fin: a.horaFin || "10:00" } : {}) } })} /> Sin horario (arriba del día)
                 </label>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Hasta<br />
-                  <input type="time" step="1800" className="rp-input" style={{ width: 120 }} value={a.calendarioHorario?.fin || ""} onChange={(e) => cambiar({ calendarioHorario: { ...(a.calendarioHorario || {}), fin: e.target.value } })} />
-                </label>
-                {!esProgramada && (
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B", marginBottom: 3 }}>Días</div>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {[[1, "L"], [2, "M"], [3, "X"], [4, "J"], [5, "V"], [6, "S"], [0, "D"]].map(([d, t]) => {
-                        const dias = a.calendarioHorario?.dias || [];
-                        const on = dias.includes(d);
-                        return <button key={d} type="button" aria-pressed={on} onClick={() => cambiar({ calendarioHorario: { ...(a.calendarioHorario || {}), dias: on ? dias.filter((x) => x !== d) : [...dias, d] } })} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${on ? "#6D28D9" : "#CFC3F2"}`, background: on ? "#6D28D9" : "#fff", color: on ? "#fff" : "#3B2A6B", fontWeight: 800, fontSize: 12, cursor: "pointer" }}>{t}</button>;
-                      })}
-                    </div>
-                  </div>
-                )}
+                {!a.calendarioHorario?.sinHorario && <>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Desde<br />
+                    <input type="time" step="1800" className="rp-input" style={{ width: 120 }} value={a.calendarioHorario?.inicio || ""} onChange={(e) => cambiar({ calendarioHorario: { ...(a.calendarioHorario || {}), inicio: e.target.value } })} />
+                  </label>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Hasta<br />
+                    <input type="time" step="1800" className="rp-input" style={{ width: 120 }} value={a.calendarioHorario?.fin || ""} onChange={(e) => cambiar({ calendarioHorario: { ...(a.calendarioHorario || {}), fin: e.target.value } })} />
+                  </label>
+                </>}
+                {!esProgramada && <span style={{ fontSize: 12, color: "#6B5F86", alignSelf: "center" }}>Se muestra arriba de cada día de su periodo (ej. «1 asignación · jue 19 – dom 22»).</span>}
                 {esProgramada && <span style={{ fontSize: 12, color: "#6B5F86" }}>Se muestra en los días sorteados de cada persona.</span>}
               </div>
             )}

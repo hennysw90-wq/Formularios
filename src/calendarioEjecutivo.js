@@ -15,26 +15,49 @@ async function baseCalendario() {
 }
 const DOC = ["app_data", "formularios_programados"];
 
+// «LB-SS-SOM-0035 · Operación de vaciado…» → «Operación de vaciado…» (el código queda en el detalle).
+const sinCodigo = (t) => String(t || "").split(" · ").slice(-1)[0].trim();
+function textoAlcance(al) {
+  const op = al?.opciones || [];
+  if (op.length === 1) return sinCodigo(op[0]);
+  if (op.length > 1) return `${op.length} estándares`;
+  if ((al?.subareas || []).length) return al.subareas.join(", ");
+  return "";
+}
+
 /** Lo que se muestra en el calendario: cada día programado con quiénes evalúan. */
 export function itemCalendario(a, formularioNombre = "") {
   const porDia = {};
   (a.personas || []).forEach((p) => (p.fechas || []).forEach((f) => (porDia[f] = [...(porDia[f] || []), p.nombre])));
   const sigla = a.formularioSigla && a.formularioSigla !== "evaluación" ? a.formularioSigla : (String(formularioNombre || a.formularioNombre || "").match(/^(C[a-z][A-Z])\b/) || [])[1] || "";
-  // Sin días sorteados (semanal, mensual, etc.): se repite en los días de la semana elegidos al anclar.
-  const semanal = Object.keys(porDia).length
-    ? null
-    : { dias: a.calendarioHorario?.dias || [1, 2, 3, 4, 5], desde: a.vigenteDesde || String(a.creado || "").slice(0, 10) || "", hasta: (a.planComun?.frecuencia === "unica" && a.planComun?.hasta) || "" };
+  // Sin días sorteados (semanal, mensual, una sola vez…): cada persona con su periodo; el calendario lo muestra
+  // arriba de cada día del periodo (ej. «1 asignación · jue 19 – dom 22»).
+  const sinSorteo = !Object.keys(porDia).length;
+  const desdeAsig = a.vigenteDesde || String(a.creado || "").slice(0, 10) || "";
   return {
     sigla,
-    ...(semanal ? { semanal, nombres: (a.personas || []).map((p) => p.nombre).sort((x, y) => x.localeCompare(y, "es")) } : {}),
+    // Asignadas por listado: qué estándar (u opción) le toca a cada persona.
+    estandarDe: Object.fromEntries((a.personas || []).map((p) => [p.nombre, textoAlcance(p.alcance || a.planComun?.alcance)]).filter(([, t]) => t)),
+    ...(sinSorteo
+      ? {
+          personas: (a.personas || []).map((p) => ({
+            nombre: p.nombre,
+            frecuencia: p.frecuencia || "semanal",
+            cantidad: Math.max(1, Number(p.cantidad) || 1),
+            desde: p.desde || desdeAsig,
+            hasta: p.hasta || "",
+          })),
+        }
+      : {}),
     formulario: formularioNombre || a.formularioNombre || "",
-    reunion: a.reunionNombre || "",
+    // Asignadas por listado no tienen reunión propia: se muestra el nombre del formulario.
+    reunion: a.campoAsignacion ? "" : a.reunionNombre || "",
     area: a.area || "",
     lideres: a.lideres || [],
     soloDia: a.soloDiaProgramado !== false,
     // Horario en que se muestra en el calendario (se elige al anclar).
-    inicio: a.calendarioHorario?.inicio || "",
-    fin: a.calendarioHorario?.fin || "",
+    inicio: a.calendarioHorario?.sinHorario ? "" : a.calendarioHorario?.inicio || "",
+    fin: a.calendarioHorario?.sinHorario ? "" : a.calendarioHorario?.fin || "",
     dias: Object.keys(porDia).sort().map((fecha) => ({ fecha, nombres: porDia[fecha].sort((x, y) => x.localeCompare(y, "es")) })),
     actualizado: new Date().toISOString(),
   };

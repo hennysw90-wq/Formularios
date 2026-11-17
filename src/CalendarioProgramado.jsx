@@ -39,12 +39,12 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
     fin: asignacion.calendarioHorario?.fin || asignacion.horaFin || "10:00",
     // Sin días sorteados: qué días de la semana se muestra (lunes a viernes por defecto).
     dias: asignacion.calendarioHorario?.dias?.length ? asignacion.calendarioHorario.dias : [1, 2, 3, 4, 5],
+    sinHorario: asignacion.calendarioHorario ? !!asignacion.calendarioHorario.sinHorario : !programada,
   });
   // Abierto desde «📌 Anclar» en la lista: parte mostrando el horario a elegir.
   useEffect(() => { if (pedirAnclaje && onAnclar) pedirHorario(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   async function anclar(si, h = null) {
-    if (si && h && !(h.inicio && h.fin && h.fin > h.inicio)) return setAviso("La hora de término debe ser después de la de inicio.");
-    if (si && h && !programada && !(h.dias || []).length) return setAviso("Elige al menos un día de la semana.");
+    if (si && h && !h.sinHorario && !(h.inicio && h.fin && h.fin > h.inicio)) return setAviso("La hora de término debe ser después de la de inicio.");
     setAnclando(true);
     try {
       await onAnclar(si, h);
@@ -154,7 +154,7 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
         {onAnclar && !editando && (
           asignacion.anclarCalendario
             ? <>
-                <button type="button" style={{ ...btn, background: "#EEE9FB", borderColor: "#6D28D9", color: "#5B21B6" }} disabled={anclando} onClick={pedirHorario} title="Cambiar el horario con que aparece en el Calendario Ejecutivo">📌 Calendario ejecutivo{asignacion.calendarioHorario?.inicio ? ` · ${asignacion.calendarioHorario.inicio}–${asignacion.calendarioHorario.fin}` : ""}</button>
+                <button type="button" style={{ ...btn, background: "#EEE9FB", borderColor: "#6D28D9", color: "#5B21B6" }} disabled={anclando} onClick={pedirHorario} title="Cambiar el horario con que aparece en el Calendario Ejecutivo">📌 Calendario ejecutivo{asignacion.calendarioHorario?.sinHorario ? " · sin horario" : asignacion.calendarioHorario?.inicio ? ` · ${asignacion.calendarioHorario.inicio}–${asignacion.calendarioHorario.fin}` : ""}</button>
                 <button type="button" style={btn} disabled={anclando} onClick={() => anclar(false)} title="Quitar del Calendario Ejecutivo del portal">Quitar</button>
               </>
             : <button type="button" style={btn} disabled={anclando} onClick={pedirHorario} title="Muestra estas fechas en el Calendario Ejecutivo del portal">📌 Anclar a calendario ejecutivo</button>
@@ -169,22 +169,19 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
         <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", margin: "0 0 10px", padding: "10px 12px", background: "#F6F3FD", border: "1px solid #CFC3F2", borderRadius: 10 }}>
           <div style={{ flex: "1 1 220px", fontSize: 13, color: "#3B2A6B" }}>
             <b>¿En qué horario aparece en el Calendario Ejecutivo?</b>
-            <div style={{ fontSize: 12, color: "#6B5F86" }}>{programada ? "Se muestra ese horario en cada día programado, con quién evalúa." : "Se muestra en esos días de la semana, con quiénes evalúan."}</div>
-            {!programada && (
-              <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-                {[[1, "L"], [2, "M"], [3, "X"], [4, "J"], [5, "V"], [6, "S"], [0, "D"]].map(([d, t]) => {
-                  const on = (horario.dias || []).includes(d);
-                  return <button key={d} type="button" aria-pressed={on} onClick={() => setHorario({ ...horario, dias: on ? horario.dias.filter((x) => x !== d) : [...horario.dias, d] })} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${on ? "#6D28D9" : "#CFC3F2"}`, background: on ? "#6D28D9" : "#fff", color: on ? "#fff" : "#3B2A6B", fontWeight: 800, fontSize: 12, cursor: "pointer" }}>{t}</button>;
-                })}
-              </div>
-            )}
+            <div style={{ fontSize: 12, color: "#6B5F86" }}>{programada ? "Se muestra en cada día programado, con quién evalúa." : "Se muestra arriba de cada día de su periodo (ej. «1 asignación · jue 19 – dom 22»), con quién evalúa y qué le toca."}</div>
           </div>
-          <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Desde<br />
-            <input type="time" step="1800" value={horario.inicio} onChange={(e) => setHorario({ ...horario, inicio: e.target.value })} style={{ fontSize: 14, padding: "5px 6px", border: "1px solid #CFC3F2", borderRadius: 8 }} />
+          <label style={{ fontSize: 12.5, fontWeight: 700, color: "#3B2A6B", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", alignSelf: "center" }}>
+            <input type="checkbox" checked={!!horario.sinHorario} onChange={(e) => setHorario({ ...horario, sinHorario: e.target.checked })} /> Sin horario (arriba del día)
           </label>
-          <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Hasta<br />
-            <input type="time" step="1800" value={horario.fin} onChange={(e) => setHorario({ ...horario, fin: e.target.value })} style={{ fontSize: 14, padding: "5px 6px", border: "1px solid #CFC3F2", borderRadius: 8 }} />
-          </label>
+          {!horario.sinHorario && <>
+            <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Desde<br />
+              <input type="time" step="1800" value={horario.inicio} onChange={(e) => setHorario({ ...horario, inicio: e.target.value })} style={{ fontSize: 14, padding: "5px 6px", border: "1px solid #CFC3F2", borderRadius: 8 }} />
+            </label>
+            <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Hasta<br />
+              <input type="time" step="1800" value={horario.fin} onChange={(e) => setHorario({ ...horario, fin: e.target.value })} style={{ fontSize: 14, padding: "5px 6px", border: "1px solid #CFC3F2", borderRadius: 8 }} />
+            </label>
+          </>}
           <button type="button" style={{ ...btn, background: "#6D28D9", borderColor: "#6D28D9", color: "#fff" }} disabled={anclando} onClick={() => anclar(true, horario)}>{anclando ? "Guardando…" : asignacion.anclarCalendario ? "Guardar horario" : "📌 Anclar"}</button>
           <button type="button" style={btn} disabled={anclando} onClick={() => setHorario(null)}>Cancelar</button>
         </div>
