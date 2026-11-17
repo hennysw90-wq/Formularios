@@ -255,7 +255,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                       </div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                         {!estaActiva(a) && <span className="ca-pill" style={{ background: "#eef0f3", color: "#5b6472" }}>Desactivada desde {String(a.inactivaDesde || "").split("-").reverse().join("-")}</span>}
-                        {(a.personas || []).some((p) => (p.fechas || []).length) && (
+                        {(a.personas || []).length > 0 && (
                           <button style={{ ...btn, ...(calendarioDe === a.id ? { background: "var(--verde, #009899)", color: "#fff", borderColor: "var(--verde, #009899)" } : {}) }} onClick={() => setCalendarioDe(calendarioDe === a.id ? "" : a.id)}>📅 Calendario</button>
                         )}
                         {estaActiva(a) && <button style={btn} onClick={() => onEditar(a)}>Editar</button>}
@@ -263,7 +263,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                         <button style={btnPel} onClick={() => onEliminar(a)}>Eliminar</button>
                       </div>
                     </div>
-                    {calendarioDe === a.id && <CalendarioProgramado asignacion={a} evals={evals} usuario={usuario} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} />}
+                    {calendarioDe === a.id && <CalendarioProgramado asignacion={a} evals={evals} usuario={usuario} formularioNombre={f ? f.nombre : a.formularioNombre || ""} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} />}
                   </div>
                 ))}
             </div>
