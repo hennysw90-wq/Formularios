@@ -32,10 +32,18 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [vista, setVista] = useState("calendario"); // "calendario" | "gantt"
   const [anclando, setAnclando] = useState(false);
-  async function anclar(si) {
+  // Al anclar se pide el horario en que aparece en el calendario (parte con el de la reunión, si lo tiene).
+  const [horario, setHorario] = useState(null); // { inicio, fin } mientras se elige
+  const pedirHorario = () => setHorario({
+    inicio: asignacion.calendarioHorario?.inicio || asignacion.horaInicio || "09:00",
+    fin: asignacion.calendarioHorario?.fin || asignacion.horaFin || "10:00",
+  });
+  async function anclar(si, h = null) {
+    if (si && h && !(h.inicio && h.fin && h.fin > h.inicio)) return setAviso("La hora de término debe ser después de la de inicio.");
     setAnclando(true);
     try {
-      await onAnclar(si);
+      await onAnclar(si, h);
+      setHorario(null);
       setAviso(si ? "✓ Anclado: estas fechas aparecen en el Calendario Ejecutivo del portal y se actualizan solas." : "✓ Quitado del Calendario Ejecutivo.");
     } catch (e) {
       setAviso(`No se pudo ${si ? "anclar" : "quitar"} (${e.code || e.message}).`);
@@ -140,8 +148,11 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
         <span style={{ flex: 1 }} />
         {programada && onAnclar && !editando && (
           asignacion.anclarCalendario
-            ? <button type="button" style={{ ...btn, background: "#EEE9FB", borderColor: "#6D28D9", color: "#5B21B6" }} disabled={anclando} onClick={() => anclar(false)} title="Está en el Calendario Ejecutivo del portal. Toca para quitarla.">📌 En calendario ejecutivo · Quitar</button>
-            : <button type="button" style={btn} disabled={anclando} onClick={() => anclar(true)} title="Muestra estas fechas en el Calendario Ejecutivo del portal">{anclando ? "Anclando…" : "📌 Anclar a calendario ejecutivo"}</button>
+            ? <>
+                <button type="button" style={{ ...btn, background: "#EEE9FB", borderColor: "#6D28D9", color: "#5B21B6" }} disabled={anclando} onClick={pedirHorario} title="Cambiar el horario con que aparece en el Calendario Ejecutivo">📌 Calendario ejecutivo{asignacion.calendarioHorario?.inicio ? ` · ${asignacion.calendarioHorario.inicio}–${asignacion.calendarioHorario.fin}` : ""}</button>
+                <button type="button" style={btn} disabled={anclando} onClick={() => anclar(false)} title="Quitar del Calendario Ejecutivo del portal">Quitar</button>
+              </>
+            : <button type="button" style={btn} disabled={anclando} onClick={pedirHorario} title="Muestra estas fechas en el Calendario Ejecutivo del portal">📌 Anclar a calendario ejecutivo</button>
         )}
         {programada && onGuardar && !editando && <button type="button" style={btn} onClick={empezarEdicion}>✋ Mover días (pide clave)</button>}
         {editando && <>
@@ -149,6 +160,22 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
           <button type="button" style={btn} disabled={guardando} onClick={() => { setEditando(false); setBorrador(null); setElegido(null); setAviso(""); }}>Cancelar</button>
         </>}
       </div>
+      {horario && (
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", margin: "0 0 10px", padding: "10px 12px", background: "#F6F3FD", border: "1px solid #CFC3F2", borderRadius: 10 }}>
+          <div style={{ flex: "1 1 220px", fontSize: 13, color: "#3B2A6B" }}>
+            <b>¿En qué horario aparece en el Calendario Ejecutivo?</b>
+            <div style={{ fontSize: 12, color: "#6B5F86" }}>Se muestra ese horario en cada día programado, con quién evalúa.</div>
+          </div>
+          <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Desde<br />
+            <input type="time" step="1800" value={horario.inicio} onChange={(e) => setHorario({ ...horario, inicio: e.target.value })} style={{ fontSize: 14, padding: "5px 6px", border: "1px solid #CFC3F2", borderRadius: 8 }} />
+          </label>
+          <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Hasta<br />
+            <input type="time" step="1800" value={horario.fin} onChange={(e) => setHorario({ ...horario, fin: e.target.value })} style={{ fontSize: 14, padding: "5px 6px", border: "1px solid #CFC3F2", borderRadius: 8 }} />
+          </label>
+          <button type="button" style={{ ...btn, background: "#6D28D9", borderColor: "#6D28D9", color: "#fff" }} disabled={anclando} onClick={() => anclar(true, horario)}>{anclando ? "Guardando…" : asignacion.anclarCalendario ? "Guardar horario" : "📌 Anclar"}</button>
+          <button type="button" style={btn} disabled={anclando} onClick={() => setHorario(null)}>Cancelar</button>
+        </div>
+      )}
       {editando && <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 600, color: "#8A5A12" }}>Modo mover: arrastra un nombre a otro día, o tócalo y luego toca el día (en Gantt, la casilla de su fila). Solo lo que no está hecho, a hoy o después.</p>}
       {aviso && <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 700, color: aviso.startsWith("✓") ? "#0F6E56" : "#993C1D" }}>{aviso}</p>}
 

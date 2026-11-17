@@ -25,6 +25,9 @@ export function itemCalendario(a, formularioNombre = "") {
     area: a.area || "",
     lideres: a.lideres || [],
     soloDia: a.soloDiaProgramado !== false,
+    // Horario en que se muestra en el calendario (se elige al anclar).
+    inicio: a.calendarioHorario?.inicio || "",
+    fin: a.calendarioHorario?.fin || "",
     dias: Object.keys(porDia).sort().map((fecha) => ({ fecha, nombres: porDia[fecha].sort((x, y) => x.localeCompare(y, "es")) })),
     actualizado: new Date().toISOString(),
   };

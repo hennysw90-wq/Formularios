@@ -164,8 +164,8 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
             await guardarAsignacion(versionarAsignacion(a, { ...a, personas }));
             setAviso({ tipo: "ok", texto: `Calendario de «${a.reunionNombre}» actualizado.` });
           }}
-          onAnclar={CALENDARIO_EJECUTIVO ? async (a, si, nombreForm) => {
-            const nueva = { ...a, anclarCalendario: si };
+          onAnclar={CALENDARIO_EJECUTIVO ? async (a, si, nombreForm, h) => {
+            const nueva = { ...a, anclarCalendario: si, ...(si && h ? { calendarioHorario: { inicio: h.inicio, fin: h.fin } } : {}) };
             await guardarAsignacion(nueva);
             await sincronizarCalendarioEjecutivo(nueva, nombreForm);
           } : null}
@@ -270,7 +270,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                         <button style={btnPel} onClick={() => onEliminar(a)}>Eliminar</button>
                       </div>
                     </div>
-                    {calendarioDe === a.id && <CalendarioProgramado asignacion={a} evals={evals} usuario={usuario} formularioNombre={f ? f.nombre : a.formularioNombre || ""} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} onAnclar={estaActiva(a) && onAnclar ? (si) => onAnclar(a, si, f ? f.nombre : a.formularioNombre || "") : null} />}
+                    {calendarioDe === a.id && <CalendarioProgramado asignacion={a} evals={evals} usuario={usuario} formularioNombre={f ? f.nombre : a.formularioNombre || ""} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} onAnclar={estaActiva(a) && onAnclar ? (si, h) => onAnclar(a, si, f ? f.nombre : a.formularioNombre || "", h) : null} />}
                   </div>
                 ))}
             </div>
