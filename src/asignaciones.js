@@ -26,11 +26,11 @@ export function etiquetaFrecuencia(valor) {
 const ddmmaaaa = (iso) => String(iso || "").slice(0, 10).split("-").reverse().join("-");
 
 /** "2 veces a la semana", "1 vez al día", "Una sola vez", "Una sola vez · hasta 15-11-2026". */
-export function etiquetaCadencia(cantidad, frecuencia, hasta = "") {
+export function etiquetaCadencia(cantidad, frecuencia, hasta = "", base = "") {
   const n = Number(cantidad) || 1;
   const veces = n === 1 ? "1 vez" : `${n} veces`;
   if (frecuencia === "unica") return (n === 1 ? "Una sola vez" : `${veces} en total`) + (hasta ? ` · hasta ${ddmmaaaa(hasta)}` : "");
-  if (frecuencia === "programada") return `Programado al azar${hasta ? ` hasta ${ddmmaaaa(hasta)}` : ""}`;
+  if (frecuencia === "programada") return `${base ? `${veces} ${etiquetaFrecuencia(base).toLowerCase()} · ` : ""}al azar${hasta ? ` hasta ${ddmmaaaa(hasta)}` : ""}`;
   return `${veces} ${etiquetaFrecuencia(frecuencia).toLowerCase()}`;
 }
 
@@ -591,32 +591,36 @@ export async function reactivarAsignacion(a) {
 
 // ─── Programación al azar ───────────────────────────────────────────────────
 /**
- * Reparte los días (de `desde` a `hasta`, solo los días de la semana elegidos: 0 = domingo … 6 = sábado) entre las
- * personas, al azar pero equitativo: cada día le toca a una sola persona y, ronda a ronda, a todas por igual
- * (como mucho 1 de diferencia). Devuelve { [clavePersona]: ["AAAA-MM-DD", …] }.
+ * Programa al azar respetando la frecuencia: a cada persona le tocan `cantidad` días por periodo (semana, quincena,
+ * mes o día), elegidos al azar entre los días de la semana permitidos (0 = domingo … 6 = sábado) de `desde` a `hasta`.
+ * Para repartir la carga, en cada periodo se prefieren los días que todavía tienen menos personas.
+ * Devuelve { [clavePersona]: ["AAAA-MM-DD", …] }.
  */
-export function sortearProgramacion(claves, desde, hasta, dias) {
+export function sortearProgramacion(claves, desde, hasta, dias, cantidad = 1, base = "semanal") {
   const res = Object.fromEntries(claves.map((k) => [k, []]));
   if (!claves.length || !desde || !hasta || !(dias || []).length) return res;
-  const fechas = [];
-  for (let d = fechaLocal(desde); d && hoyLocalISO(d) <= hasta; d.setDate(d.getDate() + 1)) if (dias.includes(d.getDay())) fechas.push(hoyLocalISO(d));
+  const porPeriodo = new Map();
+  for (let d = fechaLocal(desde); d && hoyLocalISO(d) <= hasta; d.setDate(d.getDate() + 1)) {
+    if (!dias.includes(d.getDay())) continue;
+    const k = periodoVigente(base === "programada" ? "semanal" : base, d);
+    if (!porPeriodo.has(k)) porPeriodo.set(k, []);
+    porPeriodo.get(k).push(hoyLocalISO(d));
+  }
   const barajar = (l) => {
-    const a = [...l];
-    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-    return a;
+    const x = [...l];
+    for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; }
+    return x;
   };
-  let ronda = [];
-  let anterior = "";
-  fechas.forEach((f) => {
-    if (!ronda.length) {
-      ronda = barajar(claves);
-      // Que nadie repita dos días seguidos entre una ronda y la siguiente (si se puede).
-      if (ronda.length > 1 && ronda[0] === anterior) [ronda[0], ronda[1]] = [ronda[1], ronda[0]];
-    }
-    const k = ronda.shift();
-    res[k].push(f);
-    anterior = k;
+  const n = Math.max(1, Math.floor(Number(cantidad)) || 1);
+  const carga = new Map();
+  porPeriodo.forEach((fechas) => {
+    barajar(claves).forEach((k) => {
+      // Los días con menos gente primero; entre iguales, al azar.
+      const elegidas = barajar(fechas).sort((x, y) => (carga.get(x) || 0) - (carga.get(y) || 0)).slice(0, n);
+      elegidas.forEach((f) => { carga.set(f, (carga.get(f) || 0) + 1); res[k].push(f); });
+    });
   });
+  Object.values(res).forEach((l) => l.sort());
   return res;
 }
 /** Calendario de una asignación programada: [{ fecha, clave }] ordenado por fecha. */

@@ -8,7 +8,7 @@ const NOMBRE_DIA = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const mini = { display: "block", fontSize: 11.5, fontWeight: 700, color: "var(--texto-suave)", marginBottom: 3 };
 const btn = { border: "1px solid var(--borde, #D3D1C7)", background: "#fff", borderRadius: 8, padding: "7px 12px", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 
-export const firmaSorteo = (plan, claves) => JSON.stringify([plan.desde || "", plan.hasta || "", [...(plan.dias || [])].sort(), [...claves].sort()]);
+export const firmaSorteo = (plan, claves) => JSON.stringify([plan.desde || "", plan.hasta || "", [...(plan.dias || [])].sort(), [...claves].sort(), Number(plan.cantidad) || 1, plan.base || "semanal"]);
 const fechaTxt = (f) => {
   const [a, m, d] = f.split("-").map(Number);
   return `${NOMBRE_DIA[new Date(a, m - 1, d).getDay()]} ${String(d).padStart(2, "0")}-${String(m).padStart(2, "0")}`;
@@ -26,6 +26,19 @@ export default function ProgramacionAzar({ plan, personas, desactualizado, onCam
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div style={{ flex: "0 0 80px" }}>
+          <label style={mini}>Cantidad</label>
+          <input className="rp-input" type="number" min="1" value={plan.cantidad ?? 1} onChange={(e) => onCambiar({ cantidad: e.target.value })} aria-label="Cantidad por periodo" />
+        </div>
+        <div style={{ flex: "0 0 150px" }}>
+          <label style={mini}>Cada</label>
+          <select className="rp-select" value={plan.base || "semanal"} onChange={(e) => onCambiar({ base: e.target.value })} aria-label="Frecuencia de la programación">
+            <option value="diaria">Día</option>
+            <option value="semanal">Semana</option>
+            <option value="quincenal">Quincena</option>
+            <option value="mensual">Mes</option>
+          </select>
+        </div>
         <div>
           <label style={mini}>Días de la semana *</label>
           <div style={{ display: "flex", gap: 4 }}>
@@ -52,7 +65,7 @@ export default function ProgramacionAzar({ plan, personas, desactualizado, onCam
       {desactualizado && calendario.length > 0 && (
         <p style={{ margin: "8px 0 0", fontSize: 12.5, fontWeight: 700, color: "#BA7517" }}>Cambiaste los días, las fechas o los evaluadores: vuelve a sortear para que el calendario quede al día.</p>
       )}
-      {!calendario.length && <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "var(--texto-suave)" }}>Elige los días y hasta cuándo, y toca «Sortear calendario»: cada día le toca a un solo evaluador, repartido por igual entre todos.</p>}
+      {!calendario.length && <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "var(--texto-suave)" }}>Elige cuántas veces por periodo, los días permitidos y hasta cuándo, y toca «Sortear calendario»: a cada evaluador le tocan sus días al azar dentro de cada periodo, repartiendo la carga entre los días.</p>}
       {calendario.length > 0 && (
         <div style={{ marginTop: 10 }}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
@@ -62,10 +75,10 @@ export default function ProgramacionAzar({ plan, personas, desactualizado, onCam
           {verCalendario && (
             <div style={{ maxHeight: 280, overflowY: "auto", border: "1px solid #EEECE6", borderRadius: 8, background: "#fff" }}>
               {calendario.map((c) => (
-                <div key={c.fecha} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 10px", borderBottom: "1px solid #F3F1EC", fontSize: 13, opacity: c.fecha < hoy ? 0.55 : 1 }}>
+                <div key={c.fecha + c.clave} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 10px", borderBottom: "1px solid #F3F1EC", fontSize: 13, opacity: c.fecha < hoy ? 0.55 : 1 }}>
                   <span style={{ width: 86, fontWeight: 700, textTransform: "capitalize" }}>{fechaTxt(c.fecha)}</span>
                   <select className="rp-select" style={{ maxWidth: 260, padding: "4px 8px", fontSize: 13 }} value={c.clave} onChange={(e) => onMover(c.fecha, c.clave, e.target.value)} aria-label={`Evaluador del ${c.fecha}`}>
-                    {personas.map((p) => <option key={p.clave} value={p.clave}>{p.nombre}</option>)}
+                    {personas.filter((p) => p.clave === c.clave || !(p.fechas || []).includes(c.fecha)).map((p) => <option key={p.clave} value={p.clave}>{p.nombre}</option>)}
                   </select>
                 </div>
               ))}

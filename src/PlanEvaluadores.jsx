@@ -7,6 +7,7 @@ import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistenc
 import { sugerirUsuarios } from "./buscarUsuarios.js";
 import { useConfirmarConClave } from "./ConfirmarConClave.jsx";
 import ProgramacionAzar, { firmaSorteo } from "./ProgramacionAzar.jsx";
+import CalendarioProgramado from "./CalendarioProgramado.jsx";
 import {
   FRECUENCIAS,
   ETIQUETA_ESTADO,
@@ -155,6 +156,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
       {!editando && vistaActual === "asignaciones" && (
         <ListaAsignaciones
           asignaciones={asignaciones === null ? null : lista}
+          evals={todas || []}
           formPorId={formPorId}
           onEditar={(a) => { setAviso({ tipo: "", texto: "" }); setEditando({ ...JSON.parse(JSON.stringify(a)), esNueva: false }); }}
           onEliminar={borrar}
@@ -186,7 +188,8 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
 /*  Lista de asignaciones                                              */
 /* ------------------------------------------------------------------ */
 
-function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [] }) {
+function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [], evals = [] }) {
+  const [calendarioDe, setCalendarioDe] = useState("");
   const tieneUsuario = (nombre) => directorio.some((u) => u.rol !== "deshabilitado" && esLaPersona({ nombre }, u));
   if (asignaciones === null) return <p style={ayuda}>Cargando asignaciones…</p>;
   if (asignaciones.length === 0) {
@@ -238,7 +241,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, opacity: estaActiva(a) ? 1 : 0.55 }}>
                           {(a.personas || []).map((p) => (
                             <span key={p.uid || p.nombre} className="ca-chip" style={{ fontWeight: 600 }} title={p.desde ? `Se controla desde ${p.desde}` : ""}>
-                              {p.nombre} · {etiquetaCadencia(p.cantidad, p.frecuencia, p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{p.alcance ? ` · ${textoAlcance(p.alcance)}` : ""}
+                              {p.nombre} · {p.frecuencia === "programada" ? `${(p.fechas || []).length} días programados` : etiquetaCadencia(p.cantidad, p.frecuencia, p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{p.alcance ? ` · ${textoAlcance(p.alcance)}` : ""}
                             </span>
                           ))}
                           {!(a.personas || []).length && <span style={{ fontSize: 13, color: "var(--rojo)" }}>Sin evaluadores</span>}
@@ -246,11 +249,15 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                       </div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                         {!estaActiva(a) && <span className="ca-pill" style={{ background: "#eef0f3", color: "#5b6472" }}>Desactivada desde {String(a.inactivaDesde || "").split("-").reverse().join("-")}</span>}
+                        {(a.personas || []).some((p) => (p.fechas || []).length) && (
+                          <button style={{ ...btn, ...(calendarioDe === a.id ? { background: "var(--verde, #009899)", color: "#fff", borderColor: "var(--verde, #009899)" } : {}) }} onClick={() => setCalendarioDe(calendarioDe === a.id ? "" : a.id)}>📅 Calendario</button>
+                        )}
                         {estaActiva(a) && <button style={btn} onClick={() => onEditar(a)}>Editar</button>}
                         <button style={btn} onClick={() => onActivar(a, !estaActiva(a))}>{estaActiva(a) ? "Desactivar" : "Reactivar"}</button>
                         <button style={btnPel} onClick={() => onEliminar(a)}>Eliminar</button>
                       </div>
                     </div>
+                    {calendarioDe === a.id && <CalendarioProgramado asignacion={a} evals={evals} />}
                   </div>
                 ))}
             </div>
@@ -275,8 +282,8 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
   const [busqueda, setBusqueda] = useState("");
   const [masivo, setMasivo] = useState(false);
   // Plan común de la asignación: se define una vez y lo heredan todos los evaluadores que no estén "personalizados".
-  const PLAN_VACIO = { cantidad: 1, frecuencia: "semanal", desde: "", hasta: "", dias: [1, 2, 3, 4, 5], alcance: { opciones: [], subareas: [] } };
-  const planDe = (p) => ({ cantidad: p.cantidad ?? 1, frecuencia: p.frecuencia || "semanal", desde: p.desde || "", hasta: p.hasta || "", dias: p.dias || [1, 2, 3, 4, 5], alcance: p.alcance || { opciones: [], subareas: [] } });
+  const PLAN_VACIO = { cantidad: 1, frecuencia: "semanal", base: "semanal", desde: "", hasta: "", dias: [1, 2, 3, 4, 5], alcance: { opciones: [], subareas: [] } };
+  const planDe = (p) => ({ cantidad: p.cantidad ?? 1, frecuencia: p.frecuencia || "semanal", desde: p.desde || "", hasta: p.hasta || "", base: p.base || "semanal", dias: p.dias || [1, 2, 3, 4, 5], alcance: p.alcance || { opciones: [], subareas: [] } });
   const mismoPlan = (x, y) => JSON.stringify(planDe(x)) === JSON.stringify(planDe(y));
   const [planComun, setPlanComun] = useState(() => (inicial.planComun ? planDe(inicial.planComun) : (inicial.personas || [])[0] ? planDe(inicial.personas[0]) : PLAN_VACIO));
   // Programado al azar: firma del último sorteo (días, fechas y evaluadores) para avisar si hay que volver a sortear.
@@ -296,7 +303,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
   function sortear() {
     const siguen = (a.personas || []).filter((p) => !p.personalizado);
     const desde = planComun.desde || new Date().toISOString().slice(0, 10);
-    const r = sortearProgramacion(siguen.map(claveP), [desde, new Date().toISOString().slice(0, 10)].sort().pop(), planComun.hasta, planComun.dias || []);
+    const r = sortearProgramacion(siguen.map(claveP), [desde, new Date().toISOString().slice(0, 10)].sort().pop(), planComun.hasta, planComun.dias || [], planComun.cantidad, planComun.base || "semanal");
     setA((x) => ({ ...x, personas: (x.personas || []).map((p) => (p.personalizado ? p : { ...p, fechas: r[claveP(p)] || [] })) }));
     setFirma(firmaSorteo(planComun, siguen.map(claveP)));
     setError("");
@@ -554,7 +561,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
           )}
           {campo && <AlcanceEvaluador etiqueta={campo.etiqueta} nombre="el plan común" datos={datosCampo} alcance={planComun.alcance} onCambiar={(al) => cambiarPlanComun({ alcance: al })} />}
           <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>
-            {etiquetaCadencia(planComun.cantidad || 1, planComun.frecuencia, planComun.frecuencia === "unica" || esProgramada ? planComun.hasta : "")}
+            {etiquetaCadencia(planComun.cantidad || 1, planComun.frecuencia, planComun.frecuencia === "unica" || esProgramada ? planComun.hasta : "", planComun.base)}
             {planComun.desde ? ` · desde ${planComun.desde.split("-").reverse().join("-")}` : ""}
             {(a.personas || []).length ? ` · lo siguen ${(a.personas || []).filter((p) => !p.personalizado).length} de ${(a.personas || []).length}` : ""}
           </div>
