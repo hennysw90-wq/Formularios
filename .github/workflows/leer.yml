@@ -5,6 +5,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          curl -s "https://firestore.googleapis.com/v1/projects/calendario-turnos-oems/databases/(default)/documents/app_data/formularios_programados" | head -c 3000
-          echo
-          echo ---- asignaciones ancladas en cdr? 
+          curl -s "https://firestore.googleapis.com/v1/projects/calendario-turnos-oems/databases/(default)/documents/app_data/formularios_programados" > d.json
+          python3 -c "
+          import json;d=json.load(open('d.json'));f=d.get('fields',{});print('TOP',list(f.keys()))
+          it=f.get('items',{}).get('mapValue',{}).get('fields',{})
+          for k,v in it.items():
+            vf=v['mapValue']['fields'];print(k,{x:(y.get('stringValue') or y.get('booleanValue')) for x,y in vf.items() if 'arrayValue' not in y}, 'dias', len(vf.get('dias',{}).get('arrayValue',{}).get('values',[])))
+          "
+          curl -s https://calendario-turnos-oems.web.app/ > i.html; grep -o 'assets/[^"]*\.js' i.html
+          for j in $(grep -o 'assets/[^"]*\.js' i.html); do curl -s https://calendario-turnos-oems.web.app/$j | grep -o 'formularios_programados' | head -2; done
