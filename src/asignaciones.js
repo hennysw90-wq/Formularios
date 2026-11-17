@@ -601,13 +601,24 @@ export async function reactivarAsignacion(a) {
 export function sortearProgramacion(claves, desde, hasta, dias, cantidad = 1, base = "semanal", ocupadas = []) {
   const res = Object.fromEntries(claves.map((k) => [k, []]));
   if (!claves.length || !desde || !hasta || !(dias || []).length) return res;
+  const freq = base === "programada" ? "semanal" : base;
+  // Días permitidos dentro del rango, por periodo; y cuántos días permitidos tiene cada periodo completo
+  // (para que un periodo cortado —ej. solo el lunes 30— pida proporcionalmente menos y no amontone a todos).
   const porPeriodo = new Map();
-  for (let d = fechaLocal(desde); d && hoyLocalISO(d) <= hasta; d.setDate(d.getDate() + 1)) {
+  const completos = new Map();
+  const ini = fechaLocal(desde); ini.setDate(ini.getDate() - 35);
+  const fin = fechaLocal(hasta); fin.setDate(fin.getDate() + 35);
+  for (let d = ini; d <= fin; d.setDate(d.getDate() + 1)) {
     if (!dias.includes(d.getDay())) continue;
-    const k = periodoVigente(base === "programada" ? "semanal" : base, d);
-    if (!porPeriodo.has(k)) porPeriodo.set(k, []);
-    porPeriodo.get(k).push(hoyLocalISO(d));
+    const k = periodoVigente(freq, d);
+    completos.set(k, (completos.get(k) || 0) + 1);
+    const iso = hoyLocalISO(d);
+    if (iso >= desde && iso <= hasta) {
+      if (!porPeriodo.has(k)) porPeriodo.set(k, []);
+      porPeriodo.get(k).push(iso);
+    }
   }
+  const azar = new Map(claves.map((k) => [k, Math.random()]));
   const barajar = (l) => {
     const x = [...l];
     for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; }
@@ -616,12 +627,31 @@ export function sortearProgramacion(claves, desde, hasta, dias, cantidad = 1, ba
   const n = Math.max(1, Math.floor(Number(cantidad)) || 1);
   const carga = new Map();
   (ocupadas || []).forEach((f) => carga.set(f, (carga.get(f) || 0) + 1)); // días ya tomados por otros evaluadores
-  porPeriodo.forEach((fechas) => {
-    barajar(claves).forEach((k) => {
-      // Los días con menos gente primero; entre iguales, al azar.
-      const elegidas = barajar(fechas).sort((x, y) => (carga.get(x) || 0) - (carga.get(y) || 0)).slice(0, n);
-      elegidas.forEach((f) => { carga.set(f, (carga.get(f) || 0) + 1); res[k].push(f); });
-    });
+  const credito = new Map(claves.map((k) => [k, 0])); // lo que a cada uno "le corresponde" acumulado
+  [...porPeriodo.keys()].sort().forEach((k) => {
+    const fechas = porPeriodo.get(k);
+    const fraccion = fechas.length / Math.max(1, completos.get(k) || fechas.length);
+    const cuota = n * fraccion;
+    claves.forEach((c) => credito.set(c, credito.get(c) + cuota));
+    // Cupos del periodo: proporcionales a lo que cubre el rango (redondeado); se dan a quienes más se les debe.
+    let cupos = Math.min(Math.round(claves.length * cuota), claves.length * Math.min(n, fechas.length));
+    const usados = new Map(claves.map((c) => [c, []]));
+    while (cupos > 0) {
+      const candidatos = claves
+        .filter((c) => usados.get(c).length < Math.min(n, fechas.length))
+        .sort((x, y) => credito.get(y) - credito.get(x) || azar.get(x) - azar.get(y));
+      if (!candidatos.length) break;
+      const c = candidatos[0];
+      // El día con menos gente (entre iguales, al azar) que esa persona aún no tenga.
+      const dia = barajar(fechas.filter((f) => !usados.get(c).includes(f))).sort((x, y) => (carga.get(x) || 0) - (carga.get(y) || 0))[0];
+      if (!dia) break;
+      usados.get(c).push(dia);
+      res[c].push(dia);
+      carga.set(dia, (carga.get(dia) || 0) + 1);
+      credito.set(c, credito.get(c) - 1);
+      azar.set(c, Math.random());
+      cupos--;
+    }
   });
   Object.values(res).forEach((l) => l.sort());
   return res;
