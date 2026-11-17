@@ -5,19 +5,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          npm i playwright@1.47.2 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
-          cat > t.js <<'JS'
-          const { chromium } = require("playwright");
-          (async () => {
-            const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1400, height: 1000 } });
-            p.on("console", (m) => console.log("CONSOLE", m.type(), m.text().slice(0, 300)));
-            p.on("pageerror", (e) => console.log("PAGEERR", e.message));
-            await p.goto("https://calendario-turnos-oems.web.app/"); await p.waitForTimeout(12000);
-            console.log("LEYENDA", await p.locator("text=Formularios programados").count(), "BLOQUES", await p.locator("text=Reunión Especial Lixiviación").count());
-            await p.screenshot({ path: "cal.png" });
-            await b.close();
-          })();
-          JS
-          node t.js
-      - uses: actions/upload-artifact@v4
-        with: { name: cal, path: cal.png }
+          curl -s "https://firestore.googleapis.com/v1/projects/calendario-turnos-oems/databases/(default)/documents/app_data/formularios_programados" > d.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('d.json'))
+          def val(v):
+              if 'mapValue' in v: return {k:val(x) for k,x in v['mapValue'].get('fields',{}).items()}
+              if 'arrayValue' in v: return [val(x) for x in v['arrayValue'].get('values',[])]
+              return list(v.values())[0]
+          it=val(d['fields']['items'])
+          for k,v in it.items():
+              v['dias']=v.get('dias',[])[:4]
+              print(k, json.dumps(v, ensure_ascii=False))
+          PY
+          TOK=$(curl -s -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyDgLm6b2mXz50ITTKmgkO7Ia0qloZXypJw" -H 'Content-Type: application/json' -d '{"returnSecureToken":true}' | python3 -c "import json,sys;print(json.load(sys.stdin).get('idToken',''))")
+          for id in $(python3 -c "import json;d=json.load(open('d.json'));print(' '.join(d['fields']['items']['mapValue']['fields'].keys()))"); do
+            curl -s -H "Authorization: Bearer $TOK" "https://firestore.googleapis.com/v1/projects/cdr-reuniones/databases/(default)/documents/asignaciones/$id" > a.json
+            python3 - <<'PY'
+          import json
+          d=json.load(open('a.json'))
+          def val(v):
+              if 'mapValue' in v: return {k:val(x) for k,x in v['mapValue'].get('fields',{}).items()}
+              if 'arrayValue' in v: return [val(x) for x in v['arrayValue'].get('values',[])]
+              return list(v.values())[0]
+          f={k:val(v) for k,v in d.get('fields',{}).items()}
+          for p in f.get('personas',[]): p.pop('fechas',None) if len(p.get('fechas',[]))>6 else None
+          print('ASIG', json.dumps({k:f.get(k) for k in ['formularioNombre','reunionNombre','campoAsignacion','planComun','personas','calendarioHorario','vigenteDesde','creado']}, ensure_ascii=False)[:1500])
+          PY
+          done
