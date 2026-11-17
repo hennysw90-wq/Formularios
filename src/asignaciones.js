@@ -343,11 +343,14 @@ export function hechasEnAsignacion(asignacion, persona, evals, frecuencia) {
     )
     .map((e) => {
       // "Solo el día que le toca": vale el día real en que se envió (no la fecha que se escriba en el formulario).
-      const fecha = asignacion?.soloDiaProgramado && e.fechaEnvio ? hoyLocalISO(new Date(e.fechaEnvio)) : fechaCdR(e);
+      const fecha = frecuencia === "programada" && soloElDia(asignacion) && e.fechaEnvio ? hoyLocalISO(new Date(e.fechaEnvio)) : fechaCdR(e);
       const f = fechaLocal(fecha);
-      return { id: e.id, fecha, periodo: f ? periodoVigente(frecuencia, f, persona?.fechas, !!asignacion?.soloDiaProgramado) : "" };
+      return { id: e.id, fecha, periodo: f ? periodoVigente(frecuencia, f, persona?.fechas, soloElDia(asignacion)) : "" };
     });
 }
+
+/** Programado al azar: por defecto solo se puede hacer el día que le toca (se desmarca en el plan común). */
+export const soloElDia = (a) => a?.soloDiaProgramado !== false;
 
 /** Lo que le toca a la persona ahora mismo, asignación por asignación (periodo vigente). */
 export function agendaDePersona(asignaciones, usuario, evals, ahora = new Date()) {
@@ -358,9 +361,9 @@ export function agendaDePersona(asignaciones, usuario, evals, ahora = new Date()
       const cantidad = frecuencia === "programada" ? 1 : Math.max(1, Number(p.cantidad) || 1);
       const desde = desdeDelTramo(a, p);
       const hechas = hechasEnAsignacion(a, p, evals, frecuencia);
-      const periodo = periodoVigente(frecuencia, ahora, p.fechas, !!a.soloDiaProgramado);
+      const periodo = periodoVigente(frecuencia, ahora, p.fechas, soloElDia(a));
       // Programada: empieza con su primera fecha; "proxima" es la siguiente fecha que le toca.
-      const estricto = frecuencia === "programada" && !!a.soloDiaProgramado;
+      const estricto = frecuencia === "programada" && soloElDia(a);
       const empezo = frecuencia === "programada" ? (estricto ? !!periodo : !!periodoVigente("programada", ahora, p.fechas)) : !desde || (fechaLocal(desde) || ahora) <= ahora;
       const proxima = frecuencia === "programada" ? [...(p.fechas || [])].sort().find((f) => f > hoyLocalISO(ahora)) || "" : "";
       const hasta = frecuencia === "unica" ? p.hasta || "" : "";
@@ -404,7 +407,7 @@ export function filaDeEvaluador(persona, asignaciones, evals, anio, mes, ahora =
     const hechas = hechasEnAsignacion(a, p, evals, frecuencia);
     const hasta = frecuencia === "unica" ? p.hasta || "" : "";
     const c = celdaConHistorial(a0, persona, evals, anio, mes, ahora);
-    const periodo = periodoVigente(frecuencia, ahora, p.fechas, !!a.soloDiaProgramado);
+    const periodo = periodoVigente(frecuencia, ahora, p.fechas, soloElDia(a));
     const enCurso =
       frecuencia === "unica"
         ? hasta ? hechas.filter((h) => dentroDelPlazo(h.fecha, desdeEfectivo(a, p), hasta)).length : hechas.length
@@ -550,7 +553,7 @@ export function celdaConHistorial(a, persona, evals, anio, mes, ahora = new Date
       d.setDate(d.getDate() - 1);
       hasta = hoyLocalISO(d);
     }
-    const c = celdaDelMes(frecuencia, cantidad, desdeDelTramo(t, p), hechas, anio, mes, ahora, hasta, t._hasta, p.fechas, !!t.soloDiaProgramado);
+    const c = celdaDelMes(frecuencia, cantidad, desdeDelTramo(t, p), hechas, anio, mes, ahora, hasta, t._hasta, p.fechas, soloElDia(t));
     total.hechas += c.hechas;
     total.reales += c.reales;
     total.exigido += c.exigido;

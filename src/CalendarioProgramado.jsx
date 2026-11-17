@@ -142,7 +142,7 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", opacity: 0.85 }}>{formularioNombre || "Plan de evaluadores"}</div>
             <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.2, marginTop: 2 }}>{asignacion.reunionNombre}{asignacion.area ? <span style={{ fontWeight: 500, opacity: 0.85 }}> · {asignacion.area}</span> : null}</div>
             <div style={{ fontSize: 12.5, opacity: 0.9, marginTop: 3 }}>
-              {(asignacion.lideres || []).length ? `Líderes: ${asignacion.lideres.join(", ")} · ` : ""}{reglas}{asignacion.soloDiaProgramado ? " · solo el día programado" : ""}
+              {(asignacion.lideres || []).length ? `Líderes: ${asignacion.lideres.join(", ")} · ` : ""}{reglas}{asignacion.soloDiaProgramado !== false && (asignacion.personas || []).some((p) => p.frecuencia === "programada") ? " · solo el día programado" : ""}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
