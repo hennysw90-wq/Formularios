@@ -8,7 +8,19 @@ const NOMBRE_DIA = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const mini = { display: "block", fontSize: 11.5, fontWeight: 700, color: "var(--texto-suave)", marginBottom: 3 };
 const btn = { border: "1px solid var(--borde, #D3D1C7)", background: "#fff", borderRadius: 8, padding: "7px 12px", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 
-export const firmaSorteo = (plan, claves) => JSON.stringify([plan.desde || "", plan.hasta || "", [...(plan.dias || [])].sort(), [...claves].sort(), Number(plan.cantidad) || 1, plan.base || "semanal"]);
+// Firma de las reglas del sorteo (desde, hasta, días, cantidad, cada). Si cambian, hay que volver a sortear.
+export const firmaSorteo = (plan) => JSON.stringify([plan.desde || "", plan.hasta || "", [...(plan.dias || [])].sort(), Number(plan.cantidad) || 1, plan.base || "semanal"]);
+/** ¿La firma guardada corresponde a estas reglas? (acepta el formato anterior, que además guardaba los evaluadores) */
+export function mismasReglas(guardada, plan) {
+  try {
+    const g = JSON.parse(guardada || "null");
+    if (!Array.isArray(g)) return false;
+    const reglas = g.length === 6 ? [g[0], g[1], g[2], g[4], g[5]] : g;
+    return JSON.stringify(reglas) === firmaSorteo(plan);
+  } catch {
+    return false;
+  }
+}
 const fechaTxt = (f) => {
   const [a, m, d] = f.split("-").map(Number);
   return `${NOMBRE_DIA[new Date(a, m - 1, d).getDay()]} ${String(d).padStart(2, "0")}-${String(m).padStart(2, "0")}`;
@@ -18,7 +30,8 @@ const fechaTxt = (f) => {
  * plan: { desde, hasta, dias }  ·  personas: las que siguen el plan común ({ clave, nombre, fechas })
  * desactualizado: true si cambió algo desde el último sorteo  ·  onSortear()  ·  onMover(fecha, deClave, aClave)
  */
-export default function ProgramacionAzar({ plan, personas, desactualizado, onCambiar, onSortear, onMover, bloqueado = false, onDesbloquear }) {
+export default function ProgramacionAzar({ plan, personas, desactualizado, onCambiar, onSortear, onMover, bloqueado = false, onDesbloquear, textoSortear = "", nuevosSinDias = [], onSortearNuevos }) {
+  const unaPersona = personas.length === 1;
   const [verCalendario, setVerCalendario] = useState(true);
   const dias = plan.dias || [];
   const calendario = personas.flatMap((p) => (p.fechas || []).map((f) => ({ fecha: f, clave: p.clave }))).sort((a, b) => a.fecha.localeCompare(b.fecha));
@@ -29,6 +42,12 @@ export default function ProgramacionAzar({ plan, personas, desactualizado, onCam
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: "#fff", border: "1px solid #D3D1C7", borderRadius: 10, padding: "8px 10px", marginBottom: 8 }}>
           <span style={{ flex: 1, fontSize: 13 }}>🔒 <b>Calendario fijo.</b> Se sorteó y guardó; no cambia salvo que lo pidas.</span>
           <button type="button" style={btn} onClick={onDesbloquear}>Cambiar calendario (pide clave)</button>
+        </div>
+      )}
+      {nuevosSinDias.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: "#FFF7E8", border: "1px solid #F0D3A2", borderRadius: 10, padding: "8px 10px", marginBottom: 8 }}>
+          <span style={{ flex: 1, fontSize: 13 }}>Sin días todavía: <b>{nuevosSinDias.join(", ")}</b>. Se les sortean sus días sin cambiar los de los demás.</span>
+          <button type="button" style={{ ...btn, background: "var(--verde, #009899)", color: "#fff", borderColor: "var(--verde, #009899)" }} onClick={onSortearNuevos}>🎲 Sortear solo para los nuevos</button>
         </div>
       )}
       <fieldset disabled={bloqueado} style={{ border: "none", padding: 0, margin: 0, minWidth: 0 }}>
@@ -66,11 +85,11 @@ export default function ProgramacionAzar({ plan, personas, desactualizado, onCam
           <input className="rp-input" type="date" value={plan.hasta || ""} min={plan.desde || hoy} onChange={(e) => onCambiar({ hasta: e.target.value })} aria-label="Programar hasta" />
         </div>
         <button type="button" style={{ ...btn, background: "var(--verde, #009899)", color: "#fff", borderColor: "var(--verde, #009899)" }} disabled={!plan.hasta || !dias.length || !personas.length} onClick={onSortear}>
-          🎲 {calendario.length ? "Volver a sortear" : "Sortear calendario"}
+          🎲 {calendario.length ? "Volver a sortear" : textoSortear || "Sortear calendario"}
         </button>
       </div>
       {desactualizado && calendario.length > 0 && (
-        <p style={{ margin: "8px 0 0", fontSize: 12.5, fontWeight: 700, color: "#BA7517" }}>Cambiaste los días, las fechas o los evaluadores: vuelve a sortear para que el calendario quede al día.</p>
+        <p style={{ margin: "8px 0 0", fontSize: 12.5, fontWeight: 700, color: "#BA7517" }}>Cambiaste los días, las fechas o la frecuencia: vuelve a sortear para que el calendario quede al día.</p>
       )}
       {!calendario.length && <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "var(--texto-suave)" }}>Elige cuántas veces por periodo, los días permitidos y hasta cuándo, y toca «Sortear calendario»: a cada evaluador le tocan sus días al azar dentro de cada periodo, repartiendo la carga entre los días.</p>}
       {calendario.length > 0 && (
@@ -84,9 +103,9 @@ export default function ProgramacionAzar({ plan, personas, desactualizado, onCam
               {calendario.map((c) => (
                 <div key={c.fecha + c.clave} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 10px", borderBottom: "1px solid #F3F1EC", fontSize: 13, opacity: c.fecha < hoy ? 0.55 : 1 }}>
                   <span style={{ width: 86, fontWeight: 700, textTransform: "capitalize" }}>{fechaTxt(c.fecha)}</span>
-                  <select className="rp-select" style={{ maxWidth: 260, padding: "4px 8px", fontSize: 13 }} value={c.clave} onChange={(e) => onMover(c.fecha, c.clave, e.target.value)} aria-label={`Evaluador del ${c.fecha}`}>
+                  {unaPersona ? null : <select className="rp-select" style={{ maxWidth: 260, padding: "4px 8px", fontSize: 13 }} value={c.clave} onChange={(e) => onMover(c.fecha, c.clave, e.target.value)} aria-label={`Evaluador del ${c.fecha}`}>
                     {personas.filter((p) => p.clave === c.clave || !(p.fechas || []).includes(c.fecha)).map((p) => <option key={p.clave} value={p.clave}>{p.nombre}</option>)}
-                  </select>
+                  </select>}
                 </div>
               ))}
             </div>

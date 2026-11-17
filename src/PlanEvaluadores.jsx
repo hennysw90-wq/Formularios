@@ -6,7 +6,7 @@ import PlanMasivo from "./PlanMasivo.jsx";
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
 import { useConfirmarConClave } from "./ConfirmarConClave.jsx";
-import ProgramacionAzar, { firmaSorteo } from "./ProgramacionAzar.jsx";
+import ProgramacionAzar, { firmaSorteo, mismasReglas } from "./ProgramacionAzar.jsx";
 import CalendarioProgramado from "./CalendarioProgramado.jsx";
 import {
   FRECUENCIAS,
@@ -308,13 +308,30 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
     setError("");
     setA((x) => ({ ...x, planComun: nuevo, personas: (x.personas || []).map((p) => (p.personalizado ? p : { ...p, ...nuevo, ...(campo ? {} : { alcance: undefined }) })) }));
   }
-  function sortear() {
-    const siguen = (a.personas || []).filter((p) => !p.personalizado);
-    const desde = planComun.desde || new Date().toISOString().slice(0, 10);
-    const r = sortearProgramacion(siguen.map(claveP), [desde, new Date().toISOString().slice(0, 10)].sort().pop(), planComun.hasta, planComun.dias || [], planComun.cantidad, planComun.base || "semanal");
-    setA((x) => ({ ...x, personas: (x.personas || []).map((p) => (p.personalizado ? p : { ...p, fechas: r[claveP(p)] || [] })) }));
-    setFirma(firmaSorteo(planComun, siguen.map(claveP)));
+  // soloNuevos: con las mismas reglas, sortea solo a quienes todavía no tienen días (los demás no cambian).
+  function sortear(soloNuevos = false) {
+    const siguen = (a.personas || []).filter((p) => !p.personalizado && (!soloNuevos || !(p.fechas || []).length));
+    const hoy = new Date().toISOString().slice(0, 10);
+    const desde = [planComun.desde || hoy, hoy].sort().pop();
+    const ocupadas = soloNuevos ? (a.personas || []).flatMap((p) => p.fechas || []) : (a.personas || []).filter((p) => p.personalizado).flatMap((p) => p.fechas || []);
+    const r = sortearProgramacion(siguen.map(claveP), desde, planComun.hasta, planComun.dias || [], planComun.cantidad, planComun.base || "semanal", ocupadas);
+    const aSortear = new Set(siguen.map(claveP));
+    setA((x) => ({ ...x, personas: (x.personas || []).map((p) => (aSortear.has(claveP(p)) ? { ...p, fechas: r[claveP(p)] || [] } : p)) }));
+    setFirma(firmaSorteo(planComun));
     setError("");
+  }
+  // Personalizado con programación propia: se sortea solo esa persona (prefiriendo días con menos gente).
+  const planPersona = (p) => ({ desde: p.desde || "", hasta: p.hasta || p.hastaProgramado || "", dias: p.dias || [1, 2, 3, 4, 5], cantidad: p.cantidad ?? 1, base: p.base || "semanal" });
+  function sortearPersona(p) {
+    const pl = planPersona(p);
+    const otras = (a.personas || []).filter((x) => claveP(x) !== claveP(p)).flatMap((x) => x.fechas || []);
+    const r = sortearProgramacion([claveP(p)], [pl.desde || new Date().toISOString().slice(0, 10), new Date().toISOString().slice(0, 10)].sort().pop(), pl.hasta, pl.dias, pl.cantidad, pl.base, otras);
+    setA((x) => ({ ...x, personas: (x.personas || []).map((y) => (claveP(y) === claveP(p) ? { ...y, fechas: r[claveP(p)] || [], firmaSorteo: firmaSorteo(pl) } : y)) }));
+    setError("");
+  }
+  const personaDesactualizada = (p) => p.personalizado && p.frecuencia === "programada" && !mismasReglas(p.firmaSorteo, planPersona(p));
+  function cambiarPersonaVarios(uid, cambios) {
+    cambiar({ personas: a.personas.map((p) => (p.uid === uid ? { ...p, ...cambios } : p)) });
   }
   function moverFecha(fecha, de, aClave) {
     if (de === aClave) return;
@@ -327,9 +344,11 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
   }
   const esProgramada = planComun.frecuencia === "programada";
   const siguenPlan = (a.personas || []).filter((p) => !p.personalizado);
-  const sorteoDesactualizado = esProgramada && firma !== firmaSorteo(planComun, siguenPlan.map(claveP));
+  const reglasCambiaron = esProgramada && !mismasReglas(firma, planComun);
+  const nuevosSinDias = esProgramada && !reglasCambiaron ? siguenPlan.filter((p) => !(p.fechas || []).length) : [];
+  const sorteoDesactualizado = reglasCambiaron || nuevosSinDias.length > 0;
   function personalizar(uid, si) {
-    setA((x) => ({ ...x, personas: x.personas.map((p) => (p.uid === uid ? (si ? { ...p, personalizado: true } : { ...p, ...planComun, ...(campo ? {} : { alcance: undefined }), personalizado: false }) : p)) }));
+    setA((x) => ({ ...x, personas: x.personas.map((p) => (p.uid === uid ? (si ? { ...p, personalizado: true, ...(p.frecuencia === "programada" ? { firmaSorteo: firmaSorteo(planPersona(p)) } : {}) } : { ...p, ...planComun, ...(campo ? {} : { alcance: undefined }), personalizado: false, ...(planComun.frecuencia === "programada" ? { fechas: [] } : {}) }) : p)) }));
   }
   const [habilitando, setHabilitando] = useState("");
   // Da acceso a la app (lo mismo que marcarla en Administración); el directorio se actualiza solo.
@@ -423,9 +442,12 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
       return setError(`Elige en el plan común qué ${campo.etiqueta.toLowerCase()} les tocan.`);
     }
     if (planComun.frecuencia === "unica" && !planComun.hasta && (a.personas || []).some((p) => !p.personalizado)) return setError("Pon en el plan común hasta qué fecha tienen para ejecutarlo (plazo).");
+    const sinProgramar = (a.personas || []).filter((p) => p.personalizado && p.frecuencia === "programada" && (!(p.fechas || []).length || personaDesactualizada(p)));
+    if (sinProgramar.length) return setError(`Sortea los días de: ${sinProgramar.map((p) => p.nombre).join(", ")} (programación personalizada).`);
     if (esProgramada && siguenPlan.length) {
       if (!planComun.hasta || !(planComun.dias || []).length) return setError("Elige los días de la semana y hasta qué fecha se programa.");
-      if (sorteoDesactualizado || !siguenPlan.some((p) => (p.fechas || []).length)) return setError(bloqueado ? "Cambiaron los evaluadores o las reglas del calendario: toca «Cambiar calendario» (pide clave) y vuelve a sortear antes de guardar." : "Toca «Sortear calendario» (o «Volver a sortear») antes de guardar.");
+      if (nuevosSinDias.length) return setError(`Toca «Sortear solo para los nuevos» para darle días a: ${nuevosSinDias.map((p) => p.nombre).join(", ")}.`);
+      if (sorteoDesactualizado || !siguenPlan.some((p) => (p.fechas || []).length)) return setError(bloqueado ? "Cambiaron las reglas del calendario: toca «Cambiar calendario» (pide clave) y vuelve a sortear antes de guardar." : "Toca «Sortear calendario» (o «Volver a sortear») antes de guardar.");
     }
     if (campo) {
       const sinAlcance = a.personas.filter((p) => !(p.alcance?.opciones || []).length && !(p.alcance?.subareas || []).length);
@@ -443,7 +465,7 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
       const { esNueva, ...datos } = a;
       // Asignación por listado: una "reunión" propia de esta asignación; el valor sale del alcance de cada persona.
       const porListado = campo ? { reunionId: `${PREFIJO_VALOR}@${datos.id}`, reunionNombre: `${campo.etiqueta} (asignado por evaluador)`, area: "", horaInicio: "", horaFin: "", campoAsignacion: campo.etiqueta } : {};
-      const nueva = { ...datos, ...porListado, planComun: { ...planComun, ...(campo ? {} : { alcance: null }), ...(esProgramada ? { firmaSorteo: firma } : {}) }, creado: datos.creado || new Date().toISOString() };
+      const nueva = { ...datos, ...porListado, planComun: { ...planComun, ...(campo ? {} : { alcance: null }), ...(esProgramada ? { firmaSorteo: firmaSorteo(planComun) } : {}) }, creado: datos.creado || new Date().toISOString() };
       // Modificar una asignación no reescribe el pasado: lo anterior queda como tramo del historial.
       await guardarAsignacion(esNueva ? nueva : versionarAsignacion(inicial, nueva));
       onGuardada(esNueva ? `Asignación creada: ${porListado.reunionNombre || a.reunionNombre}.` : "Asignación guardada.");
@@ -562,11 +584,13 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
             <ProgramacionAzar
               plan={planComun}
               personas={siguenPlan.map((p) => ({ clave: claveP(p), nombre: p.nombre, fechas: p.fechas || [] }))}
-              desactualizado={sorteoDesactualizado}
+              desactualizado={reglasCambiaron}
+              nuevosSinDias={nuevosSinDias.map((p) => p.nombre)}
+              onSortearNuevos={() => sortear(true)}
               bloqueado={bloqueado}
               onDesbloquear={desbloquearCalendario}
               onCambiar={cambiarPlanComun}
-              onSortear={sortear}
+              onSortear={() => sortear(false)}
               onMover={moverFecha}
             />
           )}
@@ -606,19 +630,21 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
                 </div>
               ) : (<>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>
+                {p.frecuencia !== "programada" && (
                 <div style={{ flex: "0 0 86px" }}>
                   <label style={mini}>Cantidad</label>
                   <input className="rp-input" type="number" min="1" value={p.cantidad ?? 1} onChange={(e) => cambiarPersona(p.uid, "cantidad", e.target.value)} aria-label={`Cantidad de ${p.nombre}`} />
                 </div>
+                )}
                 <div style={{ flex: "1 1 150px" }}>
                   <label style={mini}>Frecuencia</label>
                   <select className="rp-select" value={p.frecuencia || "semanal"} onChange={(e) => cambiarPersona(p.uid, "frecuencia", e.target.value)} aria-label={`Frecuencia de ${p.nombre}`}>
-                    {FRECUENCIAS.filter((f) => f.valor !== "programada" || p.frecuencia === "programada").map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
+                    {FRECUENCIAS.map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
                   </select>
                 </div>
                 <div style={{ flex: "0 0 160px" }}>
-                  <label style={mini}>{p.frecuencia === "unica" ? "Ejecutar desde" : "Controlar desde"}</label>
-                  <input className="rp-input" type="date" value={p.desde || ""} title="Vacío = desde que se crea la asignación" onChange={(e) => cambiarPersona(p.uid, "desde", e.target.value)} aria-label={`Desde de ${p.nombre}`} />
+                  <label style={mini}>{p.frecuencia === "unica" ? "Ejecutar desde" : p.frecuencia === "programada" ? "Programar desde" : "Controlar desde"}</label>
+                  <input className="rp-input" type="date" value={p.desde || ""} disabled={p.frecuencia === "programada" && bloqueado} title="Vacío = desde que se crea la asignación" onChange={(e) => cambiarPersona(p.uid, "desde", e.target.value)} aria-label={`Desde de ${p.nombre}`} />
                 </div>
                 {p.frecuencia === "unica" && (
                   <div style={{ flex: "0 0 160px" }}>
@@ -627,11 +653,24 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
                   </div>
                 )}
               </div>
+              {p.frecuencia === "programada" && (
+                <ProgramacionAzar
+                  plan={planPersona(p)}
+                  personas={[{ clave: claveP(p), nombre: p.nombre, fechas: p.fechas || [] }]}
+                  desactualizado={personaDesactualizada(p)}
+                  bloqueado={bloqueado && (p.fechas || []).length > 0 && !personaDesactualizada(p)}
+                  onDesbloquear={desbloquearCalendario}
+                  onCambiar={(c) => cambiarPersonaVarios(p.uid, c)}
+                  onSortear={() => sortearPersona(p)}
+                  onMover={() => {}}
+                  textoSortear="Sortear sus días"
+                />
+              )}
               {campo && (
                 <AlcanceEvaluador etiqueta={campo.etiqueta} nombre={p.nombre} datos={datosCampo} alcance={p.alcance} onCambiar={(al) => cambiarPersona(p.uid, "alcance", al)} />
               )}
               <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 600, marginTop: 4 }}>
-                {etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}
+                {etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" || p.frecuencia === "programada" ? p.hasta : "", p.base)}
                 {p.frecuencia === "unica" && <span style={{ fontWeight: 400, color: "var(--texto-suave)" }}> · solo cuentan las evaluaciones hechas {p.desde ? `entre el ${p.desde.split("-").reverse().join("-")}` : "desde que se crea la asignación"}{p.hasta ? ` y el ${p.hasta.split("-").reverse().join("-")}` : " y la fecha de plazo"}</span>}
               </div>
               </>)}

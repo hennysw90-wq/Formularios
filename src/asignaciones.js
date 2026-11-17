@@ -243,12 +243,12 @@ export async function guardarAsignacion(a) {
       cantidad: Math.max(1, Math.floor(Number(p.cantidad)) || 1),
       frecuencia: p.frecuencia || "semanal",
       desde: p.desde || "",
-      hasta: (p.frecuencia === "unica" && p.hasta) || "",
+      hasta: ((p.frecuencia === "unica" || p.frecuencia === "programada") && p.hasta) || "",
       // Formularios asignados por listado: qué opciones / sub áreas le tocan a esta persona.
       ...(p.alcance ? { alcance: { opciones: p.alcance.opciones || [], subareas: p.alcance.subareas || [] } } : {}),
       ...(p.personalizado ? { personalizado: true } : {}), // distinto del plan común de la asignación
       // Programado al azar: el calendario sorteado de la persona (queda fijo) y con qué reglas se sorteó.
-      ...(p.frecuencia === "programada" ? { fechas: [...new Set(p.fechas || [])].sort(), dias: p.dias || [], base: p.base || "semanal", hastaProgramado: p.hasta || "" } : {}),
+      ...(p.frecuencia === "programada" ? { fechas: [...new Set(p.fechas || [])].sort(), dias: p.dias || [], base: p.base || "semanal", hastaProgramado: p.hasta || "", ...(p.firmaSorteo ? { firmaSorteo: p.firmaSorteo } : {}) } : {}),
     })),
     lideres: (resto.lideres || []).map((l) => String(l).trim()).filter(Boolean),
     actualizado: new Date().toISOString(),
@@ -598,7 +598,7 @@ export async function reactivarAsignacion(a) {
  * Para repartir la carga, en cada periodo se prefieren los días que todavía tienen menos personas.
  * Devuelve { [clavePersona]: ["AAAA-MM-DD", …] }.
  */
-export function sortearProgramacion(claves, desde, hasta, dias, cantidad = 1, base = "semanal") {
+export function sortearProgramacion(claves, desde, hasta, dias, cantidad = 1, base = "semanal", ocupadas = []) {
   const res = Object.fromEntries(claves.map((k) => [k, []]));
   if (!claves.length || !desde || !hasta || !(dias || []).length) return res;
   const porPeriodo = new Map();
@@ -615,6 +615,7 @@ export function sortearProgramacion(claves, desde, hasta, dias, cantidad = 1, ba
   };
   const n = Math.max(1, Math.floor(Number(cantidad)) || 1);
   const carga = new Map();
+  (ocupadas || []).forEach((f) => carga.set(f, (carga.get(f) || 0) + 1)); // días ya tomados por otros evaluadores
   porPeriodo.forEach((fechas) => {
     barajar(claves).forEach((k) => {
       // Los días con menos gente primero; entre iguales, al azar.
