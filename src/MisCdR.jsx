@@ -286,6 +286,13 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
   const [qrDe, setQrDe] = useState(null); // QR del formulario elegido (para mostrar o descargar)
   const [asignaciones, setAsignaciones] = useState([]);
   const agenda = useAgenda(usuario);
+  // "Solo el día que le toca": si todas sus asignaciones de ese formulario (y reunión) están bloqueadas hoy, no deja iniciar.
+  const bloqueoHoy = (formId, reunionId) => {
+    const its = (agenda || []).filter((it) => it.asignacion.formularioId === formId && (!reunionId || it.asignacion.reunionId === reunionId));
+    if (!its.length || its.some((it) => !it.bloqueadaHoy)) return "";
+    const prox = its.map((it) => it.proxima).filter(Boolean).sort()[0];
+    return `Solo se puede hacer el día que te toca${prox ? ` (próximo: ${prox.split("-").reverse().join("-")})` : ""}.`;
+  };
   const [subAsignados, setSubAsignados] = useState("asignaciones");
   const [vistaRealizadas, setVistaRealizadas] = useState(VISTA_RESULTADOS_INICIAL);
   const esMaster = usuario.rol === "master";
@@ -380,6 +387,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
           rutina={rutinaQR}
           rutinaInvalida={rutinaQRInvalida}
           enCurso={enCurso.filter((e) => e.formularioId === formularioDirecto && (!rutinaQR || e.rutinaSesionId === rutinaQR.sesionId))}
+          bloqueo={directoForm ? bloqueoHoy(directoForm.id, rutinaQR ? rutinaQR.sesionId : "") : ""}
           onIniciar={() => { atendido(); setEjecutando(nuevaEvaluacion(directoForm, usuario, rutinaQR ? rutinaQR.sesionId : undefined)); }}
           onContinuar={(e) => { atendido(); setEjecutando(e); }}
           onCerrar={atendido}
@@ -406,7 +414,9 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button style={btn} onClick={() => setQrDe(proyectarFormulario(f, asignaciones))} aria-label={`QR de ${f.nombre}`}>QR</button>
-              <button style={btnPrim} onClick={() => setEjecutando(nuevaEvaluacion(f, usuario))}>Iniciar</button>
+              {bloqueoHoy(f.id) && !esMaster
+                ? <button style={{ ...btn, opacity: 0.7 }} disabled title={bloqueoHoy(f.id)}>🔒 Hoy no te toca</button>
+                : <button style={btnPrim} onClick={() => setEjecutando(nuevaEvaluacion(f, usuario))}>Iniciar</button>}
             </div>
           </div>
         ))}
@@ -455,7 +465,7 @@ function BloqueReunionQR({ rutina, invalida }) {
   return null;
 }
 
-function AccesoDirecto({ formularios, form, rutina, rutinaInvalida, enCurso, onIniciar, onContinuar, onCerrar }) {
+function AccesoDirecto({ formularios, form, rutina, rutinaInvalida, enCurso, onIniciar, onContinuar, onCerrar, bloqueo = "" }) {
   if (formularios === null) {
     return <div className="ca-card" style={{ marginBottom: 14 }}>Buscando el formulario del QR…</div>;
   }
@@ -476,13 +486,16 @@ function AccesoDirecto({ formularios, form, rutina, rutinaInvalida, enCurso, onI
       <p style={{ margin: "4px 0 2px", fontWeight: 800, fontSize: 19 }}>{form.nombre}</p>
       {form.descripcion && <p style={{ ...ayuda, margin: "0 0 12px" }}>{form.descripcion.length > 160 ? form.descripcion.slice(0, 160) + "…" : form.descripcion}</p>}
       <BloqueReunionQR rutina={rutina} invalida={rutinaInvalida} />
+      {bloqueo && <p className="cdr-aviso" style={{ margin: "0 0 10px" }}>🔒 {bloqueo}</p>}
       <div className="cdr-acciones-directo">
         {enCurso.length > 0 && (
           <button className="cdr-nav-btn prim" onClick={() => onContinuar(enCurso[0])}>
             Continuar la CdR en curso{enCurso[0].rutinaNombre && <small className="cdr-sub"> ({enCurso[0].rutinaNombre})</small>}
           </button>
         )}
-        <button className={`cdr-nav-btn ${enCurso.length ? "" : "prim"}`} onClick={onIniciar}>{enCurso.length ? "Iniciar una nueva" : "Iniciar"}</button>
+        {bloqueo
+          ? <button className="cdr-nav-btn" disabled title={bloqueo}>🔒 Hoy no te toca</button>
+          : <button className={`cdr-nav-btn ${enCurso.length ? "" : "prim"}`} onClick={onIniciar}>{enCurso.length ? "Iniciar una nueva" : "Iniciar"}</button>}
         <button className="cdr-nav-btn" onClick={onCerrar}>Ver mis CdR</button>
       </div>
     </div>

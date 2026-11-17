@@ -112,7 +112,16 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asignaciones, evals, persona, rutinaId, formPorId]);
 
+  // "Solo el día que le toca": si todas sus asignaciones de ese formulario (y reunión) están bloqueadas hoy.
+  const bloqueoHoy = (formId, reunionId) => {
+    const its = grupos.flatMap((g) => g.items).filter((it) => it.asignacion.formularioId === formId && (!reunionId || it.asignacion.reunionId === reunionId));
+    if (!its.length || its.some((it) => !it.bloqueadaHoy)) return "";
+    const prox = its.map((it) => it.proxima).filter(Boolean).sort()[0];
+    return `Solo se puede hacer el día que te toca${prox ? ` (próximo: ${prox.split("-").reverse().join("-")})` : ""}.`;
+  };
   function ejecutar(formId, reunionId) {
+    const b = bloqueoHoy(formId, reunionId);
+    if (b) return window.alert(b);
     const f = formPorId.get(formId) || form;
     const ev = nuevaEvaluacion(proyectarFormulario(f, asignaciones, quien), quien, reunionId);
     try { window.localStorage.setItem(claveBorrador, ev.id); } catch { /* sin almacenamiento local */ }
@@ -208,7 +217,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
       </div>
 
       {pestana === "pendientes" && (
-        <Pendientes grupos={grupos} rutinaId={rutinaId} borrador={borrador} onEjecutar={ejecutar} onContinuar={() => setEjecutando(borrador)} onBorrar={descartarBorrador} />
+        <Pendientes grupos={grupos} rutinaId={rutinaId} borrador={borrador} onEjecutar={ejecutar} onContinuar={() => { const b = borrador && bloqueoHoy(borrador.formularioId, borrador.rutinaSesionId); if (b) return window.alert(b); setEjecutando(borrador); }} onBorrar={descartarBorrador} />
       )}
       {pestana === "plan" &&
         (porVer ? (

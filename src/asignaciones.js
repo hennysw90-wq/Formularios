@@ -342,7 +342,8 @@ export function hechasEnAsignacion(asignacion, persona, evals, frecuencia) {
         mismaPersona({ uid: e.evaluadorUid, personaId: e.evaluadorPersonaId, nombre: e.evaluadorNombre }, comoPersona(persona))
     )
     .map((e) => {
-      const fecha = fechaCdR(e);
+      // "Solo el día que le toca": vale el día real en que se envió (no la fecha que se escriba en el formulario).
+      const fecha = asignacion?.soloDiaProgramado && e.fechaEnvio ? hoyLocalISO(new Date(e.fechaEnvio)) : fechaCdR(e);
       const f = fechaLocal(fecha);
       return { id: e.id, fecha, periodo: f ? periodoVigente(frecuencia, f, persona?.fechas, !!asignacion?.soloDiaProgramado) : "" };
     });
