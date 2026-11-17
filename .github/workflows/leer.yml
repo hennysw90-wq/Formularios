@@ -1,0 +1,10 @@
+name: leer
+on: push
+jobs:
+  leer:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -s "https://firestore.googleapis.com/v1/projects/calendario-turnos-oems/databases/(default)/documents/app_data/formularios_programados" | head -c 3000
+          echo
+          echo ---- asignaciones ancladas en cdr? 
