@@ -310,6 +310,9 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
   );
   const [buscaLider, setBuscaLider] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  // Cambiar a un evaluador por otra persona, conservando su plan (días sorteados, alcance, personalización).
+  const [reemplazando, setReemplazando] = useState(null); // uid (o nombre) del evaluador que se cambia
+  const [buscaReemplazo, setBuscaReemplazo] = useState("");
   const [masivo, setMasivo] = useState(false);
   // Plan común de la asignación: se define una vez y lo heredan todos los evaluadores que no estén "personalizados".
   const PLAN_VACIO = { cantidad: 1, frecuencia: "semanal", base: "semanal", desde: "", hasta: "", dias: [1, 2, 3, 4, 5], alcance: { opciones: [], subareas: [] } };
@@ -476,6 +479,11 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
         : [...(a.personas || []), { uid: u.uid, nombre: u.nombreUsuario, ...planComun, ...(campo ? {} : { alcance: undefined }), personalizado: false }],
     });
     setBusqueda("");
+  }
+  function reemplazarPersona(p, u) {
+    cambiar({ personas: (a.personas || []).map((x) => (x === p ? { ...x, uid: u.uid, nombre: u.nombreUsuario } : x)) });
+    setReemplazando(null);
+    setBuscaReemplazo("");
   }
   function cambiarPersona(uid, campo, valor) {
     cambiar({ personas: a.personas.map((p) => (p.uid === uid ? { ...p, [campo]: valor } : p)) });
@@ -724,11 +732,31 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
                     {habilitando === u.uid ? "Habilitando…" : "Sin acceso a la app · Habilitar"}
                   </button>
                 )}
+                <button style={chipBtn} title="Poner a otra persona en su lugar, con el mismo plan" onClick={() => { setReemplazando(reemplazando === (p.uid || p.nombre) ? null : p.uid || p.nombre); setBuscaReemplazo(""); }}>Cambiar persona</button>
                 {p.personalizado
                   ? <button style={chipBtn} onClick={() => personalizar(p.uid, false)}>Volver al plan común</button>
                   : <button style={chipBtn} onClick={() => personalizar(p.uid, true)}>Personalizar</button>}
                 <button style={x} title="Quitar" onClick={() => alternarPersona({ uid: p.uid, nombreUsuario: p.nombre })}>✕</button>
               </div>
+              {reemplazando === (p.uid || p.nombre) && (() => {
+                const opciones = sugerirUsuarios(buscaReemplazo, activos).filter((u) => !elegidos.some((q) => esLaPersona(q, u)));
+                return (
+                  <div style={{ marginTop: 8, padding: "8px 10px", background: "#F4FBF9", border: "1px solid #CFE8E1", borderRadius: 8 }}>
+                    <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginBottom: 6 }}>¿Quién reemplaza a <b>{p.nombre}</b>? Queda con su mismo plan{p.frecuencia === "programada" ? " y sus mismos días" : ""}. Lo que {p.nombre} ya hizo queda en el historial.</div>
+                    <input autoFocus className="rp-input" style={{ maxWidth: 360 }} value={buscaReemplazo} placeholder="Buscar persona por nombre o área…" onChange={(e) => setBuscaReemplazo(e.target.value)} />
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                      {opciones.map((u) => (
+                        <button key={u.uid} style={chipBtn} title={u.area || ""} onClick={() => reemplazarPersona(p, u)}>
+                          ⇄ {u.nombreUsuario}{u.area ? <span style={{ marginLeft: 5, fontSize: 11, color: "var(--texto-suave)" }}>{u.area}</span> : null}
+                        </button>
+                      ))}
+                      {buscaReemplazo.trim().length >= 2 && opciones.length === 0 && <span style={{ ...ayuda, margin: 0, fontSize: 12.5 }}>Nadie coincide con esa búsqueda.</span>}
+                      {buscaReemplazo.trim().length < 2 && <span style={{ ...ayuda, margin: 0, fontSize: 12.5 }}>Escribe al menos 2 letras.</span>}
+                      <button style={{ ...chipBtn, marginLeft: "auto" }} onClick={() => setReemplazando(null)}>Cancelar</button>
+                    </div>
+                  </div>
+                );
+              })()}
               {!p.personalizado ? (
                 <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginTop: 2 }}>
                   Plan común · {p.frecuencia === "programada" ? `${(p.fechas || []).length} días programados${(() => { const hoy = new Date().toISOString().slice(0, 10); const prox = [...(p.fechas || [])].sort().find((f) => f >= hoy); return prox ? ` · próximo ${prox.split("-").reverse().join("-")}` : ""; })()}` : etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{campo && p.alcance ? ` · ${textoAlcance(p.alcance) || "sin alcance"}` : ""}
