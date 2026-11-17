@@ -8,6 +8,7 @@ import { sugerirUsuarios } from "./buscarUsuarios.js";
 import { useConfirmarConClave } from "./ConfirmarConClave.jsx";
 import ProgramacionAzar, { firmaSorteo, mismasReglas } from "./ProgramacionAzar.jsx";
 import CalendarioProgramado from "./CalendarioProgramado.jsx";
+import { CALENDARIO_EJECUTIVO, sincronizarCalendarioEjecutivo } from "./calendarioEjecutivo.js";
 import {
   FRECUENCIAS,
   ETIQUETA_ESTADO,
@@ -163,6 +164,11 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
             await guardarAsignacion(versionarAsignacion(a, { ...a, personas }));
             setAviso({ tipo: "ok", texto: `Calendario de «${a.reunionNombre}» actualizado.` });
           }}
+          onAnclar={CALENDARIO_EJECUTIVO ? async (a, si, nombreForm) => {
+            const nueva = { ...a, anclarCalendario: si };
+            await guardarAsignacion(nueva);
+            await sincronizarCalendarioEjecutivo(nueva, nombreForm);
+          } : null}
           formPorId={formPorId}
           onEditar={(a) => { setAviso({ tipo: "", texto: "" }); setEditando({ ...JSON.parse(JSON.stringify(a)), esNueva: false }); }}
           onEliminar={borrar}
@@ -194,7 +200,7 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
 /*  Lista de asignaciones                                              */
 /* ------------------------------------------------------------------ */
 
-function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [], evals = [], usuario = null, onGuardarCalendario = null }) {
+function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [], evals = [], usuario = null, onGuardarCalendario = null, onAnclar = null }) {
   const [calendarioDe, setCalendarioDe] = useState("");
   const tieneUsuario = (nombre) => directorio.some((u) => u.rol !== "deshabilitado" && esLaPersona({ nombre }, u));
   if (asignaciones === null) return <p style={ayuda}>Cargando asignaciones…</p>;
@@ -255,6 +261,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                       </div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                         {!estaActiva(a) && <span className="ca-pill" style={{ background: "#eef0f3", color: "#5b6472" }}>Desactivada desde {String(a.inactivaDesde || "").split("-").reverse().join("-")}</span>}
+                        {a.anclarCalendario && estaActiva(a) && <span className="ca-pill" style={{ background: "#EEE9FB", color: "#5B21B6" }} title="Sus fechas aparecen en el Calendario Ejecutivo del portal">📌 Calendario ejecutivo</span>}
                         {(a.personas || []).length > 0 && (
                           <button style={{ ...btn, ...(calendarioDe === a.id ? { background: "var(--verde, #009899)", color: "#fff", borderColor: "var(--verde, #009899)" } : {}) }} onClick={() => setCalendarioDe(calendarioDe === a.id ? "" : a.id)}>📅 Calendario</button>
                         )}
@@ -263,7 +270,7 @@ function ListaAsignaciones({ asignaciones, formPorId, onEditar, onEliminar, onAc
                         <button style={btnPel} onClick={() => onEliminar(a)}>Eliminar</button>
                       </div>
                     </div>
-                    {calendarioDe === a.id && <CalendarioProgramado asignacion={a} evals={evals} usuario={usuario} formularioNombre={f ? f.nombre : a.formularioNombre || ""} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} />}
+                    {calendarioDe === a.id && <CalendarioProgramado asignacion={a} evals={evals} usuario={usuario} formularioNombre={f ? f.nombre : a.formularioNombre || ""} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} onAnclar={estaActiva(a) && onAnclar ? (si) => onAnclar(a, si, f ? f.nombre : a.formularioNombre || "") : null} />}
                   </div>
                 ))}
             </div>

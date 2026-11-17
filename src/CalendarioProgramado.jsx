@@ -21,7 +21,7 @@ const iniciales = (n) => String(n || "").trim().split(/\s+/).slice(0, 2).map((x)
 const btn = { border: "1px solid var(--borde, #D3D1C7)", background: "#fff", borderRadius: 8, padding: "6px 11px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const ddmm = (f) => String(f || "").split("-").reverse().slice(0, 2).join("-");
 
-export default function CalendarioProgramado({ asignacion, evals, usuario = null, onGuardar = null, formularioNombre = "" }) {
+export default function CalendarioProgramado({ asignacion, evals, usuario = null, onGuardar = null, formularioNombre = "", onAnclar = null }) {
   const hoy = hoyLocalISO();
   const [modalClave, pedirClave] = useConfirmarConClave(usuario);
   const [editando, setEditando] = useState(false);
@@ -31,6 +31,18 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
   const [aviso, setAviso] = useState("");
   const [soloPendientes, setSoloPendientes] = useState(false);
   const [vista, setVista] = useState("calendario"); // "calendario" | "gantt"
+  const [anclando, setAnclando] = useState(false);
+  async function anclar(si) {
+    setAnclando(true);
+    try {
+      await onAnclar(si);
+      setAviso(si ? "✓ Anclado: estas fechas aparecen en el Calendario Ejecutivo del portal y se actualizan solas." : "✓ Quitado del Calendario Ejecutivo.");
+    } catch (e) {
+      setAviso(`No se pudo ${si ? "anclar" : "quitar"} (${e.code || e.message}).`);
+    } finally {
+      setAnclando(false);
+    }
+  }
   const claveDe = (p) => p.uid || `n:${p.nombre}`;
   const base = editando && borrador ? borrador : asignacion.personas || [];
   const programada = base.some((p) => (p.fechas || []).length);
@@ -126,6 +138,11 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
         </div>
         {programada && <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}><input type="checkbox" checked={soloPendientes} onChange={(e) => setSoloPendientes(e.target.checked)} /> Ocultar las hechas</label>}
         <span style={{ flex: 1 }} />
+        {programada && onAnclar && !editando && (
+          asignacion.anclarCalendario
+            ? <button type="button" style={{ ...btn, background: "#EEE9FB", borderColor: "#6D28D9", color: "#5B21B6" }} disabled={anclando} onClick={() => anclar(false)} title="Está en el Calendario Ejecutivo del portal. Toca para quitarla.">📌 En calendario ejecutivo · Quitar</button>
+            : <button type="button" style={btn} disabled={anclando} onClick={() => anclar(true)} title="Muestra estas fechas en el Calendario Ejecutivo del portal">{anclando ? "Anclando…" : "📌 Anclar a calendario ejecutivo"}</button>
+        )}
         {programada && onGuardar && !editando && <button type="button" style={btn} onClick={empezarEdicion}>✋ Mover días (pide clave)</button>}
         {editando && <>
           <button type="button" style={{ ...btn, background: "var(--verde, #009899)", color: "#fff", borderColor: "var(--verde, #009899)" }} disabled={!cambios || guardando} onClick={guardar}>{guardando ? "Guardando…" : "Guardar cambios"}</button>

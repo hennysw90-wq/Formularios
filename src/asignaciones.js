@@ -8,6 +8,7 @@ import { db, asegurarSesionCdR } from "./firebase.js";
 import { mismaPersona } from "./compromisos.js";
 import { fechaCdR } from "./estadisticas.js";
 import { escucharCompartido } from "./compartir.js";
+import { sincronizarCalendarioEjecutivo, quitarDelCalendarioEjecutivo } from "./calendarioEjecutivo.js";
 
 // ─── Frecuencias ────────────────────────────────────────────────────────────
 export const FRECUENCIAS = [
@@ -255,11 +256,16 @@ export async function guardarAsignacion(a) {
     lideres: (resto.lideres || []).map((l) => String(l).trim()).filter(Boolean),
     actualizado: new Date().toISOString(),
   });
+  // Anclada al Calendario Ejecutivo: el calendario se mantiene al día con cada cambio (y se quita si se desancla o desactiva).
+  if (resto.anclarCalendario) {
+    sincronizarCalendarioEjecutivo(a).catch((e) => console.error("Calendario ejecutivo:", e));
+  }
 }
 
 export async function eliminarAsignacion(id) {
   await asegurarSesionCdR();
   await deleteDoc(doc(db, COLECCION, id));
+  quitarDelCalendarioEjecutivo(id);
 }
 
 // ─── Personas y asignaciones ────────────────────────────────────────────────
