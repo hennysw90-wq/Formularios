@@ -37,9 +37,12 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
   const pedirHorario = () => setHorario({
     inicio: asignacion.calendarioHorario?.inicio || asignacion.horaInicio || "09:00",
     fin: asignacion.calendarioHorario?.fin || asignacion.horaFin || "10:00",
+    // Sin días sorteados: qué días de la semana se muestra (lunes a viernes por defecto).
+    dias: asignacion.calendarioHorario?.dias?.length ? asignacion.calendarioHorario.dias : [1, 2, 3, 4, 5],
   });
   async function anclar(si, h = null) {
     if (si && h && !(h.inicio && h.fin && h.fin > h.inicio)) return setAviso("La hora de término debe ser después de la de inicio.");
+    if (si && h && !programada && !(h.dias || []).length) return setAviso("Elige al menos un día de la semana.");
     setAnclando(true);
     try {
       await onAnclar(si, h);
@@ -146,7 +149,7 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
         </div>
         {programada && <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center", cursor: "pointer" }}><input type="checkbox" checked={soloPendientes} onChange={(e) => setSoloPendientes(e.target.checked)} /> Ocultar las hechas</label>}
         <span style={{ flex: 1 }} />
-        {programada && onAnclar && !editando && (
+        {onAnclar && !editando && (
           asignacion.anclarCalendario
             ? <>
                 <button type="button" style={{ ...btn, background: "#EEE9FB", borderColor: "#6D28D9", color: "#5B21B6" }} disabled={anclando} onClick={pedirHorario} title="Cambiar el horario con que aparece en el Calendario Ejecutivo">📌 Calendario ejecutivo{asignacion.calendarioHorario?.inicio ? ` · ${asignacion.calendarioHorario.inicio}–${asignacion.calendarioHorario.fin}` : ""}</button>
@@ -164,7 +167,15 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
         <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap", margin: "0 0 10px", padding: "10px 12px", background: "#F6F3FD", border: "1px solid #CFC3F2", borderRadius: 10 }}>
           <div style={{ flex: "1 1 220px", fontSize: 13, color: "#3B2A6B" }}>
             <b>¿En qué horario aparece en el Calendario Ejecutivo?</b>
-            <div style={{ fontSize: 12, color: "#6B5F86" }}>Se muestra ese horario en cada día programado, con quién evalúa.</div>
+            <div style={{ fontSize: 12, color: "#6B5F86" }}>{programada ? "Se muestra ese horario en cada día programado, con quién evalúa." : "Se muestra en esos días de la semana, con quiénes evalúan."}</div>
+            {!programada && (
+              <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+                {[[1, "L"], [2, "M"], [3, "X"], [4, "J"], [5, "V"], [6, "S"], [0, "D"]].map(([d, t]) => {
+                  const on = (horario.dias || []).includes(d);
+                  return <button key={d} type="button" aria-pressed={on} onClick={() => setHorario({ ...horario, dias: on ? horario.dias.filter((x) => x !== d) : [...horario.dias, d] })} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${on ? "#6D28D9" : "#CFC3F2"}`, background: on ? "#6D28D9" : "#fff", color: on ? "#fff" : "#3B2A6B", fontWeight: 800, fontSize: 12, cursor: "pointer" }}>{t}</button>;
+                })}
+              </div>
+            )}
           </div>
           <label style={{ fontSize: 12, fontWeight: 700, color: "#3B2A6B" }}>Desde<br />
             <input type="time" step="1800" value={horario.inicio} onChange={(e) => setHorario({ ...horario, inicio: e.target.value })} style={{ fontSize: 14, padding: "5px 6px", border: "1px solid #CFC3F2", borderRadius: 8 }} />

@@ -9,6 +9,7 @@ import { useConfirmarConClave } from "./ConfirmarConClave.jsx";
 import ProgramacionAzar, { firmaSorteo, mismasReglas } from "./ProgramacionAzar.jsx";
 import CalendarioProgramado from "./CalendarioProgramado.jsx";
 import { CALENDARIO_EJECUTIVO, sincronizarCalendarioEjecutivo } from "./calendarioEjecutivo.js";
+import { siglaDe } from "./referencia.js";
 import {
   FRECUENCIAS,
   ETIQUETA_ESTADO,
@@ -165,9 +166,9 @@ export default function PlanEvaluadores({ todas, formularioId = "", formularios,
             setAviso({ tipo: "ok", texto: `Calendario de «${a.reunionNombre}» actualizado.` });
           }}
           onAnclar={CALENDARIO_EJECUTIVO ? async (a, si, nombreForm, h) => {
-            const nueva = { ...a, anclarCalendario: si, ...(si && h ? { calendarioHorario: { inicio: h.inicio, fin: h.fin } } : {}) };
+            const nueva = { ...a, anclarCalendario: si, ...(si && h ? { calendarioHorario: { inicio: h.inicio, fin: h.fin, dias: h.dias || [] } } : {}) };
             await guardarAsignacion(nueva);
-            await sincronizarCalendarioEjecutivo(nueva, nombreForm);
+            await sincronizarCalendarioEjecutivo({ ...nueva, formularioSigla: siglaDe(formPorId[a.formularioId]) }, nombreForm);
           } : null}
           formPorId={formPorId}
           onEditar={(a) => { setAviso({ tipo: "", texto: "" }); setEditando({ ...JSON.parse(JSON.stringify(a)), esNueva: false }); }}

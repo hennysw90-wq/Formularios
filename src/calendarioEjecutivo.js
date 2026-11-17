@@ -19,7 +19,14 @@ const DOC = ["app_data", "formularios_programados"];
 export function itemCalendario(a, formularioNombre = "") {
   const porDia = {};
   (a.personas || []).forEach((p) => (p.fechas || []).forEach((f) => (porDia[f] = [...(porDia[f] || []), p.nombre])));
+  const sigla = a.formularioSigla && a.formularioSigla !== "evaluación" ? a.formularioSigla : (String(formularioNombre || a.formularioNombre || "").match(/^(C[a-z][A-Z])\b/) || [])[1] || "";
+  // Sin días sorteados (semanal, mensual, etc.): se repite en los días de la semana elegidos al anclar.
+  const semanal = Object.keys(porDia).length
+    ? null
+    : { dias: a.calendarioHorario?.dias || [1, 2, 3, 4, 5], desde: a.vigenteDesde || String(a.creado || "").slice(0, 10) || "", hasta: (a.planComun?.frecuencia === "unica" && a.planComun?.hasta) || "" };
   return {
+    sigla,
+    ...(semanal ? { semanal, nombres: (a.personas || []).map((p) => p.nombre).sort((x, y) => x.localeCompare(y, "es")) } : {}),
     formulario: formularioNombre || a.formularioNombre || "",
     reunion: a.reunionNombre || "",
     area: a.area || "",
