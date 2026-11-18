@@ -6,8 +6,10 @@ const { chromium } = require("playwright");
     p.on("pageerror", (e) => console.log("PAGEERR", e.message));
     await p.goto("https://formularioseocmlb.web.app/?formulario=f_mv9l6hdq4x8t", { waitUntil: "networkidle" });
     await p.waitForTimeout(4000);
+    console.log("QR-INICIO", nombre, "::", (await p.locator("body").innerText()).replace(/\n+/g, " | ").slice(0, 300));
     const inp = p.locator("input").first();
-    await inp.fill(nombre); await p.waitForTimeout(800);
+    if (!(await inp.count())) { await p.close(); continue; }
+    await inp.fill(nombre, { timeout: 8000 }); await p.waitForTimeout(800);
     await inp.press("Enter"); await p.waitForTimeout(1500);
     const cont = p.getByRole("button", { name: "Continuar" });
     if (await cont.count()) { await cont.click(); await p.waitForTimeout(5000); }

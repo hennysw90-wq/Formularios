@@ -26,7 +26,7 @@ for (const p of personas.values()) {
 }
 console.log("== COMPROMISOS (acciones) ==");
 const env = E.filter((e) => e.estado === "enviada");
-const comps = todosLosCompromisos(env, C).filter((c) => [F1, F1A].includes(c.formularioId || c.evaluacion?.formularioId));
-for (const c of comps) console.log("COMP", c.evaluacionId || c.id, "·", (c.rutinaNombre || "").slice(0, 28), "·", c.formularioNombre || "", "· resp", c.responsable, "· fecha", c.fecha, "· estado", c.estado, estaCerrado(c) ? "(cerrado)" : "", "·", (c.accion || "").slice(0, 50));
+const comps = todosLosCompromisos(env, C).filter((c) => [F1, F1A].includes(c.ev.formularioId));
+for (const c of comps) console.log("COMP", c.ev.id, "·", c.ev.rutinaNombre, "·", c.ev.formulario?.nombre, "· evaluó", c.ev.evaluadorNombre, (c.ev.fechaEnvio || "").slice(0, 10), "· líder", c.ev.lider, "· resp", c.responsable, "· plazo", c.fecha, "· estado", c.estado, c.cierre ? `· cierre: ${c.cierre.estado || "comentado"} ${(c.cierre.comentario || "").slice(0, 60)}` : "", "· acción:", (c.accion || "").slice(0, 90));
 console.log("== NOTAS DE TERRENO ==");
 for (const e of env.filter((e) => [F1, F1A].includes(e.formularioId))) console.log("NOTAS", e.id, (e.rutinaNombre || "").slice(0, 28), e.evaluadorNombre, "· notas", (e.notas || []).length, (e.notas || []).map((n) => `[${n.hora}] ${(n.texto || "").slice(0, 40)}`).join(" | "));
