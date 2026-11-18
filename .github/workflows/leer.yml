@@ -7,5 +7,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: APLICAR=${APLICAR_VAL:-0} node mig/mig.mjs
-        env: { APLICAR_VAL: "1" }
+      - run: node mig/ver.mjs
