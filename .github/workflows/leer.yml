@@ -7,7 +7,7 @@ jobs:
       - run: |
           TOK=$(curl -s -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyDgLm6b2mXz50ITTKmgkO7Ia0qloZXypJw" -H 'Content-Type: application/json' -d '{"returnSecureToken":true}' | python3 -c "import json,sys;print(json.load(sys.stdin).get('idToken',''))")
           B="https://firestore.googleapis.com/v1/projects/cdr-reuniones/databases/(default)/documents"
-          for c in formularios evaluaciones asignaciones; do
+          for c in formularios evaluaciones asignaciones compromisos; do
             tok=""; i=0; echo '[]' > $c.json
             while : ; do
               curl -s -H "Authorization: Bearer $TOK" "$B/$c?pageSize=300${tok:+&pageToken=$tok}" > p.json
@@ -26,15 +26,15 @@ jobs:
               return list(v.values())[0] if v else None
           def docs(c): return [dict(id=d['name'].split('/')[-1], **{k:val(x) for k,x in d.get('fields',{}).items()}) for d in json.load(open(c+'.json'))]
           F=docs('formularios'); E=docs('evaluaciones')
-          A=docs('asignaciones')
-          import collections
-          print('ASIGS POR FORM')
+          A=docs('asignaciones'); C={d['id'] for d in docs('compromisos')}
+          f1=[f for f in F if f['id']=='f_mv9l6hdq4x8t'][0]; f2=[f for f in F if f['id']=='f_mwm6ti6tjnd7'][0]
+          print('DIFF', [k for k in set(f1)|set(f2) if json.dumps(f1.get(k),sort_keys=True)!=json.dumps(f2.get(k),sort_keys=True)])
+          print('F2 extra', {k:f2.get(k) for k in ['estado','version','sigla','origen','copiaDe']})
+          for e in E:
+              if e.get('formularioId')=='f_mv9l6hdq4x8t':
+                  print('EV', e['id'], e.get('estado'), bool(e.get('anulada')), (e.get('fechaEnvio') or e.get('actualizado') or '')[:10], e.get('rutinaNombre'), e.get('evaluadorNombre'), '| cierre' if e['id'] in C else '', '| ant', (e.get('compromisoAnterior') or {}).get('evaluacionId') or bool(e.get('compromisoAnterior')))
           for a in A:
-              if a.get('tipo')!='asignacion': continue
-              if a.get('formularioId') in ('f_mv9l6hdq4x8t','f_mwm6ti6tjnd7'):
-                  print('AS', a.get('formularioId'), '|', a.get('reunionNombre'), '| activa', a.get('activa'), '| personas', len(a.get('personas',[])))
-          c=collections.Counter((e.get('formularioId'), e.get('rutinaNombre')) for e in E if e.get('estado')=='enviada' and not e.get('anulada'))
-          for k,v in c.items():
-              if k[0] in ('f_mv9l6hdq4x8t','f_mwm6ti6tjnd7'): print('EVS', v, k)
+              if a.get('tipo')=='asignacion' and a.get('formularioId')=='f_mv9l6hdq4x8t':
+                  print('AS', a['id'], a.get('reunionNombre'), '| tramos', [(t.get('formularioId'), t.get('desde'), t.get('hasta')) for t in a.get('tramos',[])], '| vig', a.get('vigenteDesde'), '| ancla', a.get('anclarCalendario'))
           PY
           python3 r.py
