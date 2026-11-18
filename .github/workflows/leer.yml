@@ -4,7 +4,7 @@ jobs:
   leer:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          curl -sI https://formularioseocmlb.web.app/ | grep -i "cache-control"
-          curl -s https://formularioseocmlb.web.app/ > i.html
-          for j in $(grep -o 'assets/[^"]*\.js' i.html); do curl -s https://formularioseocmlb.web.app/$j > b.js; echo "$j v0.17.21:$(grep -c 'v0.17.21' b.js) enviadas:$(grep -o '"enviadas"' b.js | wc -l)"; grep -o '.\{200\}"enviadas".\{400\}' b.js | head -2; done
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node mig/ids.mjs
