@@ -16,7 +16,7 @@ for (const a of A.filter((a) => a.tipo === "asignacion" && [f1a.id, f1.id].inclu
   const tramosOk = (a.tramos || []).every((t) => !t.formularioId || t.formularioId === esperado);
   ok(a.formularioId === esperado && tramosOk, `Asig ${a.id} ${a.reunionNombre} → ${a.formularioNombre} · personas ${(a.personas || []).length} · tramos ${(a.tramos || []).length} ok=${tramosOk} · ancla ${!!a.anclarCalendario} · programados ${(a.personas || []).reduce((n, p) => n + (p.fechas || []).length, 0)}`);
 }
-const EVS = ["ev_mvy5uj68fuxn", "ev_mw53m5uh3jrs", "ev_mwkoroinas7m", "ev_mwkp0h8do0hr"];
+const EVS = ["ev_mvy5uj68fuxn", "ev_mw53m5uh3jrs", "ev_mwkoroinas7m", "ev_mwkp0h8do0hr", "ev_mwm93vg9kzu8"];
 for (const id of EVS) {
   const e = E.find((x) => x.id === id);
   const sinSeg = !e.formulario.bloques.some((b) => /seguridad/i.test(b.nombre)) && !("C5" in e.respuestas) && !("C6" in e.respuestas);
@@ -26,7 +26,7 @@ for (const id of EVS) {
 const c = C.find((x) => x.id === "ev_mvy5uj68fuxn");
 ok(c && c.formularioId === f1.id, `Cierre de compromiso ev_mvy5uj68fuxn: form ${c?.formularioId} · ${JSON.stringify(c).slice(0, 160)}`);
 // Coordinación no se toca
-for (const e of E.filter((x) => x.formularioId === f1a.id && x.estado === "enviada")) console.log("    F-1A enviada (sin cambios):", e.id, e.rutinaNombre, e.evaluadorNombre, e.resultado?.indice);
+for (const e of E.filter((x) => x.formularioId === f1a.id && x.estado === "enviada")) ok(!/ixivi/.test(e.rutinaNombre || ""), `F-1A enviada: ${e.id} ${e.rutinaNombre} ${e.evaluadorNombre} ${e.resultado?.indice}`);
 // Pendientes que podrían quedar mal: borradores de Lixiviación en F-1A
 for (const e of E.filter((x) => x.estado === "borrador" && /ixivi/.test(x.rutinaNombre || ""))) console.log("    Borrador Lixiviación:", e.id, e.formularioId, e.evaluadorNombre, e.actualizado);
 for (const e of E.filter((x) => /aguiar/i.test(x.evaluadorNombre || ""))) console.log("    Fernando Aguiar:", e.id, e.estado, e.formularioId, e.rutinaNombre, e.actualizado);
