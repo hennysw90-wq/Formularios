@@ -7,7 +7,7 @@ const F1A = "f_mv9l6hdq4x8t", F1 = "f_mwm6ti6tjnd7";
 const N1A = "CdR Dialogo de Desempeño F-1A", N1 = "CdR Dialogo de Desempeño F-1";
 const LIX_ASIG = ["asig_mvtgrahwr4em", "asig_mwjrnsns17q1"];
 const COORD_ASIG = ["asig_mvtgqef7czat", "asig_mwkvpm1hqid2", "asig_mwm3uvlfxpgy"];
-const EVS = ["ev_mvy5uj68fuxn", "ev_mw53m5uh3jrs", "ev_mwkoroinas7m", "ev_mwkp0h8do0hr"];
+const EVS = (process.env.EVS || "").split(",").filter(Boolean);
 const tok = (await (await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${KEY}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnSecureToken: true }) })).json()).idToken;
 const H = { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" };
 const de = (v) => { if (!v) return null; if ("mapValue" in v) return Object.fromEntries(Object.entries(v.mapValue.fields || {}).map(([k, x]) => [k, de(x)])); if ("arrayValue" in v) return (v.arrayValue.values || []).map(de); if ("integerValue" in v) return Number(v.integerValue); if ("doubleValue" in v) return v.doubleValue; if ("nullValue" in v) return null; return Object.values(v)[0]; };
@@ -48,6 +48,7 @@ for (const id of EVS) {
     recalculo: { fecha: new Date().toISOString(), motivo: "Se quitó el bloque Seguridad (Reunión Especial Lixiviación): pasa a CdR F-1", formularioAnterior: F1A, indiceAnterior: e.resultado?.indice ?? null, clasificacionAnterior: e.resultado?.clasificacion || "", respuestasQuitadas: { C5: e.respuestas?.C5 || null, C6: e.respuestas?.C6 || null } },
   });
 }
+if (process.env.SOLO_EVALS !== '1') {
 // 2) Formularios: nombres y QR compartido
 await patch(B, `formularios/${F1A}`, { nombre: N1A });
 await patch(B, `formularios/${F1}`, { nombre: N1, qrDe: F1A });
@@ -78,4 +79,5 @@ for (const [id, it] of Object.entries(cal.items || {})) {
   if (COORD_ASIG.includes(id)) camposCal[`items.${id}.formulario`] = N1A;
 }
 if (Object.keys(camposCal).length) await patch(BC, "app_data/formularios_programados", camposCal);
+}
 console.log("LISTO");
