@@ -461,7 +461,7 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, formularios = [], on
         ))}
       </div>
 
-      {tab === "general" && <TabGeneral form={form} cambiar={cambiar} />}
+      {tab === "general" && <TabGeneral form={form} cambiar={cambiar} formularios={formularios} />}
       {tab === "a" && <TabA form={form} cambiar={cambiar} enUso={enUso} listados={listados} />}
       {tab === "b" && <TabB form={form} cambiar={cambiar} />}
       {tab === "c" && <TabC form={form} cambiar={cambiar} />}
@@ -484,7 +484,9 @@ function Campo({ etiqueta, children, ayuda }) {
   );
 }
 
-function TabGeneral({ form, cambiar }) {
+function TabGeneral({ form, cambiar, formularios = [] }) {
+  // QR compartido: este formulario se abre desde el QR de otro (uno solo impreso para varios formularios).
+  const otros = formularios.filter((x) => x.id !== form.id && !x.qrDe);
   const p = form.parametros;
   return (
     <div className="ca-card" style={{ maxWidth: 760 }}>
@@ -509,6 +511,12 @@ function TabGeneral({ form, cambiar }) {
         Se usan en los textos al evaluar, ej. «Es la primera {form.sigla?.trim() || "CdR"} registrada para esta {form.objeto?.trim() || "rutina"}» o «Se revisará en la próxima {form.sigla?.trim() || "CdR"}…». «Compromiso de mejora acordado con el {form.receptor?.trim() || "líder"}». «Qué se evalúa» y «Quién recibe» también dan nombre a los datos de reunión y líder en A · Datos generales. Vacío = CdR / rutina / líder.
         El nombre del campo (ej. «Recibe evaluación») se cambia en A · Datos generales.
       </p>
+      <Campo etiqueta="QR" ayuda="Si eliges otro formulario, este no tiene QR propio: se abre desde el QR de ese otro. Al escanearlo, cada persona ve sus pendientes de los dos y cada uno abre su formulario.">
+        <select className="rp-select" style={{ maxWidth: 420 }} value={form.qrDe || ""} aria-label="QR del formulario" onChange={(e) => cambiar((f) => { if (e.target.value) f.qrDe = e.target.value; else delete f.qrDe; })}>
+          <option value="">Tiene su propio QR</option>
+          {otros.map((x) => <option key={x.id} value={x.id}>Usa el QR de «{x.nombre}»</option>)}
+        </select>
+      </Campo>
       <p style={{ fontWeight: 800, margin: "18px 0 8px" }}>Rangos del resultado</p>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
         <Campo etiqueta="Rutina efectiva desde (%)">

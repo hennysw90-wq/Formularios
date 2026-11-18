@@ -86,6 +86,8 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
   }, [claveBorrador, ejecutando]);
 
   const quien = persona ? { uid: persona.uid, nombreUsuario: persona.nombreUsuario, nombre: persona.nombreUsuario } : null;
+  // Formularios de este QR: el suyo y los que usan su QR (QR compartido, ej. F-1 y F-1A con un solo QR impreso).
+  const delQR = useMemo(() => new Set([formularioId, ...publicados.filter((f) => f.qrDe === formularioId).map((f) => f.id)]), [publicados, formularioId]);
   const formPorId = useMemo(() => {
     const m = new Map(publicados.map((f) => [f.id, f]));
     if (form && form.estado === "publicado") m.set(form.id, form);
@@ -96,7 +98,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
     const porForm = new Map();
     agendaDePersona(asignaciones, quien, evals)
       // Cada QR es de un formulario: solo sus pendientes (los de otros formularios tienen su propio QR).
-      .filter((it) => it.asignacion.formularioId === formularioId && formPorId.has(it.asignacion.formularioId))
+      .filter((it) => delQR.has(it.asignacion.formularioId) && formPorId.has(it.asignacion.formularioId))
       .forEach((it) => {
         const g = porForm.get(it.asignacion.formularioId) || [];
         g.push(it);
@@ -110,7 +112,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
       }))
       .sort((x, y) => (y.formulario.id === formularioId) - (x.formulario.id === formularioId) || x.formulario.nombre.localeCompare(y.formulario.nombre, "es"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asignaciones, evals, persona, rutinaId, formPorId]);
+  }, [asignaciones, evals, persona, rutinaId, formPorId, delQR]);
 
   // "Solo el día que le toca": si todas sus asignaciones de ese formulario (y reunión) están bloqueadas hoy.
   const bloqueoHoy = (formId, reunionId) => {
@@ -188,8 +190,8 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
   }
 
   // Cada QR muestra solo lo de su formulario: cumplimiento, evaluaciones recibidas y compromisos.
-  const evalsDelForm = evals.filter((e) => e.formularioId === formularioId);
-  const asignacionesDelForm = asignaciones.filter((a) => a.formularioId === formularioId);
+  const evalsDelForm = evals.filter((e) => delQR.has(e.formularioId));
+  const asignacionesDelForm = asignaciones.filter((a) => delQR.has(a.formularioId));
   // Compromisos que le acordaron y todavía no cierra (pendientes o vencidos).
   const abiertos = compromisosRecibidos(evalsDelForm, persona, cierres).filter((c) => !estaCerrado(c));
   const compromisosAbiertos = abiertos.length;

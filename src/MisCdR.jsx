@@ -1248,8 +1248,25 @@ function AreaAuto({ valor, onCambiar, minFilas = 3, estilo, ...resto }) {
 }
 
 function PasoNotas({ ev, cambiar }) {
-  const [texto, setTexto] = useState("");
-  const [criterio, setCriterio] = useState("");
+  // Lo que se va escribiendo queda en la evaluación (se guarda solo, como todo lo demás): así no se pierde al
+  // cambiar de paso, de pestaña o de app. Al salir de este paso, lo escrito se agrega como nota.
+  const texto = ev.notaEnCurso?.texto || "";
+  const criterio = ev.notaEnCurso?.criterio || "";
+  const setTexto = (v) => cambiar((c) => { const t = typeof v === "function" ? v(c.notaEnCurso?.texto || "") : v; c.notaEnCurso = { ...(c.notaEnCurso || {}), texto: t }; });
+  const setCriterio = (v) => cambiar((c) => { c.notaEnCurso = { ...(c.notaEnCurso || {}), criterio: v }; });
+  const cambiarRef = useRef(cambiar);
+  cambiarRef.current = cambiar;
+  const pendienteRef = useRef("");
+  pendienteRef.current = texto.trim();
+  useEffect(() => () => {
+    // Al dejar el paso de notas: lo que quedó escrito sin «Agregar» pasa a ser una nota.
+    if (!pendienteRef.current) return;
+    cambiarRef.current((c) => {
+      const t = (c.notaEnCurso?.texto || "").trim();
+      if (t) c.notas.push({ id: nuevoId("n"), hora: c.formulario?.seccionB?.horaAutomatica ? horaAhora() : "", texto: t, criterio: c.notaEnCurso?.criterio || "" });
+      delete c.notaEnCurso;
+    });
+  }, []);
   const [verPuntos, setVerPuntos] = useState(false);
   const puntos = ev.formulario.seccionB.puntos;
   const auto = ev.formulario.seccionB.horaAutomatica;
@@ -1257,9 +1274,7 @@ function PasoNotas({ ev, cambiar }) {
   function agregar() {
     const t = texto.trim();
     if (!t) return;
-    cambiar((c) => c.notas.push({ id: nuevoId("n"), hora: auto ? horaAhora() : "", texto: t, criterio }));
-    setTexto("");
-    setCriterio("");
+    cambiar((c) => { c.notas.push({ id: nuevoId("n"), hora: auto ? horaAhora() : "", texto: t, criterio }); delete c.notaEnCurso; });
   }
 
   return (

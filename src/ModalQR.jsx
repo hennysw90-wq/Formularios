@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { enlaceFormulario, esEntornoDePrueba } from "./enlaces.js";
 import { crearImagenQR, COLOR_QR } from "./qrImagen.js";
+import { obtenerFormulario } from "./evaluaciones.js";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 
@@ -38,7 +39,16 @@ async function generarImagen(form) {
  * (no cambia al editar el formulario ni sus asignaciones), así que se puede imprimir una vez y dejarlo pegado.
  * Al escanearlo, cada persona se identifica y ve sus reuniones asignadas de este formulario.
  */
-export default function ModalQR({ form, onCerrar }) {
+export default function ModalQR({ form: propio, onCerrar }) {
+  // QR compartido: si este formulario usa el QR de otro, se muestra ese (el mismo QR impreso).
+  const [delOtro, setDelOtro] = useState(null);
+  useEffect(() => {
+    if (!propio.qrDe) return undefined;
+    let vivo = true;
+    obtenerFormulario(propio.qrDe).then((f) => vivo && f && setDelOtro(f)).catch(() => {});
+    return () => { vivo = false; };
+  }, [propio.qrDe]);
+  const form = propio.qrDe && delOtro ? delOtro : propio;
   const [dataUrl, setDataUrl] = useState("");
   const [copiado, setCopiado] = useState(false);
   const link = enlaceFormulario(form.id);
@@ -92,6 +102,7 @@ export default function ModalQR({ form, onCerrar }) {
       <div className="ca-card" style={{ maxWidth: 440, width: "100%", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
         <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "var(--verde-oscuro)" }}>QR del formulario</p>
         <p style={{ margin: "4px 0 2px", fontSize: 16, fontWeight: 800 }}>{form.nombre}</p>
+        {propio.qrDe && <p style={{ margin: "2px 0 6px", fontSize: 13, fontWeight: 700, color: "#854F0B" }}>«{propio.nombre}» usa este mismo QR: al escanearlo se ven los pendientes de los dos formularios.</p>}
         <p style={{ margin: "4px 0 10px", fontSize: 13, color: "var(--texto-suave)" }}>
           Es un QR fijo: siempre es el mismo para este formulario, aunque cambies el formulario o sus asignaciones. Al escanearlo,
           cada persona escribe su nombre y ve las reuniones que tiene asignadas con este formulario.
