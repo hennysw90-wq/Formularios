@@ -45,6 +45,8 @@ export function TarjetaCompromiso({ c, usuario, soloLectura = false, mostrarLide
             {c.ev.formulario?.nombre || "Formulario"} · {valorAsignado(c.ev) ? <b>{valorAsignado(c.ev)}</b> : c.ev.rutinaNombre || "Sin reunión"} · {String(c.ev.formulario?.sigla || "").trim() || (String(c.ev.formulario?.nombre || "").match(/^(C[a-z][A-Z])\b/) || [])[1] || "CdR"} del {ddmm(fechaCdR(c.ev))}
             {c.responsable ? ` · Responsable: ${c.responsable}` : ""}
           </div>
+          {/* Quién hizo la evaluación donde se acordó el compromiso. */}
+          {c.ev.evaluadorNombre && <div style={{ fontSize: 12.5, marginTop: 2 }}>Evaluó: <b>{c.ev.evaluadorNombre}</b></div>}
           {mostrarLider && <div style={{ fontSize: 12.5, marginTop: 2 }}>{String(c.ev.formulario?.receptor || "").trim() || "Líder"}: <b>{c.ev.lider || "—"}</b>{c.cierre?.cerradoPorNombre && c.cierre.cerradoPorNombre !== c.ev.lider ? ` · cerrado por ${c.cierre.cerradoPorNombre}` : ""}</div>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
