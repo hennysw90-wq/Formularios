@@ -58,7 +58,14 @@ export function listarMisEvaluaciones(uid, callback, onError) {
 export async function guardarEvaluacion(ev) {
   await asegurarSesionCdR();
   const { id, ...resto } = JSON.parse(JSON.stringify(ev)); // sin valores "undefined"
-  await setDoc(doc(db, "cdrEvaluaciones", id), resto);
+  try {
+    await setDoc(doc(db, "cdrEvaluaciones", id), resto);
+  } catch (e) {
+    // Sin sesión (o vencida): se renueva y se reintenta una vez antes de avisar el error.
+    if (e?.code !== "permission-denied" && e?.code !== "unauthenticated") throw e;
+    await asegurarSesionCdR({ renovar: true });
+    await setDoc(doc(db, "cdrEvaluaciones", id), resto);
+  }
 }
 
 /**

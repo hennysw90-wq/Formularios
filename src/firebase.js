@@ -22,9 +22,14 @@ const auth = getAuth(app);
 // Sesión anónima: no identifica a nadie (la identidad sale del directorio),
 // solo permite que las reglas de Firestore exijan "request.auth != null".
 let promesaSesion = null;
-export function asegurarSesionCdR() {
-  if (!promesaSesion) {
-    promesaSesion = new Promise((resolve, reject) => {
+/**
+ * Sesión anónima. Si no se pudo iniciar (ej. sin señal al abrir la página), NO queda guardado el fallo:
+ * la próxima lectura o guardado lo vuelve a intentar, así una CdR a medias puede guardarse cuando vuelve la señal.
+ */
+export function asegurarSesionCdR({ renovar = false } = {}) {
+  if (auth.currentUser && !renovar) return Promise.resolve(auth.currentUser);
+  if (!promesaSesion || renovar) {
+    promesaSesion = new Promise((resolve) => {
       const apagar = onAuthStateChanged(auth, (u) => {
         if (u) {
           apagar();
@@ -32,10 +37,9 @@ export function asegurarSesionCdR() {
         }
       });
       signInAnonymously(auth).catch((e) => {
-        // En Henny las reglas no exigen sesión: si el login anónimo no está
-        // habilitado en el proyecto, se sigue igual en vez de bloquear la app.
-        console.warn("Login anónimo no disponible; se continúa sin sesión:", e?.code || e);
+        console.warn("Login anónimo no disponible por ahora; se reintentará:", e?.code || e);
         apagar();
+        promesaSesion = null; // no se recuerda el fallo: se reintenta en el próximo uso
         resolve(null);
       });
     });
