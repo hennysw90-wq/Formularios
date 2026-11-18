@@ -12,7 +12,8 @@ const tok = (await (await fetch(`https://identitytoolkit.googleapis.com/v1/accou
 const H = { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" };
 const de = (v) => { if (!v) return null; if ("mapValue" in v) return Object.fromEntries(Object.entries(v.mapValue.fields || {}).map(([k, x]) => [k, de(x)])); if ("arrayValue" in v) return (v.arrayValue.values || []).map(de); if ("integerValue" in v) return Number(v.integerValue); if ("doubleValue" in v) return v.doubleValue; if ("nullValue" in v) return null; return Object.values(v)[0]; };
 const a = (x) => { if (x === null || x === undefined) return { nullValue: null }; if (Array.isArray(x)) return { arrayValue: { values: x.map(a) } }; if (typeof x === "object") return { mapValue: { fields: Object.fromEntries(Object.entries(x).filter(([, v]) => v !== undefined).map(([k, v]) => [k, a(v)])) } }; if (typeof x === "boolean") return { booleanValue: x }; if (typeof x === "number") return Number.isInteger(x) ? { integerValue: String(x) } : { doubleValue: x }; return { stringValue: String(x) }; };
-async function get(base, path) { const r = await fetch(`${base}/${path}`, { headers: H }); if (!r.ok) throw new Error(`GET ${path} ${r.status}`); const d = await r.json(); return Object.fromEntries(Object.entries(d.fields || {}).map(([k, v]) => [k, de(v)])); }
+const hdr = (base) => (base === BC ? { "Content-Type": "application/json" } : H);
+async function get(base, path) { const r = await fetch(`${base}/${path}`, { headers: hdr(base) }); if (!r.ok) throw new Error(`GET ${path} ${r.status}`); const d = await r.json(); return Object.fromEntries(Object.entries(d.fields || {}).map(([k, v]) => [k, de(v)])); }
 async function patch(base, path, campos) {
   const mask = Object.keys(campos).map((k) => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join("&");
   const fields = {};
@@ -22,7 +23,7 @@ async function patch(base, path, campos) {
     partes.forEach((p, i) => { if (i === partes.length - 1) o[p] = a(v); else { o[p] = o[p] || { mapValue: { fields: {} } }; o = o[p].mapValue.fields; } });
   }
   if (!APLICAR) { console.log("  (simulado) PATCH", path, Object.keys(campos).join(", ")); return; }
-  const r = await fetch(`${base}/${path}?${mask}&currentDocument.exists=true`, { method: "PATCH", headers: H, body: JSON.stringify({ fields }) });
+  const r = await fetch(`${base}/${path}?${mask}&currentDocument.exists=true`, { method: "PATCH", headers: hdr(base), body: JSON.stringify({ fields }) });
   console.log("  PATCH", path, r.status, r.ok ? "OK" : (await r.text()).slice(0, 300));
   if (!r.ok) throw new Error("falló " + path);
 }

@@ -8,4 +8,4 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: APLICAR=${APLICAR_VAL:-0} node mig/mig.mjs
-        env: { APLICAR_VAL: "0" }
+        env: { APLICAR_VAL: "1" }
