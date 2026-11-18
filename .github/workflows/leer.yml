@@ -25,7 +25,7 @@ jobs:
               if 'doubleValue' in v: return v['doubleValue']
               return list(v.values())[0] if v else None
           def docs(c): return [dict(id=d['name'].split('/')[-1], **{k:val(x) for k,x in d.get('fields',{}).items()}) for d in json.load(open(c+'.json'))]
-          F=docs('formularios'); A=docs('asignaciones'); E=docs('evaluaciones')
+          F=docs('formularios'); E=docs('evaluaciones')
           F2=[f for f in F if f['id']=='f_mwm6ti6tjnd7'][0]
           um=(F2.get('parametros') or {})
           def calc(form, resp):
