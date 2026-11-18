@@ -5,16 +5,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          curl -s "https://firestore.googleapis.com/v1/projects/calendario-turnos-oems/databases/(default)/documents/app_data/formularios_programados" > d.json
-          python3 - <<'PY'
-          import json
-          d=json.load(open('d.json'))
+          TOK=$(curl -s -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyDgLm6b2mXz50ITTKmgkO7Ia0qloZXypJw" -H 'Content-Type: application/json' -d '{"returnSecureToken":true}' | python3 -c "import json,sys;print(json.load(sys.stdin).get('idToken',''))")
+          B="https://firestore.googleapis.com/v1/projects/cdr-reuniones/databases/(default)/documents"
+          for c in formularios asignaciones evaluaciones; do
+            tok=""; i=0; echo '[]' > $c.json
+            while : ; do
+              curl -s -H "Authorization: Bearer $TOK" "$B/$c?pageSize=300${tok:+&pageToken=$tok}" > p.json
+              python3 -c "
+          import json;a=json.load(open('$c.json'));p=json.load(open('p.json'));a+=p.get('documents',[]);json.dump(a,open('$c.json','w'));print(p.get('nextPageToken',''))" > t.txt
+              tok=$(cat t.txt); i=$((i+1)); [ -z "$tok" ] && break; [ $i -gt 30 ] && break
+            done
+          done
+          cat > r.py <<'PY'
+          import json, collections
           def val(v):
               if 'mapValue' in v: return {k:val(x) for k,x in v['mapValue'].get('fields',{}).items()}
               if 'arrayValue' in v: return [val(x) for x in v['arrayValue'].get('values',[])]
-              return list(v.values())[0]
-          it=val(d['fields']['items'])
-          for k,v in it.items():
-              v['dias']=v.get('dias',[])[:4]
-              print(k, json.dumps(v, ensure_ascii=False))
+              if 'integerValue' in v: return int(v['integerValue'])
+              if 'doubleValue' in v: return v['doubleValue']
+              return list(v.values())[0] if v else None
+          def docs(c): return [dict(id=d['name'].split('/')[-1], **{k:val(x) for k,x in d.get('fields',{}).items()}) for d in json.load(open(c+'.json'))]
+          F=docs('formularios'); A=docs('asignaciones'); E=docs('evaluaciones')
+          print('FORMS')
+          for f in F:
+              if f.get('tipo') and f.get('tipo')!='formulario': continue
+              print(' ', f['id'], '|', f.get('nombre'), '|', f.get('estado'), '| bloques:', [(b.get('nombre'), b.get('peso'), [(c.get('codigo'), (c.get('texto') or c.get('nombre') or '')[:50], c.get('peso')) for c in b.get('criterios',[])]) for b in f.get('bloques',[])])
+          print('ASIG LIX')
+          for a in A:
+              if a.get('tipo')!='asignacion': continue
+              if 'ixivi' in (a.get('reunionNombre') or ''):
+                  print(' ', a['id'], a.get('formularioId'), a.get('formularioNombre'), '|', a.get('reunionId'), a.get('reunionNombre'), '| activa', a.get('activa'), '| personas', len(a.get('personas',[])), '| ancla', a.get('anclarCalendario'), '| frec', (a.get('planComun') or {}).get('frecuencia'))
+          print('EVALS LIX por form/estado')
+          cnt=collections.Counter()
+          for e in E:
+              if 'ixivi' in (e.get('rutinaNombre') or ''):
+                  cnt[(e.get('formularioId'), (e.get('formulario') or {}).get('nombre'), e.get('rutinaSesionId'), e.get('rutinaNombre'), e.get('estado'), bool(e.get('anulada')))]+=1
+          for k,v in cnt.items(): print(' ', v, k)
+          print('EVAL TOTAL', len(E))
+          ej=[e for e in E if 'ixivi' in (e.get('rutinaNombre') or '') and e.get('estado')=='enviada'][:1]
+          for e in ej: print('EJEMPLO keys', list(e.keys())); print('respuestas', json.dumps(e.get('respuestas') or e.get('niveles'), ensure_ascii=False)[:600]); print('resultado', e.get('resultado'))
           PY
+          python3 r.py
