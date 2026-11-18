@@ -41,7 +41,9 @@ export function listarFormulariosPublicados(callback, onError) {
 export function listarMisEvaluaciones(uid, callback, onError) {
   const registradas = new Map();
   const comoEvaluador = new Map();
-  const emitir = () => callback([...new Map([...registradas, ...comoEvaluador]).values()]);
+  let forms = new Map();
+  const emitir = () => callback(conNombreVigente([...new Map([...registradas, ...comoEvaluador]).values()], forms));
+  const c0 = listarFormulariosPublicados((fs) => { forms = new Map(fs.map((f) => [f.id, f])); emitir(); }, () => {});
   const llenar = (mapa) => (lista) => {
     mapa.clear();
     lista.forEach((e) => mapa.set(e.id, e));
@@ -50,6 +52,7 @@ export function listarMisEvaluaciones(uid, callback, onError) {
   const c1 = escuchar(() => query(collection(db, "cdrEvaluaciones"), where("registradoPorUid", "==", uid)), llenar(registradas), onError, "evaluaciones");
   const c2 = escuchar(() => query(collection(db, "cdrEvaluaciones"), where("evaluadorUid", "==", uid)), llenar(comoEvaluador), onError, "evaluaciones");
   return () => {
+    c0();
     c1();
     c2();
   };
@@ -135,8 +138,23 @@ export async function eliminarEvaluacion(id) {
 
 /** Todas las CdR enviadas (para Excelencia Operacional: registros y estadísticas). */
 export function listarEvaluacionesEnviadas(callback, onError) {
-  // Una sola escucha para toda la app (inicio, estadísticas, agenda, QR, avance del plan…).
-  return escucharCompartido("enviadas", (ok, mal) => escuchar(() => query(collection(db, "cdrEvaluaciones"), where("estado", "==", "enviada")), ok, mal, "evaluaciones"), callback, onError);
+  // Una sola escucha para toda la app (inicio, estadísticas, agenda, QR, avance del plan…). El nombre del
+  // formulario se muestra siempre el vigente (si se renombró, las CdR antiguas no quedan con el nombre viejo).
+  let lista = null;
+  let forms = new Map();
+  const emitir = () => lista && callback(conNombreVigente(lista, forms));
+  const c1 = escucharCompartido("enviadas", (ok, mal) => escuchar(() => query(collection(db, "cdrEvaluaciones"), where("estado", "==", "enviada")), ok, mal, "evaluaciones"), (l) => { lista = l; emitir(); }, onError);
+  const c2 = listarFormulariosPublicados((fs) => { forms = new Map(fs.map((f) => [f.id, f])); emitir(); }, () => {});
+  return () => { c1(); c2(); };
+}
+
+/** Las CdR guardan una copia del formulario; para mostrar se usa el nombre (y sigla) vigente del formulario. */
+function conNombreVigente(lista, forms) {
+  return lista.map((e) => {
+    const f = forms.get(e.formularioId);
+    if (!f || !e.formulario || (e.formulario.nombre === f.nombre && (e.formulario.sigla || "") === (f.sigla || ""))) return e;
+    return { ...e, formulario: { ...e.formulario, nombre: f.nombre, sigla: f.sigla || e.formulario.sigla || "" } };
+  });
 }
 
 /**
