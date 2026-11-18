@@ -1,7 +1,7 @@
 const { chromium } = require("playwright");
 (async () => {
   const b = await chromium.launch();
-  for (const nombre of ["Luis Vargas", "Fernando Aguiar", "Hector Contreras"]) {
+  for (const nombre of ["Cristian Oliva", "Hernan Cerda"]) {
     const p = await b.newPage({ viewport: { width: 420, height: 1600 } });
     p.on("pageerror", (e) => console.log("PAGEERR", e.message));
     await p.goto("https://formularioseocmlb.web.app/?formulario=f_mv9l6hdq4x8t", { waitUntil: "load", timeout: 60000 });
