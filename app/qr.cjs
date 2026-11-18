@@ -4,7 +4,7 @@ const { chromium } = require("playwright");
   for (const nombre of ["Luis Vargas", "Fernando Aguiar", "Hector Contreras"]) {
     const p = await b.newPage({ viewport: { width: 420, height: 1600 } });
     p.on("pageerror", (e) => console.log("PAGEERR", e.message));
-    await p.goto("https://formularioseocmlb.web.app/?formulario=f_mv9l6hdq4x8t", { waitUntil: "networkidle" });
+    await p.goto("https://formularioseocmlb.web.app/?formulario=f_mv9l6hdq4x8t", { waitUntil: "load", timeout: 60000 });
     await p.waitForTimeout(4000);
     console.log("QR-INICIO", nombre, "::", (await p.locator("body").innerText()).replace(/\n+/g, " | ").slice(0, 300));
     const inp = p.locator("input").first();
