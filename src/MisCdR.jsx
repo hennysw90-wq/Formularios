@@ -640,7 +640,7 @@ export function AccesoQR({ formularioId, rutinaId = "", onIniciarSesion }) {
 const PASOS = ["Datos", "Notas en terreno", "Rúbrica", "Resultado y feedback", "Compromiso", "Cierre"];
 const PASOS_CORTOS = ["Datos", "Notas", "Rúbrica", "Resultado", "Compromiso", "Cierre"]; // para el celular
 
-export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoVolver = "← Volver a Mis Formularios", ocultarEvaluador = false }) {
+export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoVolver = "← Volver a Mis Formularios", ocultarEvaluador = false, vistaPrevia = false }) {
   const [ev, setEv] = useState(() => clonar(evaluacionInicial));
   const [sucio, setSucio] = useState(false);
   const [estadoGuardado, setEstadoGuardado] = useState("");
@@ -672,7 +672,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
   }
 
   async function guardarAhora() {
-    if (bloqueoRef.current) return;
+    if (bloqueoRef.current || vistaPrevia) return;
     const v = verRef.current;
     try {
       setEstadoGuardado("guardando");
@@ -689,7 +689,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
 
   // Guardado automático: cada cambio se guarda solo, para no perder notas durante la sesión.
   useEffect(() => {
-    if (!sucio || soloLectura) return;
+    if (!sucio || soloLectura || vistaPrevia) return;
     setEstadoGuardado("pendiente");
     const t = setTimeout(guardarAhora, retrasoMs);
     timerRef.current = t;
@@ -741,7 +741,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
   const primeraBusqueda = useRef(true);
   const claveAnterior = useRef(null);
   useEffect(() => {
-    if (soloLectura) return undefined;
+    if (soloLectura || vistaPrevia) return undefined;
     if (!ev.rutinaSesionId || !(ev.evaluadorNombre || "").trim()) {
       setAnterior(null);
       return undefined;
@@ -794,6 +794,10 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
   }
 
   async function enviar() {
+    if (vistaPrevia) {
+      setErroresEnvio(["Esto es solo una vista previa: no se puede enviar."]);
+      return;
+    }
     const errores = erroresDeEnvio(ev, anterior);
     if (errores.length) {
       setErroresEnvio(errores);
@@ -848,7 +852,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
         <div className="cdr-aviso">📵 Sin conexión. Puedes seguir escribiendo: se guardará solo cuando vuelva la señal. No cierres esta pestaña.</div>
       )}
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-        <button style={btn} onClick={volver}>← Salir (se guarda solo)</button>
+        <button style={btn} onClick={volver}>{vistaPrevia ? "← Salir de la vista previa" : "← Salir (se guarda solo)"}</button>
         <div style={{ flex: 1, minWidth: 180 }}>
           <div className="cdr-clamp2" style={{ fontWeight: 800 }} title={ev.formulario.nombre}>{ev.formulario.nombre}</div>
           <div className="cdr-clamp2" style={{ fontSize: 12.5, color: "var(--texto-suave)" }} title={`${referenciaEval(ev, "")}${ev.lider ? ` · ${rotuloReceptor(ev.formulario)}: ${ev.lider}` : ""}`}>{nombreOpcion(referenciaEval(ev, "Rutina sin elegir"))}{ev.lider ? ` · ${rotuloReceptor(ev.formulario)}: ${ev.lider}` : ""}</div>
@@ -856,7 +860,11 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
         <span style={{ fontSize: 12.5, color: estadoGuardado === "error" ? "var(--rojo)" : "var(--texto-suave)", fontWeight: 600 }}>{etiquetaGuardado}</span>
       </div>
 
-      <AvancePlan formularioId={ev.formularioId} rutinaSesionId={ev.rutinaSesionId} evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />
+      {vistaPrevia ? (
+        <div className="cdr-aviso">👁 Vista previa: así se ve el formulario al ejecutarlo. Lo que escribas aquí no se guarda ni se envía.</div>
+      ) : (
+        <AvancePlan formularioId={ev.formularioId} rutinaSesionId={ev.rutinaSesionId} evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />
+      )}
 
       <div className="cdr-pasos">
         {PASOS.map((nombre, i) => (

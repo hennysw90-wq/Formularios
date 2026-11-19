@@ -18,7 +18,6 @@ import { TEXTO_PERIODO, textoProgramada } from "./MiAgenda.jsx";
 import CompromisosMejora from "./CompromisosMejora.jsx";
 import { listarCierres, compromisosRecibidos, compromisosEntregados, estaCerrado } from "./compromisosLider.js";
 import { referenciaEval } from "./referencia.js";
-import { abrirFormularioEnBlanco } from "./formularioEnBlanco.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -42,6 +41,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
   const [desbloqueado, setDesbloqueado] = useState(!!usuario); // con sesión iniciada ya se conoce la clave
   const [pestana, setPestana] = useState("pendientes");
   const [ejecutando, setEjecutando] = useState(null);
+  const [previa, setPrevia] = useState(false); // "Revisar formulario": recorrido de solo lectura, sin guardar
   const [anonima, setAnonima] = useState(false); // al abrir una evaluación recibida no se muestra quién evaluó
   const [borrador, setBorrador] = useState(null);
   const [vistaRes, setVistaRes] = useState(VISTA_RESULTADOS_INICIAL);
@@ -130,6 +130,12 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
     try { window.localStorage.setItem(claveBorrador, ev.id); } catch { /* sin almacenamiento local */ }
     setEjecutando(ev);
   }
+  function revisar(formId, reunionId) {
+    const f = formPorId.get(formId) || form;
+    const ev = nuevaEvaluacion(proyectarFormulario(f, asignaciones, quien), quien, reunionId);
+    setPrevia(true);
+    setEjecutando(ev);
+  }
   async function descartarBorrador() {
     if (!borrador || !window.confirm("¿Borrar este formulario incompleto? Se perderá lo que llevabas respondido.")) return;
     try {
@@ -157,7 +163,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
     return (
       <div className="ca-pagina">
         <div className="ca-contenido cdr-ejecutar">
-          <Ejecutar evaluacionInicial={ejecutando} ocultarEvaluador={anonima} onCerrar={() => { setEjecutando(null); setAnonima(false); setPestana(ejecutando.estado === "enviada" ? pestana : "pendientes"); }} textoVolver={pestana === "plan" ? "← Volver al cumplimiento" : pestana === "resultados" ? "← Volver a evaluaciones recibidas" : "← Volver a mis pendientes"} />
+          <Ejecutar evaluacionInicial={ejecutando} ocultarEvaluador={anonima} vistaPrevia={previa} onCerrar={() => { setEjecutando(null); setAnonima(false); setPrevia(false); setPestana(ejecutando.estado === "enviada" ? pestana : "pendientes"); }} textoVolver={pestana === "plan" ? "← Volver al cumplimiento" : pestana === "resultados" ? "← Volver a evaluaciones recibidas" : "← Volver a mis pendientes"} />
         </div>
       </div>
     );
@@ -220,7 +226,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
       </div>
 
       {pestana === "pendientes" && (
-        <Pendientes grupos={grupos} rutinaId={rutinaId} borrador={borrador} onEjecutar={ejecutar} onContinuar={() => { const b = borrador && bloqueoHoy(borrador.formularioId, borrador.rutinaSesionId); if (b) return window.alert(b); setEjecutando(borrador); }} onBorrar={descartarBorrador} />
+        <Pendientes grupos={grupos} rutinaId={rutinaId} borrador={borrador} onEjecutar={ejecutar} onRevisar={revisar} onContinuar={() => { const b = borrador && bloqueoHoy(borrador.formularioId, borrador.rutinaSesionId); if (b) return window.alert(b); setEjecutando(borrador); }} onBorrar={descartarBorrador} />
       )}
       {pestana === "plan" &&
         (porVer ? (
@@ -399,7 +405,7 @@ function Encabezado({ persona, onCambiar }) {
 
 /* ─── Pendientes ───────────────────────────────────────────────────────── */
 
-function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBorrar }) {
+function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onRevisar, onContinuar, onBorrar }) {
   return (
     <>
       {borrador && (
@@ -452,7 +458,7 @@ function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBor
                     {it.bloqueadaHoy ? "🔒 Solo el día programado" : it.completa ? "Responder otra vez" : "Ejecutar formulario"}
                   </button>
                   {/* Siempre disponible, aunque no pueda ejecutarlo hoy: para ver las preguntas antes. */}
-                  <button className="cdr-nav-btn" style={{ marginTop: 6, width: "100%" }} onClick={() => abrirFormularioEnBlanco(g.formulario)}>
+                  <button className="cdr-nav-btn" style={{ marginTop: 6, width: "100%" }} onClick={() => onRevisar(g.formulario.id, a.reunionId)}>
                     👁 Revisar formulario
                   </button>
                 </div>
