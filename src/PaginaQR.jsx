@@ -18,6 +18,7 @@ import { TEXTO_PERIODO, textoProgramada } from "./MiAgenda.jsx";
 import CompromisosMejora from "./CompromisosMejora.jsx";
 import { listarCierres, compromisosRecibidos, compromisosEntregados, estaCerrado } from "./compromisosLider.js";
 import { referenciaEval } from "./referencia.js";
+import { abrirFormularioEnBlanco } from "./formularioEnBlanco.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const norm = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -449,6 +450,10 @@ function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onContinuar, onBor
                   </div>
                   <button className={`cdr-nav-btn ${it.completa || !it.empezo ? "" : "prim"}`} style={{ marginTop: 10, width: "100%" }} disabled={it.bloqueadaHoy} onClick={() => onEjecutar(g.formulario.id, a.reunionId)}>
                     {it.bloqueadaHoy ? "🔒 Solo el día programado" : it.completa ? "Responder otra vez" : "Ejecutar formulario"}
+                  </button>
+                  {/* Siempre disponible, aunque no pueda ejecutarlo hoy: para ver las preguntas antes. */}
+                  <button className="cdr-nav-btn" style={{ marginTop: 6, width: "100%" }} onClick={() => abrirFormularioEnBlanco(g.formulario)}>
+                    👁 Revisar formulario
                   </button>
                 </div>
               );
