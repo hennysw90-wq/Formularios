@@ -6,18 +6,18 @@ import { referenciaEval } from "./referencia.js";
 import { pluralSigla } from "./referencia.js";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-const RANGOS = [["1m", "Mes actual"], ["3m", "3 meses"], ["6m", "6 meses"], ["anio", `Año ${new Date().getFullYear()}`]];
+export const RANGOS = [["1m", "Mes actual"], ["3m", "3 meses"], ["6m", "6 meses"], ["anio", `Año ${new Date().getFullYear()}`]];
 export const VISTA_RESULTADOS_INICIAL = { rango: "1m", formularioId: "", reunion: "" };
 
 const fmt = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
-const pct = (n) => (n === null || n === undefined ? "—" : `${fmt(n)}%`);
+export const pct = (n) => (n === null || n === undefined ? "—" : `${fmt(n)}%`);
 
-function inicioDelRango(rango, hoy = new Date()) {
+export function inicioDelRango(rango, hoy = new Date()) {
   const atras = rango === "3m" ? 2 : rango === "6m" ? 5 : 0;
   const d = rango === "anio" ? new Date(hoy.getFullYear(), 0, 1) : new Date(hoy.getFullYear(), hoy.getMonth() - atras, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
-function textoRango(rango, hoy = new Date()) {
+export function textoRango(rango, hoy = new Date()) {
   if (rango === "1m") return `${MESES[hoy.getMonth()]} ${hoy.getFullYear()}`;
   if (rango === "anio") return `año ${hoy.getFullYear()}`;
   return rango === "3m" ? "últimos 3 meses" : "últimos 6 meses";
@@ -34,13 +34,13 @@ function clasificar(prom, u, conCritico) {
 function clasePill(c) {
   return c === "efectiva" ? "ca-pill-verde" : c === "desarrollo" ? "ca-pill-ambar" : c === "intervencion" ? "ca-pill-rojo" : "";
 }
-function promedio(lista) {
+export function promedio(lista) {
   const v = lista.map((e) => e.resultado?.indice).filter((x) => typeof x === "number");
   return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10 : null;
 }
 
 /** Nota promedio de cada bloque (con el peso del formulario más reciente) y su aporte al promedio total. */
-function bloquesPromedio(lista) {
+export function bloquesPromedio(lista) {
   const ref = lista[0]?.formulario?.bloques || [];
   const acc = new Map();
   lista.forEach((e) =>
@@ -141,7 +141,7 @@ export default function ResultadosQR({ persona, evals, vista, onVista, onVer, mo
   );
 }
 
-function agrupar(lista, fnClave, fnNombre) {
+export function agrupar(lista, fnClave, fnNombre) {
   const m = new Map();
   lista.forEach((e) => {
     const k = fnClave(e) || "—";
@@ -179,7 +179,7 @@ function Lista({ titulo, vacio, grupos, onElegir }) {
   );
 }
 
-function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer, conLider = false }) {
+export function HojaResumen({ lista, historico, rango, nombreForm, nombreReunion, onVer, conLider = false }) {
   const u = umbralesDe(lista.length ? lista : historico);
   const prom = promedio(lista);
   const conCritico = lista.filter((e) => (e.resultado?.criticosEnCero || []).length > 0);
@@ -348,9 +348,9 @@ function colorNota(v, u) {
   return v >= u.efectiva ? "#1b7a46" : v >= u.desarrollo ? "#B5820A" : "#b02a26";
 }
 
-const gris = { color: "var(--texto-suave)" };
+export const gris = { color: "var(--texto-suave)" };
 const fila = { display: "flex", alignItems: "center", gap: 10, width: "100%", border: "1px solid var(--borde)", borderRadius: 12, padding: "10px 12px", marginBottom: 8, background: "#fff", cursor: "pointer", fontFamily: "inherit", color: "inherit" };
 const miga = { background: "none", border: "none", padding: 0, color: "var(--verde-oscuro)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, textDecoration: "underline" };
-function chip(sel) {
+export function chip(sel) {
   return { padding: "6px 12px", borderRadius: 100, border: `2px solid ${sel ? "var(--verde)" : "var(--borde)"}`, background: sel ? "var(--verde-claro)" : "#fff", color: sel ? "var(--verde-oscuro)" : "var(--texto-suave)", fontWeight: sel ? 700 : 500, cursor: "pointer", fontSize: 13, fontFamily: "inherit" };
 }

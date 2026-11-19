@@ -117,6 +117,8 @@ export function todosLosCompromisos(evals, cierres) {
   return armarCompromisos((evals || []).filter((e) => e.estado === "enviada" && !e.anulada), cierres);
 }
 
+export const armarCompromisosDe = (lista, cierres) => armarCompromisos(lista, cierres);
+
 function armarCompromisos(lista, cierres) {
   const hoy = hoyLocal();
   return lista

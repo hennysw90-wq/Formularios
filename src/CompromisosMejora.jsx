@@ -130,7 +130,7 @@ export default function CompromisosMejora({ recibidos = [], entregados = [], tod
   const textos = {
     recibidos: "Los que acordaron contigo en las evaluaciones que te hicieron. Cuando lo cumplas, márcalo como ejecutado y deja un comentario; si no corresponde, recházalo.",
     entregados: "Los que acordaste tú como evaluador con cada líder: aquí ves si ya los cerró y su comentario.",
-    todos: "Todos los compromisos de todos los líderes. Como Master puedes comentarlos, cerrarlos, rechazarlos o reabrirlos.",
+    todos: "Todos los compromisos de todos los líderes. Como Master puedes comentarlos, cerrarlos, rechazarlos o reabrirlos (el Supervisor solo los ve).",
   };
   return (
     <div>
@@ -178,7 +178,7 @@ export default function CompromisosMejora({ recibidos = [], entregados = [], tod
       </div>
       {cargando ? <p style={{ color: "var(--texto-suave)" }}>Cargando…</p>
         : vistos.length === 0 ? <div className="cdr-molde"><b>{filtro === "cerrados" ? "No hay compromisos cerrados" : "No hay compromisos por cerrar"}</b>{grupo === "entregados" ? "Aparecen cuando en una CdR que hiciste acuerdas un compromiso con el líder." : "Aparecen cuando en una CdR se acuerda un compromiso con el líder."}</div>
-        : vistos.map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} soloLectura={grupo === "entregados"} mostrarLider={grupo !== "recibidos"} />)}
+        : vistos.map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} soloLectura={grupo === "entregados" || (grupo === "todos" && usuario?.rol === "supervisor")} mostrarLider={grupo !== "recibidos"} />)}
     </div>
   );
 }

@@ -176,7 +176,7 @@ function abrirUsuarios(callback, onError) {
 // Los roles "admin" y "master" nunca quedan amarrados a un área (ven
 // todas) — cualquier valor de área se descarta para esos roles.
 function areaSegunRol(rol, area) {
-  return rol === "admin" || rol === "master" ? "" : area || "";
+  return rol === "admin" || rol === "master" || rol === "supervisor" ? "" : area || "";
 }
 
 // Apps donde queda habilitado un usuario nuevo. Si es "master" queda con
@@ -301,7 +301,7 @@ export async function validarUsuarioPendiente(uid, { password, rol, area, nombre
 
 export async function cambiarRolUsuario(uid, rol) {
   const cambios = { rol };
-  if (rol === "admin" || rol === "master") cambios.area = ""; // admin/master no quedan amarrados a un área
+  if (rol === "admin" || rol === "master" || rol === "supervisor") cambios.area = ""; // admin/master/supervisor no quedan amarrados a un área
   if (rol === "master") cambios.apps = APPS_DISPONIBLES.map((a) => a.id);
   await updateDoc(doc(db, "usuarios", uid), cambios);
 }

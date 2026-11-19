@@ -11,7 +11,7 @@ import MisCdR, { Ejecutar } from "./MisCdR.jsx";
 import CompromisosMejora, { TarjetaCompromiso, EvaluacionesRecibidas } from "./CompromisosMejora.jsx";
 import { listarCierres, compromisosRecibidos, compromisosEntregados, todosLosCompromisos, evaluacionesRecibidas, estaCerrado } from "./compromisosLider.js";
 import { listarEvaluacionesEnviadas } from "./evaluaciones.js";
-import ResultadosQR, { VISTA_RESULTADOS_INICIAL } from "./ResultadosQR.jsx";
+import Resultados, { ESTADO_RESULTADOS_INICIAL } from "./Resultados.jsx";
 import PaginaQR from "./PaginaQR.jsx";
 const Estadisticas = lazy(() => import("./Estadisticas.jsx"));
 import { formularioDesdeUrl, rutinaDesdeUrl } from "./enlaces.js";
@@ -28,7 +28,7 @@ export default function App() {
   const [enviadas, setEnviadas] = useState(null);
   const [cierres, setCierres] = useState(new Map());
   const [verRecibida, setVerRecibida] = useState(null);
-  const [vistaResultados, setVistaResultados] = useState(VISTA_RESULTADOS_INICIAL);
+  const [estadoResultados, setEstadoResultados] = useState(ESTADO_RESULTADOS_INICIAL);
   const conSesion = !!usuario && !formularioDirecto;
   useEffect(() => {
     if (!conSesion) return undefined;
@@ -39,7 +39,7 @@ export default function App() {
   const recibidas = useMemo(() => (usuario ? evaluacionesRecibidas(enviadas || [], usuario) : []), [enviadas, usuario]);
   const misCompromisos = useMemo(() => (usuario ? compromisosRecibidos(enviadas || [], usuario, cierres) : []), [enviadas, cierres, usuario]);
   const misEntregados = useMemo(() => (usuario ? compromisosEntregados(enviadas || [], usuario, cierres) : []), [enviadas, cierres, usuario]);
-  const todosCompromisos = useMemo(() => (usuario?.rol === "master" ? todosLosCompromisos(enviadas || [], cierres) : null), [enviadas, cierres, usuario]);
+  const todosCompromisos = useMemo(() => ((usuario?.rol === "master" || usuario?.rol === "supervisor") ? todosLosCompromisos(enviadas || [], cierres) : null), [enviadas, cierres, usuario]);
 
   useEffect(() => {
     (async () => {
@@ -70,6 +70,8 @@ export default function App() {
   if (!usuario) return <Login onIngresar={setUsuario} />;
 
   const esMaster = usuario.rol === "master";
+  const esSupervisor = usuario.rol === "supervisor"; // ve todo (resultados, estadísticas, compromisos) pero no configura nada
+  const veTodo = esMaster || esSupervisor;
 
   function salir() {
     cerrarSesion();
@@ -97,21 +99,12 @@ export default function App() {
           <Inicio usuario={usuario} esMaster={esMaster} onIr={setVista} compromisos={todosCompromisos || misCompromisos} recibidas={recibidas} cargando={enviadas === null} onVerRecibida={setVerRecibida} />
         )}
         {vista === "compromisos" && <CompromisosMejora recibidos={misCompromisos} entregados={misEntregados} todos={todosCompromisos} usuario={usuario} cargando={enviadas === null} />}
-        {vista === "resultados" && (
-          <div className="ca-card">
-            <p style={{ margin: "0 0 4px", fontWeight: 800, fontSize: 18 }}>Evaluaciones recibidas</p>
-            <p style={{ margin: "0 0 12px", color: "var(--texto-suave)", fontSize: 14 }}>
-              Las evaluaciones que te han realizado (igual que al revisarlas desde el QR): elige el periodo, el formulario y la reunión o el estándar para ver tu hoja resumen.
-            </p>
-            {enviadas === null ? <p style={{ color: "var(--texto-suave)" }}>Cargando…</p>
-              : <ResultadosQR persona={{ uid: usuario.uid, nombreUsuario: usuario.nombreUsuario }} evals={enviadas} vista={vistaResultados} onVista={setVistaResultados} onVer={setVerRecibida} />}
-          </div>
-        )}
+        {vista === "resultados" && <Resultados usuario={usuario} enviadas={enviadas} cierres={cierres} estado={estadoResultados} onEstado={setEstadoResultados} onVer={setVerRecibida} veTodo={veTodo} />}
 
         {vista === "mis" && <MisCdR usuario={usuario} formularioDirecto={formularioDirecto} rutinaDirecta={rutinaDirecta} onDirectoAtendido={directoAtendido} />}
         <Suspense fallback={<p style={{ color: "var(--texto-suave)", fontSize: 14 }}>Cargando…</p>}>
           {vista === "formularios" && esMaster && <Formularios usuario={usuario} />}
-          {vista === "estadisticas" && esMaster && <Estadisticas usuario={usuario} />}
+          {vista === "estadisticas" && veTodo && <Estadisticas usuario={usuario} soloVer={!esMaster} />}
           {vista === "admin" && esMaster && <Administracion usuarioActual={usuario} />}
         </Suspense>
       </div>
@@ -149,7 +142,7 @@ function Inicio({ usuario, esMaster, onIr, compromisos = [], recibidas = [], car
         {cargando ? <p style={{ color: "var(--texto-suave)", margin: 0 }}>Cargando…</p>
           : abiertos.length === 0 ? <p style={{ color: "var(--texto-suave)", fontSize: 13.5, margin: 0 }}>No tienes compromisos de mejora pendientes.</p>
           : <>
-              {abiertos.slice(0, LIMITE).map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} mostrarLider={esMaster} />)}
+              {abiertos.slice(0, LIMITE).map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} mostrarLider={esMaster || esSupervisor} soloLectura={esSupervisor} />)}
               {abiertos.length > LIMITE && <button className="cdr-nav-btn" onClick={() => onIr("compromisos")}>Ver los {abiertos.length}</button>}
             </>}
       </div>

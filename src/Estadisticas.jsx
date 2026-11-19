@@ -32,7 +32,7 @@ const ORDENES = [
 
 /* ------------------------------------------------------------------ */
 
-export default function Estadisticas({ usuario }) {
+export default function Estadisticas({ usuario, soloVer = false }) {
   const [evals, setEvals] = useState(null);
   const [formularios, setFormularios] = useState([]);
   const [asignaciones, setAsignaciones] = useState([]);
@@ -113,7 +113,7 @@ export default function Estadisticas({ usuario }) {
   };
 
   const detalle = detalleId ? todas.find((e) => e.id === detalleId) : null;
-  if (detalle) return <DetalleCdR ev={detalle} usuario={usuario} onVolver={() => setDetalleId(null)} />;
+  if (detalle) return <DetalleCdR ev={detalle} usuario={usuario} soloVer={soloVer} onVolver={() => setDetalleId(null)} />;
 
   function descargar() {
     const blob = new Blob([aCSV(lista)], { type: "text/csv;charset=utf-8" });
@@ -153,12 +153,12 @@ export default function Estadisticas({ usuario }) {
             </div>
           </div>
           <div style={S.tabs}>
-            {[["registros", `Registros (${filtradas.length})`], ["analisis", "Análisis"], ["compromisos", "Compromisos"], ["plan", "Plan de evaluadores"]].map(([id, t]) => (
+            {[["registros", `Registros (${filtradas.length})`], ["analisis", "Análisis"], ["compromisos", "Compromisos"], ...(soloVer ? [] : [["plan", "Plan de evaluadores"]])].map(([id, t]) => (
               <button key={id} style={{ ...S.tab, ...(vista === id ? S.tabAct : {}) }} onClick={() => setVista(id)}>{t}</button>
             ))}
           </div>
 
-          {vista === "plan" && <PlanEvaluadores todas={todas} formularioId={formSel} formularios={formularios} usuario={usuario} usuarios={usuarios} errorUsuarios={errorUsuarios} />}
+          {vista === "plan" && !soloVer && <PlanEvaluadores todas={todas} formularioId={formSel} formularios={formularios} usuario={usuario} usuarios={usuarios} errorUsuarios={errorUsuarios} />}
 
           {vista !== "plan" && todas.length === 0 && (
             <div className="cdr-molde">
@@ -327,7 +327,7 @@ function Registros({ T, lista, orden, onOrden, limite, onMas, onVer, onDescargar
 
 /* ------------------------- Detalle de una CdR ----------------------- */
 
-function DetalleCdR({ ev, usuario, onVolver }) {
+function DetalleCdR({ ev, usuario, onVolver, soloVer = false }) {
   const [borrando, setBorrando] = useState(false);
   async function anular() {
     const motivo = window.prompt(`Motivo para anular esta ${siglaDe(ev.formulario)} (por ejemplo: prueba). No se borra: deja de contar en las estadísticas y se puede restaurar.`, "Prueba");
@@ -352,10 +352,10 @@ function DetalleCdR({ ev, usuario, onVolver }) {
           Esta CdR está anulada y no cuenta en las estadísticas.{ev.anuladaMotivo ? ` Motivo: ${ev.anuladaMotivo}.` : ""}
         </div>
       )}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+      {!soloVer && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
         {ev.anulada ? <button key="restaurar" style={btn} onClick={restaurar}>Restaurar esta {siglaDe(ev.formulario)}</button> : <button key="anular" style={btnPel} onClick={anular}>Anular esta {siglaDe(ev.formulario)}</button>}
         {usuario?.rol === "master" && <button key="eliminar" style={{ ...btnPel, marginLeft: 8, background: "#fbeae5" }} onClick={() => setBorrando(true)}>Eliminar definitivamente</button>}
-      </div>
+      </div>}
       <Ejecutar key={ev.id} evaluacionInicial={ev} onCerrar={onVolver} textoVolver="← Volver a Estadísticas" />
       {borrando && <EliminarConClave ev={ev} usuario={usuario} onCancelar={() => setBorrando(false)} onEliminada={onVolver} />}
     </div>
