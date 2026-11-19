@@ -98,7 +98,7 @@ function MiResumen({ usuario, evals, cierres, vista, onVista }) {
 /* ─── Resumen general: cualquier persona (Master / Supervisor) ────────── */
 
 function ResumenGeneral({ evals, cierres, usuario, vista, onVista, onVer }) {
-  const [texto, setTexto] = useState("");
+  const [texto, setTexto] = useState(vista.persona || ""); // al volver de ver una evaluación, el buscador sigue con la persona elegida
   const validas = useMemo(() => (evals || []).filter(ES_VALIDA), [evals]);
   const personas = useMemo(() => {
     const m = new Map();
