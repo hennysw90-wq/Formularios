@@ -14,6 +14,7 @@ import { fechaCdR } from "./estadisticas.js";
 import { mismaPersona } from "./compromisos.js";
 import AvancePlan from "./AvancePlan.jsx";
 import ModalQR from "./ModalQR.jsx";
+import { abrirFormularioEnBlanco } from "./formularioEnBlanco.js";
 import logoOems from "./assets/logo-oems.png";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { nuevoId } from "./formularios.js";
@@ -414,6 +415,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button style={btn} onClick={() => setQrDe(proyectarFormulario(f, asignaciones))} aria-label={`QR de ${f.nombre}`}>QR</button>
+              <button style={btn} title="Formulario en blanco tipo reporte, para imprimir o guardar como PDF" onClick={() => abrirFormularioEnBlanco(f)} aria-label={`Formulario en blanco de ${f.nombre}`}>📄 En blanco</button>
               {bloqueoHoy(f.id) && !esMaster
                 ? <button style={{ ...btn, opacity: 0.7 }} disabled title={bloqueoHoy(f.id)}>🔒 Hoy no te toca</button>
                 : <button style={btnPrim} onClick={() => setEjecutando(nuevaEvaluacion(f, usuario))}>Iniciar</button>}

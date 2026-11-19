@@ -4,6 +4,7 @@ import { listarFormularios, guardarFormulario, eliminarFormulario, nuevoId, cont
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { PLANTILLA_PAUTA_V3, formularioEnBlanco } from "./plantillas.js";
 import ModalQR from "./ModalQR.jsx";
+import { abrirFormularioEnBlanco } from "./formularioEnBlanco.js";
 import { useListados, opcionesDePregunta } from "./listados.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { contarEvaluacionesDeFormulario } from "./evaluaciones.js";
@@ -237,6 +238,7 @@ export default function Formularios({ usuario }) {
                     <button style={btn} onClick={() => setEditando({ form: normalizarFormulario(f), esNuevo: false })}>Editar</button>
                     <button style={btn} onClick={() => crearDesde({ ...f, estado: undefined }, "(copia)")}>Duplicar</button>
                     <button style={btn} onClick={() => setQrDe(proyectarFormulario(f, asignaciones))}>QR</button>
+                    <button style={btn} title="Formulario en blanco tipo reporte, para imprimir o guardar como PDF" onClick={() => abrirFormularioEnBlanco(f)}>📄 En blanco</button>
                     <button style={btn} onClick={() => exportar(f)}>Exportar</button>
                     <button style={btnPel} onClick={() => borrar(f)}>Eliminar</button>
                   </div>
@@ -437,6 +439,7 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, formularios = [], on
         {sucio && <span style={{ fontSize: 13, color: "var(--ambar)", fontWeight: 700 }}>● Cambios sin guardar</span>}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button style={btn} disabled={!yaGuardado} title={yaGuardado ? "QR para abrir este formulario desde el celular" : "Guarda el formulario primero"} onClick={() => setVerQr(true)}>QR</button>
+          <button style={btn} title="Formulario en blanco tipo reporte, para imprimir o guardar como PDF" onClick={() => abrirFormularioEnBlanco(form)}>📄 En blanco</button>
           <button style={btn} disabled={guardando} onClick={() => guardar(form.estado === "publicado" ? "borrador" : undefined)}>
             {form.estado === "publicado" ? "Pasar a borrador" : "Guardar borrador"}
           </button>
