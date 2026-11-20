@@ -12,6 +12,7 @@ import CompromisosMejora, { TarjetaCompromiso, EvaluacionesRecibidas } from "./C
 import { listarCierres, compromisosRecibidos, compromisosEntregados, todosLosCompromisos, evaluacionesRecibidas, estaCerrado } from "./compromisosLider.js";
 import { listarEvaluacionesEnviadas } from "./evaluaciones.js";
 import Resultados, { ESTADO_RESULTADOS_INICIAL } from "./Resultados.jsx";
+import Feedbacks from "./Feedbacks.jsx";
 import PaginaQR from "./PaginaQR.jsx";
 const Estadisticas = lazy(() => import("./Estadisticas.jsx"));
 import { formularioDesdeUrl, rutinaDesdeUrl } from "./enlaces.js";
@@ -99,6 +100,7 @@ export default function App() {
           <Inicio usuario={usuario} esMaster={esMaster} esSupervisor={esSupervisor} onIr={setVista} compromisos={todosCompromisos || misCompromisos} recibidas={recibidas} cargando={enviadas === null} onVerRecibida={setVerRecibida} />
         )}
         {vista === "compromisos" && <CompromisosMejora recibidos={misCompromisos} entregados={misEntregados} todos={todosCompromisos} usuario={usuario} cargando={enviadas === null} />}
+        {vista === "feedbacks" && <Feedbacks usuario={usuario} enviadas={enviadas} veTodo={veTodo} onVer={setVerRecibida} />}
         {vista === "resultados" && <Resultados usuario={usuario} enviadas={enviadas} cierres={cierres} estado={estadoResultados} onEstado={setEstadoResultados} onVer={setVerRecibida} veTodo={veTodo} />}
 
         {vista === "mis" && <MisCdR usuario={usuario} formularioDirecto={formularioDirecto} rutinaDirecta={rutinaDirecta} onDirectoAtendido={directoAtendido} />}
