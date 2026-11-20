@@ -4,7 +4,7 @@ import { listarFormularios, guardarFormulario, eliminarFormulario, nuevoId, cont
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { PLANTILLA_PAUTA_V3, formularioEnBlanco } from "./plantillas.js";
 import ModalQR from "./ModalQR.jsx";
-import { abrirFormularioEnBlanco } from "./formularioEnBlanco.js";
+import { Ejecutar, nuevaEvaluacion } from "./MisCdR.jsx";
 import { useListados, opcionesDePregunta } from "./listados.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { contarEvaluacionesDeFormulario } from "./evaluaciones.js";
@@ -70,6 +70,7 @@ export default function Formularios({ usuario }) {
   const [editando, setEditando] = useState(null); // { form, esNuevo }
   const [modalNuevo, setModalNuevo] = useState(false);
   const [qrDe, setQrDe] = useState(null);
+  const [previa, setPrevia] = useState(null); // "Revisar formulario": recorrido sin guardar
   const inputArchivo = useRef(null);
   const [modalClave, pedirClave] = useConfirmarConClave(usuario);
 
@@ -169,9 +170,12 @@ export default function Formularios({ usuario }) {
     }
   }
 
+  if (previa) return <Ejecutar evaluacionInicial={previa} vistaPrevia onCerrar={() => setPrevia(null)} />;
+
   if (editando) {
     return (
       <Editor
+        usuario={usuario}
         inicial={editando.form}
         esNuevo={editando.esNuevo}
         usuarios={usuarios}
@@ -238,7 +242,7 @@ export default function Formularios({ usuario }) {
                     <button style={btn} onClick={() => setEditando({ form: normalizarFormulario(f), esNuevo: false })}>Editar</button>
                     <button style={btn} onClick={() => crearDesde({ ...f, estado: undefined }, "(copia)")}>Duplicar</button>
                     <button style={btn} onClick={() => setQrDe(proyectarFormulario(f, asignaciones))}>QR</button>
-                    <button style={btn} title="Formulario en blanco tipo reporte, para imprimir o guardar como PDF" onClick={() => abrirFormularioEnBlanco(f)}>📄 En blanco</button>
+                    <button style={btn} title="Recorre el formulario como si lo estuvieras llenando, sin guardar nada" onClick={() => setPrevia(nuevaEvaluacion(proyectarFormulario(f, asignaciones), usuario))}>👁 Revisar formulario</button>
                     <button style={btn} onClick={() => exportar(f)}>Exportar</button>
                     <button style={btnPel} onClick={() => borrar(f)}>Eliminar</button>
                   </div>
@@ -331,7 +335,7 @@ function mover(arr, i, d) {
   [arr[i], arr[j]] = [arr[j], arr[i]];
 }
 
-function Editor({ inicial, esNuevo, usuarios, asignaciones, formularios = [], onCerrar }) {
+function Editor({ usuario, inicial, esNuevo, usuarios, asignaciones, formularios = [], onCerrar }) {
   const [form, setForm] = useState(() => {
     const f = normalizarFormulario(inicial);
     f.asignadosUids = f.asignadosUids || [];
@@ -343,6 +347,7 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, formularios = [], on
   const [tab, setTab] = useState("general");
   const [guardando, setGuardando] = useState(false);
   const [verQr, setVerQr] = useState(false);
+  const [previa, setPrevia] = useState(null); // vista previa con lo que hay en pantalla (aunque no esté guardado)
   const [aviso, setAviso] = useState({ tipo: "", texto: "" });
   const listados = useListados();
   // ¿El formulario ya está en uso (tiene asignaciones o evaluaciones)? Mientras se averigua, se trata como en uso.
@@ -429,6 +434,8 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, formularios = [], on
 
   const hayErrorPesos = erroresDePesos(form).length > 0;
 
+  if (previa) return <Ejecutar evaluacionInicial={previa} vistaPrevia onCerrar={() => setPrevia(null)} textoVolver="← Volver al editor" />;
+
   return (
     <div>
       <div style={E.barra}>
@@ -439,7 +446,7 @@ function Editor({ inicial, esNuevo, usuarios, asignaciones, formularios = [], on
         {sucio && <span style={{ fontSize: 13, color: "var(--ambar)", fontWeight: 700 }}>● Cambios sin guardar</span>}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button style={btn} disabled={!yaGuardado} title={yaGuardado ? "QR para abrir este formulario desde el celular" : "Guarda el formulario primero"} onClick={() => setVerQr(true)}>QR</button>
-          <button style={btn} title="Formulario en blanco tipo reporte, para imprimir o guardar como PDF" onClick={() => abrirFormularioEnBlanco(form)}>📄 En blanco</button>
+          <button style={btn} title="Recorre el formulario como si lo estuvieras llenando, sin guardar nada (con lo que ves ahora)" onClick={() => setPrevia(nuevaEvaluacion(proyectarFormulario(form, asignaciones), usuario))}>👁 Revisar formulario</button>
           <button style={btn} disabled={guardando} onClick={() => guardar(form.estado === "publicado" ? "borrador" : undefined)}>
             {form.estado === "publicado" ? "Pasar a borrador" : "Guardar borrador"}
           </button>

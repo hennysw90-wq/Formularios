@@ -14,7 +14,6 @@ import { fechaCdR } from "./estadisticas.js";
 import { mismaPersona } from "./compromisos.js";
 import AvancePlan from "./AvancePlan.jsx";
 import ModalQR from "./ModalQR.jsx";
-import { abrirFormularioEnBlanco } from "./formularioEnBlanco.js";
 import logoOems from "./assets/logo-oems.png";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { nuevoId } from "./formularios.js";
@@ -284,6 +283,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
   const [evals, setEvals] = useState(null);
   const [error, setError] = useState("");
   const [ejecutando, setEjecutando] = useState(null);
+  const [previa, setPrevia] = useState(false); // "Revisar formulario": recorrido sin guardar
   const [qrDe, setQrDe] = useState(null); // QR del formulario elegido (para mostrar o descargar)
   const [asignaciones, setAsignaciones] = useState([]);
   const agenda = useAgenda(usuario);
@@ -325,7 +325,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
   }
 
   if (ejecutando) {
-    return <Ejecutar evaluacionInicial={ejecutando} onCerrar={() => setEjecutando(null)} />;
+    return <Ejecutar evaluacionInicial={ejecutando} vistaPrevia={previa} onCerrar={() => { setEjecutando(null); setPrevia(false); }} />;
   }
 
   // Las reuniones y los evaluadores de cada formulario salen de las asignaciones. Un evaluador solo ve los
@@ -415,7 +415,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button style={btn} onClick={() => setQrDe(proyectarFormulario(f, asignaciones))} aria-label={`QR de ${f.nombre}`}>QR</button>
-              <button style={btn} title="Formulario en blanco tipo reporte, para imprimir o guardar como PDF" onClick={() => abrirFormularioEnBlanco(f)} aria-label={`Formulario en blanco de ${f.nombre}`}>📄 En blanco</button>
+              <button style={btn} title="Recorre el formulario como si lo estuvieras llenando, sin guardar nada" onClick={() => { setPrevia(true); setEjecutando(nuevaEvaluacion(f, usuario)); }} aria-label={`Revisar formulario ${f.nombre}`}>👁 Revisar formulario</button>
               {bloqueoHoy(f.id) && !esMaster
                 ? <button style={{ ...btn, opacity: 0.7 }} disabled title={bloqueoHoy(f.id)}>🔒 Hoy no te toca</button>
                 : <button style={btnPrim} onClick={() => setEjecutando(nuevaEvaluacion(f, usuario))}>Iniciar</button>}
