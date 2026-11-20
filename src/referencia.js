@@ -11,6 +11,10 @@ export function valorAsignado(e) {
 }
 
 /** Texto a mostrar: el estándar (u otro valor del listado) si lo hay; si no, la reunión. */
+/** Solo los formularios CdR llevan el "Feedback de la Reunión"; los demás (ej. CdE por estándar) no. */
+export const conFeedbackReunion = (form) => siglaDe(form) === "CdR" && !(form?.seccionA || []).some((c) => c.asignable);
+export const TITULO_FEEDBACK_REUNION = "Feedback de la Reunión (Comportamiento de los Participantes)";
+
 export function referenciaEval(e, siNoHay = "Sin reunión") {
   return valorAsignado(e) || e?.rutinaNombre || siNoHay;
 }

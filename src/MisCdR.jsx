@@ -18,7 +18,7 @@ import logoOems from "./assets/logo-oems.png";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { nuevoId } from "./formularios.js";
 import { calcularResultado, normalizarFormulario, ETIQUETA_CLASIFICACION } from "./calculo.js";
-import { referenciaEval, valorAsignado } from "./referencia.js";
+import { referenciaEval, valorAsignado, conFeedbackReunion, TITULO_FEEDBACK_REUNION } from "./referencia.js";
 import { etiquetaCampo } from "./referencia.js";
 
 const clonar = (x) => JSON.parse(JSON.stringify(x));
@@ -124,6 +124,7 @@ export function nuevaEvaluacion(form, usuario, rutinaId) {
       fortalezas: [],
       oportunidades: [],
       compromiso: { accion: "", responsable: "", fecha: "" },
+      reunion: "", // Feedback de la Reunión (comportamiento de los participantes), solo CdR
       seguimiento: "",
       seguimientoComentario: "",
     },
@@ -1575,6 +1576,16 @@ function PasoResultado({ ev, cambiar }) {
           )}
         </div>
       ))}
+
+      {conFeedbackReunion(ev.formulario) && (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ fontWeight: 800, margin: "0 0 8px" }}>{TITULO_FEEDBACK_REUNION} <span style={{ color: "var(--texto-suave)", fontWeight: 600, fontSize: 12.5 }}>· opcional</span></p>
+          <div className="ca-card">
+            {/* Campo de varias líneas, como las notas de terreno: se guarda con cada cambio (no pierde nada al cambiar de paso o pestaña). */}
+            <AreaAuto minFilas={5} aria-label={TITULO_FEEDBACK_REUNION} placeholder="Escribe aquí cómo se comportaron los participantes en la reunión: asistencia, puntualidad, atención, aportes, respeto de los acuerdos…" valor={ev.feedback.reunion || ""} onCambiar={(v) => cambiar((c) => (c.feedback.reunion = v))} estilo={{ fontSize: 15.5, lineHeight: 1.5 }} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1765,6 +1776,12 @@ function ResumenEvaluacion({ ev, ocultarEvaluador = false }) {
             </div>
           </div>
         )))}
+        {conFeedbackReunion(ev.formulario) && (ev.feedback.reunion || "").trim() && (
+          <div className="ca-card">
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>{TITULO_FEEDBACK_REUNION}</div>
+            <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap" }}>{ev.feedback.reunion}</div>
+          </div>
+        )}
         {ev.feedback.compromiso.accion && (
           <div className="ca-card">
             <div style={{ fontWeight: 800, marginBottom: 6 }}>Compromiso de mejora</div>

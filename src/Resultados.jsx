@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import ResultadosQR, { HojaResumen, RANGOS, chip, gris, pct, inicioDelRango, textoRango, promedio, bloquesPromedio, agrupar } from "./ResultadosQR.jsx";
 import { TarjetaCompromiso } from "./CompromisosMejora.jsx";
 import { fechaCdR, claveRutina, norm } from "./estadisticas.js";
-import { referenciaEval } from "./referencia.js";
+import { referenciaEval, TITULO_FEEDBACK_REUNION } from "./referencia.js";
 import { armarCompromisosDe } from "./compromisosLider.js";
 
 export const ESTADO_RESULTADOS_INICIAL = {
@@ -202,7 +202,7 @@ function FeedbackYAcciones({ lista, cierres, usuario }) {
   const compromisos = useMemo(() => armarCompromisosDe(lista, cierres), [lista, cierres]);
   const porEval = new Map(compromisos.map((c) => [c.ev.id, c]));
   const ddmm = (iso) => (iso ? String(iso).slice(0, 10).split("-").reverse().join("-") : "—");
-  const hay = lista.some((e) => (e.feedback?.fortalezas || []).length || (e.feedback?.oportunidades || []).length || porEval.has(e.id));
+  const hay = lista.some((e) => (e.feedback?.reunion || "").trim() || (e.feedback?.fortalezas || []).length || (e.feedback?.oportunidades || []).length || porEval.has(e.id));
   return (
     <div style={{ marginTop: 18 }}>
       <p style={{ fontWeight: 800, fontSize: 15, margin: "0 0 8px" }}>Feedback y acciones de mejora ({lista.length})</p>
@@ -211,7 +211,8 @@ function FeedbackYAcciones({ lista, cierres, usuario }) {
         const fb = e.feedback || {};
         const items = [...(fb.fortalezas || []).map((x) => ["Fortaleza", x]), ...(fb.oportunidades || []).map((x) => ["Oportunidad de mejora", x])];
         const c = porEval.get(e.id);
-        if (!items.length && !c) return null;
+        const deReunion = (fb.reunion || "").trim();
+        if (!items.length && !c && !deReunion) return null;
         return (
           <div key={e.id} style={{ border: "1px solid var(--borde)", borderRadius: 12, padding: "10px 12px", marginBottom: 10, background: "#fff" }}>
             <div style={{ fontWeight: 700, fontSize: 13.5 }}>{ddmm(fechaCdR(e))} · Emitió: {e.evaluadorNombre || e.registradoPorNombre || "—"}</div>
@@ -224,6 +225,12 @@ function FeedbackYAcciones({ lista, cierres, usuario }) {
                 {x.impacto && <div><b>Impacto:</b> {x.impacto}</div>}
               </div>
             ))}
+            {deReunion && (
+              <div style={{ fontSize: 13, margin: "6px 0", paddingLeft: 8, borderLeft: "3px solid #4f63c9" }}>
+                <b>{TITULO_FEEDBACK_REUNION}</b>
+                <div style={{ whiteSpace: "pre-wrap" }}>{deReunion}</div>
+              </div>
+            )}
             {fb.seguimiento && (
               <div style={{ fontSize: 13, margin: "6px 0" }}>
                 <b>Seguimiento del compromiso anterior:</b> {{ cumplido: "Cumplido", parcial: "Parcial", no: "No cumplido" }[fb.seguimiento] || fb.seguimiento}
