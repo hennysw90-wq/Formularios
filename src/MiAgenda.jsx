@@ -101,8 +101,8 @@ export function ListaAgenda({ items, onIniciar }) {
                   : `${it.hechasReales} de ${it.cantidad} ${periodo} · faltan ${it.pendientes}`}
               </div>
               {onIniciar && (
-                <button className={`cdr-nav-btn ${it.pendientes ? "prim" : ""}`} disabled={it.bloqueadaHoy} title={it.bloqueadaHoy ? "Solo se puede hacer el día programado" : ""} onClick={() => onIniciar(it.formulario, a.reunionId)}>
-                  {it.bloqueadaHoy ? "🔒 Hoy no le toca" : "Iniciar"}
+                <button className={`cdr-nav-btn ${it.pendientes ? "prim" : ""}`} disabled={it.bloqueadaHoy || it.completa} title={it.completa ? "Ya cumpliste lo asignado en este periodo" : it.bloqueadaHoy ? "Solo se puede hacer el día programado" : ""} onClick={() => onIniciar(it.formulario, a.reunionId)}>
+                  {it.completa ? "✓ Ya realizada" : it.bloqueadaHoy ? "🔒 Hoy no le toca" : "Iniciar"}
                 </button>
               )}
             </div>

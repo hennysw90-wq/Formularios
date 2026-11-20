@@ -294,7 +294,10 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
   // "Solo el día que le toca": si todas sus asignaciones de ese formulario (y reunión) están bloqueadas hoy, no deja iniciar.
   const bloqueoHoy = (formId, reunionId) => {
     const its = (agenda || []).filter((it) => it.asignacion.formularioId === formId && (!reunionId || it.asignacion.reunionId === reunionId));
-    if (!its.length || its.some((it) => !it.bloqueadaHoy)) return "";
+    if (!its.length) return "";
+    if (its.some((it) => !it.bloqueadaHoy && !it.completa)) return "";
+    // Una sola vez: si ya cumplió lo asignado en este periodo, no puede hacer otra.
+    if (its.some((it) => it.completa)) return "Ya realizaste este formulario en este periodo: solo se hace una vez.";
     const prox = its.map((it) => it.proxima).filter(Boolean).sort()[0];
     return `Solo se puede hacer el día que te toca${prox ? ` (próximo: ${prox.split("-").reverse().join("-")})` : ""}.`;
   };
@@ -421,7 +424,7 @@ export default function MisCdR({ usuario, formularioDirecto, rutinaDirecta = "",
               <button style={btn} onClick={() => setQrDe(proyectarFormulario(f, asignaciones))} aria-label={`QR de ${f.nombre}`}>QR</button>
               <button style={btn} title="Recorre el formulario como si lo estuvieras llenando, sin guardar nada" onClick={() => { setPrevia(true); setEjecutando(nuevaEvaluacion(f, usuario)); }} aria-label={`Revisar formulario ${f.nombre}`}>👁 Revisar formulario</button>
               {bloqueoHoy(f.id) && !esMaster
-                ? <button style={{ ...btn, opacity: 0.7 }} disabled title={bloqueoHoy(f.id)}>🔒 Hoy no te toca</button>
+                ? <button style={{ ...btn, opacity: 0.7 }} disabled title={bloqueoHoy(f.id)}>{/^Ya realizaste/.test(bloqueoHoy(f.id)) ? "✓ Ya realizada" : "🔒 Hoy no te toca"}</button>
                 : <button style={btnPrim} onClick={() => setEjecutando(nuevaEvaluacion(f, usuario))}>Iniciar</button>}
             </div>
           </div>

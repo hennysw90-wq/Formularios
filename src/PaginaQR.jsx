@@ -118,7 +118,10 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
   // "Solo el día que le toca": si todas sus asignaciones de ese formulario (y reunión) están bloqueadas hoy.
   const bloqueoHoy = (formId, reunionId) => {
     const its = grupos.flatMap((g) => g.items).filter((it) => it.asignacion.formularioId === formId && (!reunionId || it.asignacion.reunionId === reunionId));
-    if (!its.length || its.some((it) => !it.bloqueadaHoy)) return "";
+    if (!its.length) return "";
+    if (its.some((it) => !it.bloqueadaHoy && !it.completa)) return "";
+    // Una sola vez: si ya cumplió lo asignado en este periodo, no puede hacer otra.
+    if (its.some((it) => it.completa)) return "Ya realizaste este formulario en este periodo: solo se hace una vez.";
     const prox = its.map((it) => it.proxima).filter(Boolean).sort()[0];
     return `Solo se puede hacer el día que te toca${prox ? ` (próximo: ${prox.split("-").reverse().join("-")})` : ""}.`;
   };
@@ -454,8 +457,8 @@ function Pendientes({ grupos, rutinaId, borrador, onEjecutar, onRevisar, onConti
                       {it.hasta && <span style={chipNeutro}>Hasta {it.hasta.split("-").reverse().join("-")}</span>}
                     </div>
                   </div>
-                  <button className={`cdr-nav-btn ${it.completa || !it.empezo ? "" : "prim"}`} style={{ marginTop: 10, width: "100%" }} disabled={it.bloqueadaHoy} onClick={() => onEjecutar(g.formulario.id, a.reunionId)}>
-                    {it.bloqueadaHoy ? "🔒 Solo el día programado" : it.completa ? "Responder otra vez" : "Ejecutar formulario"}
+                  <button className={`cdr-nav-btn ${it.completa || !it.empezo ? "" : "prim"}`} style={{ marginTop: 10, width: "100%" }} disabled={it.bloqueadaHoy || it.completa} onClick={() => onEjecutar(g.formulario.id, a.reunionId)}>
+                    {it.completa ? "✓ Ya realizada" : it.bloqueadaHoy ? "🔒 Solo el día programado" : "Ejecutar formulario"}
                   </button>
                   {/* Siempre disponible, aunque no pueda ejecutarlo hoy: para ver las preguntas antes. */}
                   <button className="cdr-nav-btn" style={{ marginTop: 6, width: "100%" }} onClick={() => onRevisar(g.formulario.id, a.reunionId)}>
