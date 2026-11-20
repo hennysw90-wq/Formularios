@@ -96,7 +96,7 @@ export default function App() {
 
       <div className={`ca-contenido ${vista === "admin" || vista === "formularios" || vista === "mis" || vista === "estadisticas" ? "ca-ancho" : ""}`}>
         {vista === "inicio" && (
-          <Inicio usuario={usuario} esMaster={esMaster} onIr={setVista} compromisos={todosCompromisos || misCompromisos} recibidas={recibidas} cargando={enviadas === null} onVerRecibida={setVerRecibida} />
+          <Inicio usuario={usuario} esMaster={esMaster} esSupervisor={esSupervisor} onIr={setVista} compromisos={todosCompromisos || misCompromisos} recibidas={recibidas} cargando={enviadas === null} onVerRecibida={setVerRecibida} />
         )}
         {vista === "compromisos" && <CompromisosMejora recibidos={misCompromisos} entregados={misEntregados} todos={todosCompromisos} usuario={usuario} cargando={enviadas === null} />}
         {vista === "resultados" && <Resultados usuario={usuario} enviadas={enviadas} cierres={cierres} estado={estadoResultados} onEstado={setEstadoResultados} onVer={setVerRecibida} veTodo={veTodo} />}
@@ -121,7 +121,7 @@ function Molde({ titulo, texto }) {
   );
 }
 
-function Inicio({ usuario, esMaster, onIr, compromisos = [], recibidas = [], cargando, onVerRecibida }) {
+function Inicio({ usuario, esMaster, esSupervisor = false, onIr, compromisos = [], recibidas = [], cargando, onVerRecibida }) {
   const abiertos = compromisos.filter((c) => !estaCerrado(c));
   const LIMITE = 5;
   return (
