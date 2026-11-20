@@ -130,7 +130,7 @@ export default function CompromisosMejora({ recibidos = [], entregados = [], tod
   const textos = {
     recibidos: "Los que acordaron contigo en las evaluaciones que te hicieron. Cuando lo cumplas, márcalo como ejecutado y deja un comentario; si no corresponde, recházalo.",
     entregados: "Los que acordaste tú como evaluador con cada líder: aquí ves si ya los cerró y su comentario.",
-    todos: "Todos los compromisos de todos los líderes. Como Master puedes comentarlos, cerrarlos, rechazarlos o reabrirlos (el Supervisor solo los ve).",
+    todos: "Todos los compromisos de todos los líderes. Como Master puedes comentarlos, cerrarlos, rechazarlos o reabrirlos (el Revisor solo los ve).",
   };
   return (
     <div>

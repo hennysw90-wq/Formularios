@@ -15,7 +15,7 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir, comp
         <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
         <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
       </div>
-      <p className="ca-eyebrow">Formularios · v0.18.2 · Henny</p>
+      <p className="ca-eyebrow">Formularios · v0.18.3 · Henny</p>
       <p className="ca-titulo">Formularios</p>
 
       <div className="ca-nav">
@@ -32,7 +32,7 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir, comp
         <div className="ca-nav-espaciador" />
         <span style={{ fontSize: 14, color: "var(--texto-suave)" }}>{usuario.nombreUsuario}</span>
         {esMaster && <span className="ca-badge-rol">Master</span>}
-        {esSupervisor && <span className="ca-badge-rol">Supervisor</span>}
+        {esSupervisor && <span className="ca-badge-rol">Revisor</span>}
         <button className="ca-btn-salir" onClick={onSalir}>
           Salir
         </button>

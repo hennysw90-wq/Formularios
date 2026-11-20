@@ -206,7 +206,7 @@ function FilaValidacion({ u, areas, usuarios, esMaster, onValidar, onRechazar })
             <option value="usuario">Usuario</option>
             <option value="deshabilitado">Deshabilitado</option>
             <option value="admin">Administrador</option>
-            <option value="supervisor">Supervisor</option>
+            <option value="supervisor">Revisor</option>
             <option value="master">Master</option>
           </select>
         )}
@@ -529,7 +529,7 @@ export default function Administracion({ usuarioActual }) {
             <option value="usuario">Usuario</option>
             <option value="deshabilitado">Deshabilitado</option>
             <option value="admin">Administrador</option>
-            <option value="supervisor">Supervisor</option>
+            <option value="supervisor">Revisor</option>
             <option value="master">Master</option>
           </select>
         )}
@@ -715,12 +715,12 @@ export default function Administracion({ usuarioActual }) {
                   <option value="usuario">Usuario</option>
                   <option value="deshabilitado">Deshabilitado</option>
                   {esMaster && <option value="admin">Administrador</option>}
-                  {esMaster && <option value="supervisor">Supervisor</option>}
+                  {esMaster && <option value="supervisor">Revisor</option>}
                   {esMaster && <option value="master">Master</option>}
                 </select>
               ) : (
-                <span style={estilos.textoNoAplica} title="Solo un Master puede cambiar roles de Administrador o Supervisor.">
-                  {u.rol === "supervisor" ? "Supervisor" : "Administrador"}
+                <span style={estilos.textoNoAplica} title="Solo un Master puede cambiar roles de Administrador o Revisor.">
+                  {u.rol === "supervisor" ? "Revisor" : "Administrador"}
                 </span>
               )}
             </span>

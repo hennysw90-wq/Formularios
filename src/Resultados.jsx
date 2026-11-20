@@ -16,7 +16,7 @@ export const ESTADO_RESULTADOS_INICIAL = {
 /**
  * Pestaña "Resultados".
  *  · Todos: Resumen · Evaluaciones recibidas · Evaluaciones emitidas (solo donde figura su nombre).
- *  · Master y Supervisor: además "Resumen general": cualquier persona, sin filtrar por usuario.
+ *  · Master y Revisor: además "Resumen general": cualquier persona, sin filtrar por usuario.
  */
 export default function Resultados({ usuario, enviadas, cierres, estado, onEstado, onVer, veTodo }) {
   const subs = [...(veTodo ? [["general", "Resumen general"]] : []), ["resumen", "Resumen"], ["rec", "Evaluaciones recibidas"], ["emi", "Evaluaciones emitidas"]];
@@ -95,7 +95,7 @@ function MiResumen({ usuario, evals, cierres, vista, onVista }) {
   );
 }
 
-/* ─── Resumen general: cualquier persona (Master / Supervisor) ────────── */
+/* ─── Resumen general: cualquier persona (Master / Revisor) ────────── */
 
 function ResumenGeneral({ evals, cierres, usuario, vista, onVista, onVer }) {
   const [texto, setTexto] = useState(vista.persona || ""); // al volver de ver una evaluación, el buscador sigue con la persona elegida
