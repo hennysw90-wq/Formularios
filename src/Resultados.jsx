@@ -100,16 +100,25 @@ function MiResumen({ usuario, evals, cierres, vista, onVista }) {
 function ResumenGeneral({ evals, cierres, usuario, vista, onVista, onVer }) {
   const [texto, setTexto] = useState(vista.persona || ""); // al volver de ver una evaluación, el buscador sigue con la persona elegida
   const validas = useMemo(() => (evals || []).filter(ES_VALIDA), [evals]);
-  const personas = useMemo(() => {
+  // Todas las combinaciones líder · reunión (o estándar) · formulario que tienen evaluaciones: para buscar y para elegir.
+  const combos = useMemo(() => {
     const m = new Map();
     validas.forEach((e) => {
-      const n = String(e.lider || "").trim();
-      if (n && !m.has(norm(n))) m.set(norm(n), n);
+      const lider = String(e.lider || "").trim();
+      if (!lider) return;
+      const rutina = claveRutina(e);
+      const k = `${norm(lider)}|${e.formularioId}|${rutina}`;
+      const g = m.get(k) || { k, lider, reunion: referenciaEval(e, "Sin reunión"), formulario: e.formulario?.nombre || "Formulario", clave: `${e.formularioId}|${rutina}`, n: 0, ultima: "" };
+      g.n += 1;
+      const f = fechaCdR(e);
+      if (f > g.ultima) g.ultima = f;
+      m.set(k, g);
     });
-    return [...m.values()].sort((a, b) => a.localeCompare(b, "es"));
+    return [...m.values()].sort((x, y) => x.lider.localeCompare(y.lider, "es") || x.reunion.localeCompare(y.reunion, "es"));
   }, [validas]);
   const q = norm(texto);
-  const sugerencias = q.length >= 1 && norm(vista.persona) !== q ? personas.filter((n) => norm(n).includes(q)).slice(0, 8) : [];
+  const eligiendo = !vista.persona || norm(texto) !== norm(vista.persona);
+  const visibles = eligiendo ? combos.filter((c) => !q || norm(`${c.lider} ${c.reunion} ${c.formulario}`).includes(q)) : [];
 
   const desde = inicioDelRango(vista.rango);
   const deLaPersona = useMemo(() => validas.filter((e) => vista.persona && norm(e.lider) === norm(vista.persona)), [validas, vista.persona]);
@@ -129,27 +138,42 @@ function ResumenGeneral({ evals, cierres, usuario, vista, onVista, onVer }) {
   const historico = deLaPersona.filter((e) => e.formularioId === formId && claveRutina(e) === reunion);
   const lista = historico.filter((e) => fechaCdR(e) >= desde);
 
-  function elegir(nombre) {
-    setTexto(nombre);
-    onVista({ ...vista, persona: nombre, clave: "" });
+  function elegir(c) {
+    setTexto(c.lider);
+    onVista({ ...vista, persona: c.lider, clave: c.clave });
+  }
+  function cambiar() {
+    setTexto("");
+    onVista({ ...vista, persona: "", clave: "" });
   }
 
   return (
     <div>
-      <Intro titulo="Resumen general" texto="Busca a una persona y elige el formulario y la reunión: verás sus resultados por dimensión, el feedback que recibió y sus acciones de mejora con su respuesta." />
-      <div style={{ position: "relative", maxWidth: 420, marginBottom: 10 }}>
-        <input className="rp-input" placeholder="Buscar persona (líder evaluado)…" value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Buscar persona" />
-        {sugerencias.length > 0 && (
-          <div style={{ position: "absolute", zIndex: 5, left: 0, right: 0, top: "100%", background: "#fff", border: "1px solid var(--borde)", borderRadius: 10, boxShadow: "0 6px 18px rgba(0,0,0,.12)", marginTop: 2, overflow: "hidden" }}>
-            {sugerencias.map((n) => (
-              <button key={n} type="button" onClick={() => elegir(n)} style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", borderBottom: "1px solid var(--borde)", background: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 14 }}>{n}</button>
-            ))}
-          </div>
-        )}
+      <Intro titulo="Resumen general" texto="Elige de la lista o busca por persona, reunión o estándar: verás sus resultados por dimensión, el feedback que recibió y sus acciones de mejora con su respuesta." />
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+        <input className="rp-input" style={{ maxWidth: 420, flex: "1 1 260px" }} placeholder="Buscar por persona, reunión o estándar…" value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Buscar" />
+        {vista.persona && <button type="button" className="cdr-nav-btn" onClick={cambiar}>Cambiar persona</button>}
       </div>
+      {eligiendo && (
+        <div style={{ maxHeight: 340, overflowY: "auto", border: "1px solid var(--borde)", borderRadius: 12, marginBottom: 12, background: "#fff" }} role="listbox" aria-label="Personas y reuniones">
+          {visibles.length === 0 ? (
+            <p style={{ ...gris, fontSize: 14, margin: 0, padding: "12px 14px" }}>{combos.length === 0 ? "Aún no hay evaluaciones enviadas." : "Nada coincide con lo que escribiste."}</p>
+          ) : (
+            visibles.map((c) => (
+              <button key={c.k} type="button" role="option" onClick={() => elegir(c)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 14px", border: "none", borderBottom: "1px solid var(--borde)", background: "#fff", cursor: "pointer", fontFamily: "inherit", color: "inherit" }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontWeight: 700, fontSize: 14 }}>{c.reunion}</span>
+                  <span style={{ display: "block", ...gris, fontSize: 12.5 }}>Líder: {c.lider} · {c.formulario}</span>
+                </span>
+                <span style={{ ...gris, fontSize: 12, whiteSpace: "nowrap" }}>{c.n} eval.</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
 
       {!vista.persona ? (
-        <p style={{ ...gris, fontSize: 14 }}>Escribe un nombre y elígelo de la lista.</p>
+        <p style={{ ...gris, fontSize: 14 }}>Elige de la lista o escribe para buscar por persona, reunión o estándar.</p>
       ) : (
         <>
           <p style={{ fontWeight: 800, fontSize: 16, margin: "0 0 8px" }}>{vista.persona}</p>
