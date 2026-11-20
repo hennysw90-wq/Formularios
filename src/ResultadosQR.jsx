@@ -106,6 +106,15 @@ export default function ResultadosQR({ persona, evals, vista, onVista, onVer, mo
         ))}
       </div>
 
+      {/* Volver: un nivel atrás, bien visible al principio */}
+      {formularioId && (
+        <div style={{ marginBottom: 10 }}>
+          <button type="button" className="cdr-volver" onClick={() => cambiar(reunion ? { reunion: "" } : { formularioId: "", reunion: "" })}>
+            ← {reunion ? "Volver a las reuniones" : "Volver a los formularios"}
+          </button>
+        </div>
+      )}
+
       {/* Migas */}
       {formularioId && (
         <div style={{ fontSize: 12.5, margin: "4px 0 10px", display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>

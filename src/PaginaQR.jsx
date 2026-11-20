@@ -231,7 +231,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
       {pestana === "plan" &&
         (porVer ? (
           <>
-            <button type="button" className="ca-btn-texto" style={{ width: "auto", fontSize: 13, marginBottom: 8 }} onClick={() => setPorVer(null)}>← Volver al cumplimiento</button>
+            <button type="button" className="cdr-volver" style={{ marginBottom: 10 }} onClick={() => setPorVer(null)}>← Volver al cumplimiento</button>
             <PedirClave persona={persona} onOk={() => { setDesbloqueado(true); setEjecutando(porVer); setPorVer(null); }} />
           </>
         ) : (

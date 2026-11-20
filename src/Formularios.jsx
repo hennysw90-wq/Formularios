@@ -439,7 +439,7 @@ function Editor({ usuario, inicial, esNuevo, usuarios, asignaciones, formularios
   return (
     <div>
       <div style={E.barra}>
-        <button style={btn} onClick={volver}>← Volver a la lista</button>
+        <button className="cdr-volver" onClick={volver}>← Volver a la lista</button>
         <span className={`ca-pill ${form.estado === "publicado" ? "ca-pill-verde" : "ca-pill-ambar"}`}>
           {form.estado === "publicado" ? "Publicado" : "Borrador"}
         </span>

@@ -561,3 +561,12 @@ html.ca-embed .cdr-ejecutar { max-width: 1100px !important; }
   /* Sin relleno lateral, la barra inferior ya no debe salirse con márgenes negativos. */
   html.ca-embed .cdr-barra-inferior { margin-left: 0; margin-right: 0; }
 }
+
+/* Botón «Volver»: siempre al principio de la página y bien visible. */
+.cdr-volver {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 18px; border-radius: 10px;
+  border: 2px solid var(--verde); background: var(--verde-claro); color: var(--verde-oscuro);
+  font: inherit; font-size: 15px; font-weight: 800; cursor: pointer;
+}
+.cdr-volver:hover { background: var(--verde); color: #fff; }

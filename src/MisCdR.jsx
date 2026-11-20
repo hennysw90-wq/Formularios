@@ -195,6 +195,9 @@ function erroresDeEnvio(ev, anterior) {
       if (incompleto(it)) errores.push(`La ${nombre} ${i + 1} está incompleta: necesita ${fb.situacion ? "criterio, situación, comportamiento e impacto" : "criterio, comportamiento e impacto"} (paso 4).`);
     });
   });
+  if (conFeedbackReunion(f) && !(F.reunion || "").trim()) {
+    errores.push(`Falta el "${TITULO_FEEDBACK_REUNION}" (paso 4).`);
+  }
   if (fb.compromisoMejora) {
     if (!(F.compromiso.accion || "").trim()) errores.push("Falta la acción del compromiso de mejora (paso 5).");
     if (!F.compromiso.fecha) errores.push("Falta la fecha del compromiso de mejora (paso 5).");
@@ -838,7 +841,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
   if (soloLectura) {
     return (
       <div className="cdr-ejecutar" style={{ maxWidth: 900 }}>
-        <div style={{ marginBottom: 14 }}><button style={btn} onClick={onCerrar}>{textoVolver}</button></div>
+        <div style={{ marginBottom: 14 }}><button className="cdr-volver" onClick={onCerrar}>{textoVolver}</button></div>
         {recienEnviada && !ocultarEvaluador && <AvancePlan modo="enviada" formularioId={ev.formularioId} rutinaSesionId={ev.rutinaSesionId} evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />}
         <ResumenEvaluacion ev={ev} ocultarEvaluador={ocultarEvaluador} />
       </div>
@@ -853,7 +856,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
         <div className="cdr-aviso">📵 Sin conexión. Puedes seguir escribiendo: se guardará solo cuando vuelva la señal. No cierres esta pestaña.</div>
       )}
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
-        <button style={btn} onClick={volver}>{vistaPrevia ? "← Salir de la vista previa" : "← Salir (se guarda solo)"}</button>
+        <button className="cdr-volver" onClick={volver}>{vistaPrevia ? "← Salir de la vista previa" : "← Salir (se guarda solo)"}</button>
         <div style={{ flex: 1, minWidth: 180 }}>
           <div className="cdr-clamp2" style={{ fontWeight: 800 }} title={ev.formulario.nombre}>{ev.formulario.nombre}</div>
           <div className="cdr-clamp2" style={{ fontSize: 12.5, color: "var(--texto-suave)" }} title={`${referenciaEval(ev, "")}${ev.lider ? ` · ${rotuloReceptor(ev.formulario)}: ${ev.lider}` : ""}`}>{nombreOpcion(referenciaEval(ev, "Rutina sin elegir"))}{ev.lider ? ` · ${rotuloReceptor(ev.formulario)}: ${ev.lider}` : ""}</div>
@@ -1549,7 +1552,7 @@ function PasoResultado({ ev, cambiar }) {
       <NotasDeTerreno ev={ev} />
 
       <p style={{ ...ayuda, margin: "0 0 12px" }}>
-        <b>El feedback es obligatorio para enviar la {nombreEval(ev.formulario)}:</b> cada fortaleza y oportunidad necesita {fb.situacion ? "criterio, situación, comportamiento e impacto" : "criterio, comportamiento e impacto"}. El compromiso con el {receptorEval(ev.formulario)} va en el paso siguiente.
+        <b>El feedback es obligatorio para enviar la {nombreEval(ev.formulario)}:</b> cada fortaleza y oportunidad necesita {fb.situacion ? "criterio, situación, comportamiento e impacto" : "criterio, comportamiento e impacto"}{conFeedbackReunion(ev.formulario) ? ", y también el feedback de la reunión (al final de este paso)" : ""}. El compromiso con el {receptorEval(ev.formulario)} va en el paso siguiente.
       </p>
 
       {["fortalezas", "oportunidades"].map((tipo) => fb[tipo] && (
@@ -1579,7 +1582,7 @@ function PasoResultado({ ev, cambiar }) {
 
       {conFeedbackReunion(ev.formulario) && (
         <div style={{ marginBottom: 16 }}>
-          <p style={{ fontWeight: 800, margin: "0 0 8px" }}>{TITULO_FEEDBACK_REUNION} <span style={{ color: "var(--texto-suave)", fontWeight: 600, fontSize: 12.5 }}>· opcional</span></p>
+          <p style={{ fontWeight: 800, margin: "0 0 8px" }}>{TITULO_FEEDBACK_REUNION} <span style={{ color: "var(--rojo)", fontWeight: 700, fontSize: 12.5 }}>· obligatorio</span></p>
           <div className="ca-card">
             {/* Campo de varias líneas, como las notas de terreno: se guarda con cada cambio (no pierde nada al cambiar de paso o pestaña). */}
             <AreaAuto minFilas={5} aria-label={TITULO_FEEDBACK_REUNION} placeholder="Escribe aquí cómo se comportaron los participantes en la reunión: asistencia, puntualidad, atención, aportes, respeto de los acuerdos…" valor={ev.feedback.reunion || ""} onCambiar={(v) => cambiar((c) => (c.feedback.reunion = v))} estilo={{ fontSize: 15.5, lineHeight: 1.5 }} />

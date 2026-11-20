@@ -150,9 +150,9 @@ function ResumenGeneral({ evals, cierres, usuario, vista, onVista, onVer }) {
   return (
     <div>
       <Intro titulo="Resumen general" texto="Elige de la lista o busca por persona, reunión o estándar: verás sus resultados por dimensión, el feedback que recibió y sus acciones de mejora con su respuesta." />
+      {vista.persona && <div style={{ marginBottom: 10 }}><button type="button" className="cdr-volver" onClick={cambiar}>← Volver a la lista</button></div>}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
         <input className="rp-input" style={{ maxWidth: 420, flex: "1 1 260px" }} placeholder="Buscar por persona, reunión o estándar…" value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Buscar" />
-        {vista.persona && <button type="button" className="cdr-nav-btn" onClick={cambiar}>Cambiar persona</button>}
       </div>
       {eligiendo && (
         <div style={{ maxHeight: 340, overflowY: "auto", border: "1px solid var(--borde)", borderRadius: 12, marginBottom: 12, background: "#fff" }} role="listbox" aria-label="Personas y reuniones">
