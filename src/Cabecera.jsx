@@ -15,12 +15,12 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir, comp
         <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
         <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
       </div>
-      <p className="ca-eyebrow">Formularios · v0.18.5 · Henny</p>
+      <p className="ca-eyebrow">Formularios · v0.18.6 · Henny</p>
       <p className="ca-titulo">Formularios</p>
 
       <div className="ca-nav">
         <Link id="inicio">Inicio</Link>
-        <Link id="mis">Mis Formularios</Link>
+        <Link id="mis">Mis formularios asignados</Link>
         <Link id="resultados">Resultados</Link>
         <Link id="compromisos">
           Compromisos de mejora
