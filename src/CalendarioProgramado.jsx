@@ -94,8 +94,16 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
     setAviso("");
     setElegido(null);
   }
+  function eliminarElegido() {
+    if (!elegido) return;
+    const p = borrador.find((x) => claveDe(x) === elegido.clave);
+    if (!p) return setElegido(null);
+    setBorrador((b) => b.map((x) => (claveDe(x) === elegido.clave ? { ...x, fechas: (x.fechas || []).filter((f) => f !== elegido.fecha) } : x)));
+    setAviso(`Se quitó ${p.nombre} del ${ddmm(elegido.fecha)} (se aplica al guardar).`);
+    setElegido(null);
+  }
   async function empezarEdicion() {
-    if (!(await pedirClave("Mover días del calendario", "Para cambiar a alguien de día confirma con tu clave."))) return;
+    if (!(await pedirClave("Mover o eliminar días del calendario", "Para mover o eliminar la asignación de un día confirma con tu clave."))) return;
     setBorrador(JSON.parse(JSON.stringify(asignacion.personas || [])));
     setEditando(true);
     setAviso("");
@@ -159,7 +167,7 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
               </>
             : <button type="button" style={btn} disabled={anclando} onClick={pedirHorario} title="Muestra estas fechas en el Calendario Ejecutivo del portal">📌 Anclar a calendario ejecutivo</button>
         )}
-        {programada && onGuardar && !editando && <button type="button" style={btn} onClick={empezarEdicion}>✋ Mover días (pide clave)</button>}
+        {programada && onGuardar && !editando && <button type="button" style={btn} onClick={empezarEdicion}>✋ Mover o eliminar días (pide clave)</button>}
         {editando && <>
           <button type="button" style={{ ...btn, background: "var(--verde, #009899)", color: "#fff", borderColor: "var(--verde, #009899)" }} disabled={!cambios || guardando} onClick={guardar}>{guardando ? "Guardando…" : "Guardar cambios"}</button>
           <button type="button" style={btn} disabled={guardando} onClick={() => { setEditando(false); setBorrador(null); setElegido(null); setAviso(""); }}>Cancelar</button>
@@ -187,6 +195,12 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
         </div>
       )}
       {editando && <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 600, color: "#8A5A12" }}>Modo mover: arrastra un nombre a otro día, o tócalo y luego toca el día (en Gantt, la casilla de su fila). Solo lo que no está hecho, a hoy o después.</p>}
+      {editando && elegido && (() => { const p = (borrador || []).find((x) => claveDe(x) === elegido.clave); return (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "0 0 10px", padding: "8px 12px", background: "#FFF6E5", border: "1px solid #E8C879", borderRadius: 10, fontSize: 13 }}>
+          <span><b>{p?.nombre}</b> · {ddmm(elegido.fecha)} — toca otro día para moverla, o:</span>
+          <button type="button" style={{ ...btn, background: "#C0392B", borderColor: "#C0392B", color: "#fff" }} onClick={eliminarElegido}>🗑 Eliminar solo este día</button>
+          <button type="button" style={btn} onClick={() => setElegido(null)}>Cancelar selección</button>
+        </div>); })()}
       {aviso && <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 700, color: aviso.startsWith("✓") ? "#0F6E56" : "#993C1D" }}>{aviso}</p>}
 
       {/* Área para pantallazo */}
