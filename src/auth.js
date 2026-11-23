@@ -28,7 +28,6 @@ export const APPS_DISPONIBLES = [
   { id: "asistencia", nombre: "Asistencia QR" },
   { id: "rdp", nombre: "RdP Tracker" },
   { id: "formularios", nombre: "Formularios" },
-  { id: "control-lixiviacion", nombre: "Control Operacional" },
 ];
 
 // Usuarios nuevos: quedan habilitados en las 3 apps del ecosistema (Asistencia, RdP y Formularios) y con clave
