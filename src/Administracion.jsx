@@ -102,7 +102,7 @@ function FilaValidacion({ u, areas, usuarios, esMaster, onValidar, onRechazar })
   // alguien sin campo "apps" se parte de todas (lo que tenía por herencia),
   // para no quitarle en silencio el acceso a las otras apps.
   const [apps, setApps] = useState(
-    Array.isArray(u.apps) && u.apps.length ? u.apps : APPS_DISPONIBLES.map((a) => a.id)
+    Array.isArray(u.apps) && u.apps.length ? u.apps : APPS_DISPONIBLES.map((a) => a.id).filter((id) => id !== "control-lixiviacion")
   );
   const [validando, setValidando] = useState(false);
   const [error, setError] = useState("");
