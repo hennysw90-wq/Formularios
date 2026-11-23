@@ -1,10 +1,11 @@
 import ListadosAdmin from "./ListadosAdmin.jsx";
 import { useListados } from "./listados.js";
 import { listarFormularios } from "./formularios.js";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   listarUsuarios,
   cambiarRolUsuario,
+  cambiarFormulariosRevisor,
   cambiarAreaUsuario,
   cambiarCargoUsuario,
   cambiarCorreoUsuario,
@@ -663,7 +664,8 @@ export default function Administracion({ usuarioActual }) {
           const esMaestro = u.nombreUsuario.toLowerCase() === "excelencia operacional";
           const esRolMaster = u.rol === "master";
           return (
-          <div key={u.uid} style={estilos.fila}>
+          <Fragment key={u.uid}>
+          <div style={estilos.fila}>
             <span style={estilos.colUsuario}>
               {esMaestro ? (
                 <span title='El usuario maestro "Excelencia Operacional" no se puede renombrar.'>
@@ -839,6 +841,28 @@ export default function Administracion({ usuarioActual }) {
               )}
             </span>
           </div>
+          {u.rol === "supervisor" && (
+            <div style={{ padding: "8px 14px 12px 28px", background: "#FFF9EC", borderBottom: "1px solid #EFE3C2", fontSize: 13 }}>
+              <b>Revisor de:</b>{" "}
+              {!esMaster ? (
+                <span>{Array.isArray(u.formulariosRevisor) ? (u.formulariosRevisor.length ? formularios.filter((f) => u.formulariosRevisor.includes(f.id)).map((f) => f.nombre).join(", ") : "ningún formulario") : "todos los formularios"}</span>
+              ) : (
+                <>
+                  <label style={{ marginRight: 14, fontWeight: 700, cursor: "pointer" }}>
+                    <input type="checkbox" checked={!Array.isArray(u.formulariosRevisor)} onChange={(ev) => conManejoDeError(() => cambiarFormulariosRevisor(u.uid, ev.target.checked ? null : []), "No se pudo guardar.")} /> Todos los formularios
+                  </label>
+                  {Array.isArray(u.formulariosRevisor) && formularios.map((f) => (
+                    <label key={f.id} style={{ marginRight: 14, cursor: "pointer", whiteSpace: "nowrap" }}>
+                      <input type="checkbox" checked={u.formulariosRevisor.includes(f.id)} onChange={(ev) => conManejoDeError(() => cambiarFormulariosRevisor(u.uid, ev.target.checked ? [...u.formulariosRevisor, f.id] : u.formulariosRevisor.filter((x) => x !== f.id)), "No se pudo guardar.")} /> {f.nombre}
+                    </label>
+                  ))}
+                  {Array.isArray(u.formulariosRevisor) && !u.formulariosRevisor.length && <em style={{ color: "#8A5A12" }}>Sin formularios: se comporta como usuario normal.</em>}
+                </>
+              )}
+              <div style={{ color: "#8A5A12", fontSize: 12, marginTop: 3 }}>En los demás formularios solo ve lo suyo, como un usuario. Se aplica la próxima vez que esa persona inicie sesión.</div>
+            </div>
+          )}
+          </Fragment>
           );
         })}
       </div>

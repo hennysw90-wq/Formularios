@@ -32,7 +32,7 @@ const ORDENES = [
 
 /* ------------------------------------------------------------------ */
 
-export default function Estadisticas({ usuario, soloVer = false }) {
+export default function Estadisticas({ usuario, soloVer = false, soloFormularios = null }) {
   const [evals, setEvals] = useState(null);
   const [formularios, setFormularios] = useState([]);
   const [asignaciones, setAsignaciones] = useState([]);
@@ -47,16 +47,17 @@ export default function Estadisticas({ usuario, soloVer = false }) {
   const [formSel, setFormSel] = useState(""); // estadísticas por tipo de formulario ("" = todos)
 
   useEffect(() => {
-    const c1 = listarEvaluacionesEnviadas(setEvals, (e) =>
+    const ok = (id) => !soloFormularios || soloFormularios.includes(id);
+    const c1 = listarEvaluacionesEnviadas((l) => setEvals(l && l.filter((e) => ok(e.formularioId))), (e) =>
       setError(
         e.code === "permission-denied" || e.code === "auth/operation-not-allowed"
           ? "Sin permiso para leer las evaluaciones. Revisa en Firebase (formularios-7f89a): login Anónimo y reglas publicadas."
           : `No se pudieron cargar las evaluaciones (${e.code || e.message}).`
       )
     );
-    const c2 = listarFormularios(setFormularios, () => {});
+    const c2 = listarFormularios((l) => setFormularios(l.filter((f) => ok(f.id))), () => {});
     const c3 = listarUsuarios(setUsuarios, () => setErrorUsuarios(true));
-    const c4 = listarAsignaciones(setAsignaciones, () => {});
+    const c4 = listarAsignaciones((l) => setAsignaciones(l.filter((a) => ok(a.formularioId))), () => {});
     return () => {
       c1();
       c2();

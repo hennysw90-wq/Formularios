@@ -299,6 +299,21 @@ export async function validarUsuarioPendiente(uid, { password, rol, area, nombre
   return { fusionado: false };
 }
 
+// Revisor por formulario: «formulariosRevisor» = null/ausente → revisa todos; lista → solo esos (en los demás es un usuario normal).
+export function revisaForm(u, formularioId) {
+  if (!u) return false;
+  if (u.rol === "master") return true;
+  if (u.rol !== "supervisor") return false;
+  return !Array.isArray(u.formulariosRevisor) || u.formulariosRevisor.includes(formularioId);
+}
+// ¿Es Revisor de algo? (Revisor con lista vacía = usuario normal.)
+export function esRevisor(u) {
+  return u?.rol === "supervisor" && (!Array.isArray(u.formulariosRevisor) || u.formulariosRevisor.length > 0);
+}
+export async function cambiarFormulariosRevisor(uid, ids) {
+  await updateDoc(doc(db, "usuarios", uid), { formulariosRevisor: ids });
+}
+
 export async function cambiarRolUsuario(uid, rol) {
   const cambios = { rol };
   if (rol === "admin" || rol === "master" || rol === "supervisor") cambios.area = ""; // admin/master/supervisor no quedan amarrados a un área

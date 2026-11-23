@@ -18,7 +18,7 @@ export const ESTADO_RESULTADOS_INICIAL = {
  *  · Todos: Resumen · Evaluaciones recibidas · Evaluaciones emitidas (solo donde figura su nombre).
  *  · Master y Revisor: además "Resumen general": cualquier persona, sin filtrar por usuario.
  */
-export default function Resultados({ usuario, enviadas, cierres, estado, onEstado, onVer, veTodo }) {
+export default function Resultados({ usuario, enviadas, cierres, estado, onEstado, onVer, veTodo, revisables = null }) {
   const subs = [...(veTodo ? [["general", "Resumen general"]] : []), ["resumen", "Resumen"], ["rec", "Evaluaciones recibidas"], ["emi", "Evaluaciones emitidas"]];
   const sub = subs.some(([id]) => id === estado.sub) ? estado.sub : subs[0][0];
   const persona = { uid: usuario.uid, nombreUsuario: usuario.nombreUsuario };
@@ -34,7 +34,7 @@ export default function Resultados({ usuario, enviadas, cierres, estado, onEstad
       {enviadas === null ? (
         <p style={{ color: "var(--texto-suave)" }}>Cargando…</p>
       ) : sub === "general" ? (
-        <ResumenGeneral evals={enviadas} cierres={cierres} usuario={usuario} vista={estado.general} onVista={poner("general")} onVer={onVer} />
+        <ResumenGeneral evals={revisables || enviadas} cierres={cierres} usuario={usuario} vista={estado.general} onVista={poner("general")} onVer={onVer} />
       ) : sub === "resumen" ? (
         <MiResumen usuario={usuario} evals={enviadas} cierres={cierres} vista={estado.resumen} onVista={poner("resumen")} />
       ) : sub === "emi" ? (

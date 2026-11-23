@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { recuperarSesion, cerrarSesion } from "./auth.js";
+import { recuperarSesion, cerrarSesion, esRevisor, revisaForm } from "./auth.js";
 import { db, asegurarSesionCdR } from "./firebase.js";
 import Login from "./Login.jsx";
 import Cabecera from "./Cabecera.jsx";
@@ -40,7 +40,9 @@ export default function App() {
   const recibidas = useMemo(() => (usuario ? evaluacionesRecibidas(enviadas || [], usuario) : []), [enviadas, usuario]);
   const misCompromisos = useMemo(() => (usuario ? compromisosRecibidos(enviadas || [], usuario, cierres) : []), [enviadas, cierres, usuario]);
   const misEntregados = useMemo(() => (usuario ? compromisosEntregados(enviadas || [], usuario, cierres) : []), [enviadas, cierres, usuario]);
-  const todosCompromisos = useMemo(() => ((usuario?.rol === "master" || usuario?.rol === "supervisor") ? todosLosCompromisos(enviadas || [], cierres) : null), [enviadas, cierres, usuario]);
+  const todosCompromisos = useMemo(() => ((usuario?.rol === "master" || esRevisor(usuario)) ? todosLosCompromisos((enviadas || []).filter((e) => revisaForm(usuario, e.formularioId)), cierres) : null), [enviadas, cierres, usuario]);
+  // Datos que el Revisor puede ver en las vistas generales (solo sus formularios).
+  const enviadasRevisables = useMemo(() => (enviadas === null ? null : enviadas.filter((e) => revisaForm(usuario, e.formularioId))), [enviadas, usuario]);
 
   useEffect(() => {
     (async () => {
@@ -71,7 +73,7 @@ export default function App() {
   if (!usuario) return <Login onIngresar={setUsuario} />;
 
   const esMaster = usuario.rol === "master";
-  const esSupervisor = usuario.rol === "supervisor"; // ve todo (resultados, estadísticas, compromisos) pero no configura nada
+  const esSupervisor = esRevisor(usuario); // ve todo (resultados, estadísticas, compromisos) pero no configura nada
   const veTodo = esMaster || esSupervisor;
 
   function salir() {
@@ -97,16 +99,16 @@ export default function App() {
 
       <div className={`ca-contenido ${vista === "admin" || vista === "formularios" || vista === "mis" || vista === "estadisticas" ? "ca-ancho" : ""}`}>
         {vista === "inicio" && (
-          <Inicio usuario={usuario} esMaster={esMaster} esSupervisor={esSupervisor} onIr={setVista} compromisos={todosCompromisos || misCompromisos} recibidas={recibidas} cargando={enviadas === null} onVerRecibida={setVerRecibida} />
+          <Inicio usuario={usuario} esMaster={esMaster} esSupervisor={esSupervisor} onIr={setVista} compromisos={(esMaster || (esSupervisor && !Array.isArray(usuario.formulariosRevisor))) ? todosCompromisos : misCompromisos} recibidas={recibidas} cargando={enviadas === null} onVerRecibida={setVerRecibida} />
         )}
         {vista === "compromisos" && <CompromisosMejora recibidos={misCompromisos} entregados={misEntregados} todos={todosCompromisos} usuario={usuario} cargando={enviadas === null} />}
-        {vista === "feedbacks" && <Feedbacks usuario={usuario} enviadas={enviadas} veTodo={veTodo} onVer={setVerRecibida} />}
-        {vista === "resultados" && <Resultados usuario={usuario} enviadas={enviadas} cierres={cierres} estado={estadoResultados} onEstado={setEstadoResultados} onVer={setVerRecibida} veTodo={veTodo} />}
+        {vista === "feedbacks" && <Feedbacks usuario={usuario} enviadas={enviadas} revisables={enviadasRevisables} veTodo={veTodo} onVer={setVerRecibida} />}
+        {vista === "resultados" && <Resultados usuario={usuario} enviadas={enviadas} revisables={enviadasRevisables} cierres={cierres} estado={estadoResultados} onEstado={setEstadoResultados} onVer={setVerRecibida} veTodo={veTodo} />}
 
         {vista === "mis" && <MisCdR usuario={usuario} formularioDirecto={formularioDirecto} rutinaDirecta={rutinaDirecta} onDirectoAtendido={directoAtendido} />}
         <Suspense fallback={<p style={{ color: "var(--texto-suave)", fontSize: 14 }}>Cargando…</p>}>
           {vista === "formularios" && esMaster && <Formularios usuario={usuario} />}
-          {vista === "estadisticas" && veTodo && <Estadisticas usuario={usuario} soloVer={!esMaster} />}
+          {vista === "estadisticas" && veTodo && <Estadisticas usuario={usuario} soloVer={!esMaster} soloFormularios={esMaster ? null : usuario.formulariosRevisor || null} />}
           {vista === "admin" && esMaster && <Administracion usuarioActual={usuario} />}
         </Suspense>
       </div>
@@ -144,7 +146,7 @@ function Inicio({ usuario, esMaster, esSupervisor = false, onIr, compromisos = [
         {cargando ? <p style={{ color: "var(--texto-suave)", margin: 0 }}>Cargando…</p>
           : abiertos.length === 0 ? <p style={{ color: "var(--texto-suave)", fontSize: 13.5, margin: 0 }}>No tienes compromisos de mejora pendientes.</p>
           : <>
-              {abiertos.slice(0, LIMITE).map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} mostrarLider={esMaster || esSupervisor} soloLectura={esSupervisor} />)}
+              {abiertos.slice(0, LIMITE).map((c) => <TarjetaCompromiso key={c.ev.id} c={c} usuario={usuario} mostrarLider={esMaster || (esSupervisor && !Array.isArray(usuario.formulariosRevisor))} soloLectura={esSupervisor && !Array.isArray(usuario.formulariosRevisor)} />)}
               {abiertos.length > LIMITE && <button className="cdr-nav-btn" onClick={() => onIr("compromisos")}>Ver los {abiertos.length}</button>}
             </>}
       </div>

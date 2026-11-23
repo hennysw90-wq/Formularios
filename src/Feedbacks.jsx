@@ -9,16 +9,17 @@ const ddmm = (iso) => (iso ? String(iso).slice(0, 10).split("-").reverse().join(
  * Hoja «Feedbacks»: el feedback de cada sesión, por líder y por reunión, del más reciente al más antiguo.
  * Master y Revisor ven el de todos; un líder ve solo el que recibió él.
  */
-export default function Feedbacks({ usuario, enviadas, veTodo, onVer }) {
+export default function Feedbacks({ usuario, enviadas, veTodo, onVer, revisables = null }) {
   const [texto, setTexto] = useState("");
   const yo = norm(usuario.nombreUsuario);
+  const permitidas = useMemo(() => (revisables ? new Set(revisables) : null), [revisables]);
   const lista = useMemo(
     () =>
       (enviadas || [])
         .filter((e) => e.estado === "enviada" && !e.anulada)
-        .filter((e) => veTodo || norm(e.lider) === yo)
+        .filter((e) => (veTodo && (!permitidas || permitidas.has(e))) || norm(e.lider) === yo)
         .filter((e) => (e.feedback?.reunion || "").trim() || (e.feedback?.fortalezas || []).length || (e.feedback?.oportunidades || []).length),
-    [enviadas, veTodo, yo]
+    [enviadas, permitidas, veTodo, yo]
   );
   const q = norm(texto);
   // Líder → reunión → evaluaciones (más reciente primero en los tres niveles).

@@ -1,9 +1,10 @@
+import { esRevisor } from "./auth.js";
 import logoOems from "./assets/logo-oems.png";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 
 export default function Cabecera({ usuario, vista, onCambiarVista, onSalir, compromisosAbiertos = 0 }) {
   const esMaster = usuario.rol === "master";
-  const esSupervisor = usuario.rol === "supervisor";
+  const esSupervisor = esRevisor(usuario);
   const Link = ({ id, children }) => (
     <button className={`ca-nav-link ${vista === id ? "activo" : ""}`} onClick={() => onCambiarVista(id)}>
       {children}
@@ -15,7 +16,7 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir, comp
         <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
         <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
       </div>
-      <p className="ca-eyebrow">Formularios · v0.18.12 · Henny</p>
+      <p className="ca-eyebrow">Formularios · v0.18.13 · Henny</p>
       <p className="ca-titulo">Formularios</p>
 
       <div className="ca-nav">
