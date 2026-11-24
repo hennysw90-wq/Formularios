@@ -666,7 +666,7 @@ function TabA({ form, cambiar, enUso, listados }) {
       ))}
       {form.seccionA.some((c) => c.asignable) && (
         <p style={{ ...E.ayuda, background: "#FAEEDA", borderRadius: 8, padding: "8px 10px" }}>
-          Este formulario se asigna por «{form.seccionA.find((c) => c.asignable).etiqueta}»: en Estadísticas → Plan de evaluadores, la asignación pide ese valor en vez de la reunión, y al evaluar viene fijo.
+          Este formulario se asigna por «{form.seccionA.find((c) => c.asignable).etiqueta}»: en Estadísticas → Plan de evaluadores, a cada evaluador le asignas qué valores (o áreas completas) le tocan; cada periodo le sale uno al azar, rotando hasta pasar por todos, y al evaluar puede cambiarlo por otro de los suyos. El líder se sugiere desde el listado.
           {form.seccionA.some((c) => c.tipo === "rutina") ? " Te conviene quitar el dato «Reunión», que no se usará." : ""}
         </p>
       )}
