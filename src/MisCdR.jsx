@@ -1221,7 +1221,15 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
               ) : c.asignable && c.id === campoAsig?.id ? (
                 ev.rutinaBloqueada || soloLectura ? (
                   <div className="rp-input" style={{ background: "#E1F5EE", fontWeight: 700 }}>{ev.datos[c.id] || "—"}</div>
-                ) : (
+                ) : datosDePregunta(c, listados).tabla && f.rutinas.some((r) => esAsignacionPorValor(r.sesionId)) ? (() => {
+                  const dd = datosDePregunta(c, listados);
+                  const rr = f.rutinas.filter((r) => esAsignacionPorValor(r.sesionId));
+                  const nombres = rr.map((r) => r.nombre);
+                  const sub = {}; const lid = {};
+                  nombres.forEach((n) => { if (dd.subareas?.[n]) sub[n] = dd.subareas[n]; if (dd.lideres?.[n]) lid[n] = dd.lideres[n]; });
+                  return <ElegirAreaNombre datos={{ ...dd, opciones: nombres, subareas: sub, lideres: lid }} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura}
+                    onCambiar={(v) => { const r = rr.find((x) => x.nombre === v); if (r) elegirRutina(r.sesionId); else cambiar((x) => (x.datos[c.id] = v)); }} />;
+                })() : (
                   <select className="rp-select" value={esAsignacionPorValor(ev.rutinaSesionId) ? ev.rutinaSesionId : ""} onChange={(e) => elegirRutina(e.target.value)} aria-label={`Elegir ${c.etiqueta}`}>
                     <option value="">Elige…</option>
                     {f.rutinas.filter((r) => esAsignacionPorValor(r.sesionId)).map((r) => <option key={r.sesionId} value={r.sesionId}>{r.nombre}</option>)}
