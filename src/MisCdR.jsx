@@ -3,7 +3,7 @@ import BuscarOpcion from "./BuscarOpcion.jsx";
 import SelectorUsuario from "./SelectorUsuario.jsx";
 import EtiquetaOpcion, { nombreOpcion, partesOpcion } from "./EtiquetaOpcion.jsx";
 import FotoRespaldo, { pesoFotos } from "./FotoRespaldo.jsx";
-import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, opcionesDelAlcance, numeroDePeriodo } from "./listados.js";
+import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, opcionesDelAlcance, numeroDePeriodo, filasDeListado } from "./listados.js";
 import { listarEvaluacionesDesde, listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import { useAgenda, ListaAgenda, PildoraPendientes } from "./MiAgenda.jsx";
@@ -902,6 +902,36 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
 /* ------------------------- Paso 1 · Datos -------------------------- */
 
 /** Opciones de un toque (como tarjetas grandes): nombre en negrita y, debajo, el área. */
+
+// Listado en tabla (Área · Nombre · Líderes): se filtra primero por área y después por nombre; muestra los líderes de lo elegido.
+function ElegirAreaNombre({ datos, valor, etiqueta, soloLectura, onCambiar }) {
+  const filas = filasDeListado(datos);
+  const actual = filas.find((f) => f.opcion === valor);
+  const [area, setArea] = useState(actual?.area || "");
+  const areas = [...new Set(filas.map((f) => f.area).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
+  const visibles = filas.filter((f) => !area || f.area === area);
+  if (soloLectura) return <div className="rp-input" style={{ background: "var(--fondo)" }}>{valor || "—"}</div>;
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {areas.length > 0 && (
+        <select className="rp-select" value={area} onChange={(e) => { setArea(e.target.value); if (actual && e.target.value && actual.area !== e.target.value) onCambiar(""); }} aria-label="Filtrar por área">
+          <option value="">Todas las áreas</option>
+          {areas.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      )}
+      <select className="rp-select" value={valor || ""} onChange={(e) => onCambiar(e.target.value)} aria-label={`Elegir ${etiqueta}`}>
+        <option value="">{area ? `Elige ${String(etiqueta || "").toLowerCase()} de ${area}…` : "Elige…"}</option>
+        {visibles.map((f) => <option key={f.opcion} value={f.opcion}>{f.nombre}{!area && f.area ? ` · ${f.area}` : ""}</option>)}
+      </select>
+      {actual && (
+        <div style={{ fontSize: 13, color: "var(--texto-suave)" }}>
+          {actual.lideres.length ? <>Líder{actual.lideres.length > 1 ? "es" : ""}: <b style={{ color: "var(--texto, #2C2C2A)" }}>{actual.lideres.join(" · ")}</b></> : "Sin líder asignado en el listado."}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OpcionesLider({ lideres, valor, area, onElegir }) {
   return (
     <div className="cdr-opciones" role="radiogroup" aria-label="Líder">
@@ -1081,6 +1111,14 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
   const cambioSugerido = porAlcance && valorAsig && !tocan.includes(valorAsig);
   // Asignado por listado: no hay líderes en la asignación, así que el evaluador indica quién lidera la actividad.
   const liderLibre = !!campoAsig && esAsignacionPorValor(ev.rutinaSesionId) && lideres.length === 0;
+  // Si el listado trae líderes por opción (ej. patio), el líder sale del patio elegido: uno solo se pone solo; varios, se elige entre ellos.
+  const lideresDelValor = valorAsig && campoAsig ? datosDePregunta(campoAsig, listados).lideres?.[valorAsig] || [] : [];
+  const [otroLider, setOtroLider] = useState(false);
+  useEffect(() => {
+    if (soloLectura || !liderLibre || !lideresDelValor.length || otroLider) return;
+    if (lideresDelValor.length === 1) { if (ev.lider !== lideresDelValor[0]) cambiar((x) => { x.lider = lideresDelValor[0]; x.liderUid = ""; }); }
+    else if (ev.lider && !lideresDelValor.includes(ev.lider)) cambiar((x) => { x.lider = ""; x.liderUid = ""; });
+  }, [soloLectura, liderLibre, lideresDelValor.join("|"), otroLider, ev.lider]); // eslint-disable-line react-hooks/exhaustive-deps
   const etiquetaPeriodo = { diaria: "hoy", semanal: "esta semana", quincenal: "esta quincena", mensual: "este mes", unica: "en esta asignación" }[yoEnAsig?.frecuencia] || "en este periodo";
   function elegirRutina(id) {
     const r = f.rutinas.find((x) => x.sesionId === id);
@@ -1110,6 +1148,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
         )}
         {f.seccionA.map((c) => {
           if (c.tipo === "rutina" && ev.rutinaBloqueada) return null; // ya viene definida por el QR: no se elige
+          const esTablaC = (c.tipo === "busqueda" || c.tipo === "seleccion") && !(c.asignable && c.id === campoAsig?.id) && !!datosDePregunta(c, listados).tabla;
           const lideresComoTarjetas = c.tipo === "lider" && ev.rutinaSesionId && lideres.length >= 1 && lideres.length <= 6;
           return (
             <div key={c.id} style={lideresComoTarjetas || (c.tipo === "lider" && ev.lider && !soloLectura) ? { gridColumn: "1 / -1" } : undefined}>
@@ -1120,7 +1159,13 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                   {f.rutinas.map((r) => <option key={r.sesionId} value={r.sesionId}>{r.nombre}</option>)}
                 </select>
               )}
-              {c.tipo === "lider" && liderLibre && (
+              {c.tipo === "lider" && liderLibre && lideresDelValor.length > 0 && !otroLider && !soloLectura && (
+                <>
+                  <OpcionesLider lideres={lideresDelValor} valor={ev.lider} area={datosDePregunta(campoAsig, listados).subareas?.[valorAsig] || ""} onElegir={lideresDelValor.length > 1 ? (l) => cambiar((x) => { x.lider = l; x.liderUid = ""; }) : undefined} />
+                  <button type="button" onClick={() => setOtroLider(true)} style={{ border: 0, background: "none", color: "var(--verde-oscuro, #0F6E56)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}>El líder es otra persona</button>
+                </>
+              )}
+              {c.tipo === "lider" && liderLibre && !(lideresDelValor.length > 0 && !otroLider && !soloLectura) && (
                 soloLectura ? <div className="rp-input" style={{ background: "var(--fondo)" }}>{ev.lider || "—"}</div>
                 : <SelectorUsuario valor={ev.lider || ""} etiqueta={etiquetaCampo(c, f)} onCambiar={(n, uid) => cambiar((x) => { x.lider = n; x.liderUid = uid || ""; })} />
               )}
@@ -1171,10 +1216,12 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                     {f.rutinas.filter((r) => esAsignacionPorValor(r.sesionId)).map((r) => <option key={r.sesionId} value={r.sesionId}>{r.nombre}</option>)}
                   </select>
                 )
+              ) : esTablaC ? (
+                <ElegirAreaNombre datos={datosDePregunta(c, listados)} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura} onCambiar={(v) => cambiar((x) => (x.datos[c.id] = v))} />
               ) : c.tipo === "busqueda" && (
                 <BuscarOpcion opciones={opcionesDePregunta(c, listados)} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura} onCambiar={(v) => cambiar((x) => (x.datos[c.id] = v))} />
               )}
-              {c.tipo === "seleccion" && !(c.asignable && c.id === campoAsig?.id) && (
+              {c.tipo === "seleccion" && !esTablaC && !(c.asignable && c.id === campoAsig?.id) && (
                 <select className="rp-select" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))}>
                   <option value="">Elige…</option>
                   {opcionesDePregunta(c, listados).map((o) => <option key={o} value={o}>{o}</option>)}

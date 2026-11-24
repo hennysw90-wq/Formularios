@@ -61,6 +61,9 @@ export async function guardarListados(listados, usuario) {
     nombre: String(l.nombre || "").trim(),
     opciones: [...new Set((l.opciones || []).map((o) => String(o).trim()).filter(Boolean))],
     subareas: Object.fromEntries(Object.entries(l.subareas || {}).filter(([o, s]) => (l.opciones || []).includes(o) && String(s || "").trim()).map(([o, s]) => [o, String(s).trim()])),
+    // Listado en forma de tabla (Área · Nombre · Líderes): cada opción es «Área: Nombre» y puede tener uno o varios líderes.
+    tabla: !!l.tabla,
+    lideres: Object.fromEntries(Object.entries(l.lideres || {}).filter(([o, v]) => (l.opciones || []).includes(o) && Array.isArray(v) && v.some((x) => String(x || "").trim())).map(([o, v]) => [o, [...new Set(v.map((x) => String(x).trim()).filter(Boolean))]])),
   }));
   await setDoc(doc(db, COLECCION_FORMULARIOS, ID_DOC_LISTADOS), {
     listados: limpios,
@@ -119,7 +122,23 @@ export function parsearLineasListado(texto) {
 /** Opciones y sub áreas de una pregunta (de su listado, o la copia guardada en la pregunta). */
 export function datosDePregunta(c, listados) {
   const l = c?.listadoId ? (listados || []).find((x) => x.id === c.listadoId) : null;
-  return { opciones: l ? l.opciones || [] : c?.opciones || [], subareas: l ? l.subareas || {} : c?.subareas || {} };
+  return { opciones: l ? l.opciones || [] : c?.opciones || [], subareas: l ? l.subareas || {} : c?.subareas || {}, lideres: l ? l.lideres || {} : c?.lideres || {}, tabla: l ? !!l.tabla : !!c?.tabla };
+}
+
+// ---------- Listados en forma de tabla: Área · Nombre (ej. patio) · Líderes ----------
+// La opción se sigue guardando como texto «Área: Nombre» (así no cambian las asignaciones ya hechas); el área es además su sub área.
+export function separarAreaNombre(opcion, subareas = {}) {
+  const o = String(opcion || "");
+  const sa = subareas[o];
+  if (sa && o.startsWith(`${sa}: `)) return { area: sa, nombre: o.slice(sa.length + 2) };
+  if (sa) return { area: sa, nombre: o };
+  const i = o.indexOf(": ");
+  return i > 0 ? { area: o.slice(0, i).trim(), nombre: o.slice(i + 2).trim() } : { area: "", nombre: o };
+}
+export const unirAreaNombre = (area, nombre) => (String(area || "").trim() ? `${String(area).trim()}: ${String(nombre || "").trim()}` : String(nombre || "").trim());
+/** Filas { area, nombre, lideres, opcion } de un listado (para mostrarlo/editarlo como tabla). */
+export function filasDeListado(datos) {
+  return (datos?.opciones || []).map((o) => ({ ...separarAreaNombre(o, datos?.subareas), lideres: datos?.lideres?.[o] || [], opcion: o }));
 }
 export function subareasDe(datos) {
   return [...new Set(Object.values(datos?.subareas || {}).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
