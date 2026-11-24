@@ -21,7 +21,7 @@ const iniciales = (n) => String(n || "").trim().split(/\s+/).slice(0, 2).map((x)
 const btn = { border: "1px solid var(--borde, #D3D1C7)", background: "#fff", borderRadius: 8, padding: "6px 11px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const ddmm = (f) => String(f || "").split("-").reverse().slice(0, 2).join("-");
 
-export default function CalendarioProgramado({ asignacion, evals, usuario = null, onGuardar = null, formularioNombre = "", onAnclar = null, pedirAnclaje = false }) {
+export default function CalendarioProgramado({ asignacion, evals, usuario = null, onGuardar = null, formularioNombre = "", onAnclar = null, pedirAnclaje = false, patioDe = null }) {
   const hoy = hoyLocalISO();
   const [modalClave, pedirClave] = useConfirmarConClave(usuario);
   const [editando, setEditando] = useState(false);
@@ -65,7 +65,7 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
   const items = personas.flatMap((p) => {
     if (programada && (p.fechas || []).length) {
       const hechas = new Set(hechasEnAsignacion(asignacion, p, evals, "programada").map((h) => h.periodo));
-      return (p.fechas || []).map((f) => ({ fecha: f, nombre: p.nombre, clave: claveDe(p), estado: hechas.has(f) ? "hecha" : f < hoy ? "atrasada" : f === hoy ? "hoy" : "futura" }));
+      return (p.fechas || []).map((f) => ({ fecha: f, patio: patioDe ? patioDe(p, f) : "", nombre: p.nombre, clave: claveDe(p), estado: hechas.has(f) ? "hecha" : f < hoy ? "atrasada" : f === hoy ? "hoy" : "futura" }));
     }
     // Sin programación: cada evaluación hecha, en su día.
     return hechasEnAsignacion(asignacion, p, evals, p.frecuencia || "semanal").map((h) => ({ fecha: String(h.fecha).slice(0, 10), nombre: p.nombre, clave: claveDe(p), estado: "hecha" }));
@@ -137,10 +137,10 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
         draggable={movible(it)}
         onDragStart={() => setElegido({ clave: it.clave, fecha: it.fecha })}
         onClick={(e) => { if (!movible(it)) return; e.stopPropagation(); setElegido(sel ? null : { clave: it.clave, fecha: it.fecha }); }}
-        title={`${it.nombre} · ${ddmm(it.fecha)} · ${est.etiqueta}`}
+        title={`${it.nombre} · ${ddmm(it.fecha)}${it.patio ? ` · ${it.patio}` : ""} · ${est.etiqueta}`}
         style={{ display: "flex", alignItems: "center", gap: 4, background: it.estado === "hecha" ? c : "#fff", color: it.estado === "hecha" ? "#fff" : "#2C2C2A", border: `1.5px solid ${it.estado === "atrasada" ? "#C0392B" : it.estado === "hoy" ? "#D69A2D" : c}`, borderRadius: 6, padding: "2px 5px", fontSize: 11.5, fontWeight: 700, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: movible(it) ? "grab" : "default", maxWidth: ancho ? "none" : "100%", ...(sel ? { boxShadow: "0 0 0 2px #009899" } : {}) }}>
         <span style={{ width: 7, height: 7, borderRadius: 99, background: it.estado === "hecha" ? "#fff" : c, flexShrink: 0 }} />
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{it.estado === "hecha" ? "✓ " : it.estado === "atrasada" ? "! " : ""}{corto(it.nombre)}</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{it.estado === "hecha" ? "✓ " : it.estado === "atrasada" ? "! " : ""}{corto(it.nombre)}{it.patio ? <span style={{ fontWeight: 500, opacity: 0.85 }}> · {it.patio.includes(": ") ? it.patio.split(": ").slice(1).join(": ") : it.patio}</span> : null}</span>
       </div>
     );
   };

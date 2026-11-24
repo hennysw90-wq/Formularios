@@ -225,7 +225,15 @@ function estadoPlazo(a, p, evals, hoy) {
 }
 const COLOR_PLAZO = { ok: { background: "#E1F5EE", color: "#0F6E56" }, mal: { background: "#FCEBEB", color: "#A32D2D" }, curso: { background: "#FAEEDA", color: "#854F0B" } };
 
+function patioDeAsignacion(asig, form, listados) {
+  const campo = campoAsignable(form);
+  if (!campo || !asig) return null;
+  const datos = datosDePregunta(campo, listados);
+  return (p, fecha) => (patiosProgramados({ asignacionId: asig.id, persona: p, alcance: p.alcance, datos }).find((x) => x.fecha === fecha) || {}).opcion || "";
+}
+
 function ListaAsignaciones({ asignaciones: todasAsig, formPorId, onEditar, onEliminar, onActivar, onNueva, directorio = [], evals = [], usuario = null, onGuardarCalendario = null, onAnclar = null }) {
+  const listados = useListados();
   const hoy = hoyLocalISO();
   // Por defecto solo las que están en curso; las terminadas y desactivadas se muestran a pedido.
   const [verTodas, setVerTodas] = useState(false);
@@ -324,7 +332,7 @@ function ListaAsignaciones({ asignaciones: todasAsig, formPorId, onEditar, onEli
                         <button style={btnPel} onClick={() => onEliminar(a)}>Eliminar</button>
                       </div>
                     </div>
-                    {calendarioDe === a.id && <CalendarioProgramado key={a.id + (anclarDe === a.id ? ":anclar" : "")} pedirAnclaje={anclarDe === a.id} asignacion={a} evals={evals} usuario={usuario} formularioNombre={f ? f.nombre : a.formularioNombre || ""} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} onAnclar={estaActiva(a) && onAnclar ? (si, h) => onAnclar(a, si, f ? f.nombre : a.formularioNombre || "", h) : null} />}
+                    {calendarioDe === a.id && <CalendarioProgramado patioDe={patioDeAsignacion(a, f, listados)} key={a.id + (anclarDe === a.id ? ":anclar" : "")} pedirAnclaje={anclarDe === a.id} asignacion={a} evals={evals} usuario={usuario} formularioNombre={f ? f.nombre : a.formularioNombre || ""} onGuardar={estaActiva(a) && onGuardarCalendario ? (personas) => onGuardarCalendario(a, personas) : null} onAnclar={estaActiva(a) && onAnclar ? (si, h) => onAnclar(a, si, f ? f.nombre : a.formularioNombre || "", h) : null} />}
                   </div>
                 ))}
             </div>
@@ -708,6 +716,12 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
               onSortear={() => sortear(false)}
               onMover={moverFecha}
             />
+          )}
+          {hayProgramados && (a.personas || []).some((p) => (p.fechas || []).length) && (
+            <details open style={{ marginTop: 10 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 800, fontSize: 13.5 }}>📅 Calendario (vista previa con el patio de cada día)</summary>
+              <CalendarioProgramado asignacion={a} evals={[]} formularioNombre={(formularios.find((x) => x.id === a.formularioId) || {}).nombre || ""} patioDe={campo ? (p, fecha) => (patiosProgramados({ asignacionId: a.id, persona: p, alcance: p.alcance, datos: datosCampo }).find((x) => x.fecha === fecha) || {}).opcion || "" : null} />
+            </details>
           )}
           {hayProgramados && (
             <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 10, fontSize: 13.5, cursor: "pointer", background: "#fff", border: "1px solid #D3D1C7", borderRadius: 10, padding: "8px 10px" }}>
