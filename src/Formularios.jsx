@@ -622,6 +622,19 @@ function TabA({ form, cambiar, enUso, listados }) {
                 {c.listadoId && !(listados || []).some((l) => l.id === c.listadoId) && <option value={c.listadoId}>Listado no encontrado (usa la copia guardada)</option>}
               </select>
               {c.listadoId && <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>{opcionesDePregunta(c, listados).length} opciones · se editan en Administración → Listados.</div>}
+              {c.listadoId && (
+                <div style={{ marginTop: 4 }}>
+                  <select className="rp-select" value={c.parte || ""} aria-label={`Qué muestra ${c.etiqueta}`} onChange={(e) => cambiar((f) => { f.seccionA[i].parte = e.target.value || undefined; })}>
+                    <option value="">Muestra: opción completa</option>
+                    <option value="area">Muestra: solo el Área (filtro)</option>
+                    <option value="nombre">Muestra: el Patio (filtrado por el Área)</option>
+                  </select>
+                  {c.parte === "nombre" && !form.seccionA.some((x) => x.parte === "area") && (
+                    <button type="button" className="rp-btn" style={{ marginTop: 4 }} onClick={() => cambiar((f) => { f.seccionA.splice(i, 0, { id: nuevoId("c"), etiqueta: "Área", tipo: "seleccion", obligatorio: !!c.obligatorio, listadoId: c.listadoId, parte: "area", opciones: [] }); })}>➕ Agregar el campo Área encima</button>
+                  )}
+                  {c.parte === "nombre" && <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>El Patio se filtra por el campo Área; el líder se sugiere desde el listado.</div>}
+                </div>
+              )}
             </div>
           )}
           {c.tipo === "busqueda" && !c.listadoId && (

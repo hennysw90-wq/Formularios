@@ -3,7 +3,7 @@ import BuscarOpcion from "./BuscarOpcion.jsx";
 import SelectorUsuario, { useUsuariosDirectorio } from "./SelectorUsuario.jsx";
 import EtiquetaOpcion, { nombreOpcion, partesOpcion } from "./EtiquetaOpcion.jsx";
 import FotoRespaldo, { pesoFotos } from "./FotoRespaldo.jsx";
-import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, opcionesDelAlcance, numeroDePeriodo, filasDeListado } from "./listados.js";
+import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, opcionesDelAlcance, numeroDePeriodo, filasDeListado, separarAreaNombre } from "./listados.js";
 import { listarEvaluacionesDesde, listarFormulariosPublicados, listarMisEvaluaciones, guardarEvaluacion, buscarCompromisoAnterior, buscarUltimaDelLider, obtenerFormulario, obtenerEvaluacion } from "./evaluaciones.js";
 import { listarPersonasAsistencia } from "./firebaseAsistencia.js";
 import { useAgenda, ListaAgenda, PildoraPendientes } from "./MiAgenda.jsx";
@@ -904,23 +904,24 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
 /** Opciones de un toque (como tarjetas grandes): nombre en negrita y, debajo, el área. */
 
 // Listado en tabla (Área · Nombre · Líderes): se filtra primero por área y después por nombre; muestra los líderes de lo elegido.
-function ElegirAreaNombre({ datos, valor, etiqueta, soloLectura, onCambiar }) {
+function ElegirAreaNombre({ datos, valor, etiqueta, soloLectura, onCambiar, areaExterna }) {
   const filas = filasDeListado(datos);
   const actual = filas.find((f) => f.opcion === valor);
-  const [area, setArea] = useState(actual?.area || "");
+  const [areaProp, setArea] = useState(actual?.area || "");
+  const area = areaExterna !== undefined ? areaExterna : areaProp;
   const areas = [...new Set(filas.map((f) => f.area).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
   const visibles = filas.filter((f) => !area || f.area === area);
   if (soloLectura) return <div className="rp-input" style={{ background: "var(--fondo)" }}>{valor || "—"}</div>;
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      {areas.length > 0 && (
+      {areaExterna === undefined && areas.length > 0 && (
         <select className="rp-select" value={area} onChange={(e) => { setArea(e.target.value); if (actual && e.target.value && actual.area !== e.target.value) onCambiar(""); }} aria-label="Filtrar por área">
           <option value="">Todas las áreas</option>
           {areas.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
       )}
       <select className="rp-select" value={valor || ""} onChange={(e) => onCambiar(e.target.value)} aria-label={`Elegir ${etiqueta}`}>
-        <option value="">{area ? `Elige ${String(etiqueta || "").toLowerCase()} de ${area}…` : "Elige…"}</option>
+        <option value="">{areaExterna !== undefined && !area ? "Primero elige el área" : area ? `Elige ${String(etiqueta || "").toLowerCase()} de ${area}…` : "Elige…"}</option>
         {visibles.map((f) => <option key={f.opcion} value={f.opcion}>{f.nombre}{!area && f.area ? ` · ${f.area}` : ""}</option>)}
       </select>
       {actual && (
@@ -1113,7 +1114,14 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
   const liderLibre = !!campoAsig && esAsignacionPorValor(ev.rutinaSesionId) && lideres.length === 0;
   // Si el listado trae líderes por opción (ej. patio), el líder sale del patio elegido: uno solo se pone solo; varios, se elige entre ellos
   // (y siempre se puede indicar a otra persona). Vale para el dato asignado por listado y para un listado en tabla elegido en el formulario.
-  const campoTabla = campoAsig || f.seccionA.find((c) => (c.tipo === "busqueda" || c.tipo === "seleccion") && datosDePregunta(c, listados).tabla) || null;
+  const campoArea = f.seccionA.find((c) => c.parte === "area" && (c.tipo === "busqueda" || c.tipo === "seleccion")) || null;
+  const campoTabla = campoAsig || f.seccionA.find((c) => c.parte !== "area" && (c.tipo === "busqueda" || c.tipo === "seleccion") && datosDePregunta(c, listados).tabla) || null;
+  // Si el formulario tiene un campo Área aparte, el área se deduce del patio elegido (asignado o no).
+  const areaDelPatio = campoTabla && ev.datos[campoTabla.id] ? separarAreaNombre(ev.datos[campoTabla.id], datosDePregunta(campoTabla, listados).subareas).area : "";
+  useEffect(() => {
+    if (soloLectura || !campoArea || !areaDelPatio || ev.datos[campoArea.id] === areaDelPatio) return;
+    cambiar((x) => { x.datos[campoArea.id] = areaDelPatio; });
+  }, [soloLectura, campoArea?.id, areaDelPatio]); // eslint-disable-line react-hooks/exhaustive-deps
   const valorTabla = campoTabla ? ev.datos[campoTabla.id] || "" : "";
   const liderPorTabla = !campoAsig && !!campoTabla && !f.seccionA.some((c) => c.tipo === "rutina");
   const liderDeListado = liderLibre || liderPorTabla;
@@ -1155,7 +1163,8 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
         )}
         {f.seccionA.map((c) => {
           if (c.tipo === "rutina" && ev.rutinaBloqueada) return null; // ya viene definida por el QR: no se elige
-          const esTablaC = (c.tipo === "busqueda" || c.tipo === "seleccion") && !(c.asignable && c.id === campoAsig?.id) && !!datosDePregunta(c, listados).tabla;
+          const esAreaC = c.parte === "area" && (c.tipo === "busqueda" || c.tipo === "seleccion");
+          const esTablaC = !esAreaC && (c.tipo === "busqueda" || c.tipo === "seleccion") && !(c.asignable && c.id === campoAsig?.id) && !!datosDePregunta(c, listados).tabla;
           const lideresComoTarjetas = c.tipo === "lider" && ev.rutinaSesionId && lideres.length >= 1 && lideres.length <= 6;
           return (
             <div key={c.id} style={lideresComoTarjetas || (c.tipo === "lider" && ev.lider && !soloLectura) ? { gridColumn: "1 / -1" } : undefined}>
@@ -1201,7 +1210,19 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
               {c.tipo === "numero" && <input className="rp-input" type="number" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "fecha" && <input className="rp-input" type="date" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
               {c.tipo === "hora" && <input className="rp-input" type="time" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))} />}
-              {c.asignable && c.id === campoAsig?.id && porAlcance && !soloLectura ? (
+              {esAreaC && (() => {
+                const dd = datosDePregunta(c, listados);
+                const areas = [...new Set(filasDeListado(dd).map((x) => x.area).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
+                const fija = soloLectura || ev.rutinaBloqueada || (porAlcance && !!areaDelPatio);
+                return fija ? <div className="rp-input" style={{ background: "var(--fondo)" }}>{ev.datos[c.id] || "—"}</div> : (
+                  <select className="rp-select" value={ev.datos[c.id] || ""} aria-label={`Elegir ${c.etiqueta}`}
+                    onChange={(e) => cambiar((x) => { x.datos[c.id] = e.target.value; if (campoTabla && areaDelPatio && areaDelPatio !== e.target.value) { x.datos[campoTabla.id] = ""; if (campoAsig) aplicarRutina(x, null); } })}>
+                    <option value="">Elige…</option>
+                    {areas.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                );
+              })()}
+              {!esAreaC && c.asignable && c.id === campoAsig?.id && porAlcance && !soloLectura ? (
                 !yoEnAsig ? (
                   <input className="rp-input" disabled readOnly value="Primero indica quién evalúa" />
                 ) : tocan.length === 0 ? (
@@ -1218,7 +1239,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                     onElegir={(o) => cambiar((x) => (x.datos[c.id] = o))}
                   />
                 )
-              ) : c.asignable && c.id === campoAsig?.id ? (
+              ) : esAreaC ? null : c.asignable && c.id === campoAsig?.id ? (
                 ev.rutinaBloqueada || soloLectura ? (
                   <div className="rp-input" style={{ background: "#E1F5EE", fontWeight: 700 }}>{ev.datos[c.id] || "—"}</div>
                 ) : datosDePregunta(c, listados).tabla && f.rutinas.some((r) => esAsignacionPorValor(r.sesionId)) ? (() => {
@@ -1227,7 +1248,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                   const nombres = rr.map((r) => r.nombre);
                   const sub = {}; const lid = {};
                   nombres.forEach((n) => { if (dd.subareas?.[n]) sub[n] = dd.subareas[n]; if (dd.lideres?.[n]) lid[n] = dd.lideres[n]; });
-                  return <ElegirAreaNombre datos={{ ...dd, opciones: nombres, subareas: sub, lideres: lid }} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura}
+                  return <ElegirAreaNombre areaExterna={campoArea ? ev.datos[campoArea.id] || "" : undefined} datos={{ ...dd, opciones: nombres, subareas: sub, lideres: lid }} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura}
                     onCambiar={(v) => { const r = rr.find((x) => x.nombre === v); if (r) elegirRutina(r.sesionId); else cambiar((x) => (x.datos[c.id] = v)); }} />;
                 })() : (
                   <select className="rp-select" value={esAsignacionPorValor(ev.rutinaSesionId) ? ev.rutinaSesionId : ""} onChange={(e) => elegirRutina(e.target.value)} aria-label={`Elegir ${c.etiqueta}`}>
@@ -1236,11 +1257,11 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                   </select>
                 )
               ) : esTablaC ? (
-                <ElegirAreaNombre datos={datosDePregunta(c, listados)} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura} onCambiar={(v) => cambiar((x) => (x.datos[c.id] = v))} />
-              ) : c.tipo === "busqueda" && (
+                <ElegirAreaNombre areaExterna={campoArea ? ev.datos[campoArea.id] || "" : undefined} datos={datosDePregunta(c, listados)} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura} onCambiar={(v) => cambiar((x) => (x.datos[c.id] = v))} />
+              ) : c.tipo === "busqueda" && !esAreaC && (
                 <BuscarOpcion opciones={opcionesDePregunta(c, listados)} valor={ev.datos[c.id] || ""} etiqueta={c.etiqueta} soloLectura={soloLectura} onCambiar={(v) => cambiar((x) => (x.datos[c.id] = v))} />
               )}
-              {c.tipo === "seleccion" && !esTablaC && !(c.asignable && c.id === campoAsig?.id) && (
+              {c.tipo === "seleccion" && !esTablaC && !esAreaC && !(c.asignable && c.id === campoAsig?.id) && (
                 <select className="rp-select" value={ev.datos[c.id] || ""} onChange={(e) => cambiar((x) => (x.datos[c.id] = e.target.value))}>
                   <option value="">Elige…</option>
                   {opcionesDePregunta(c, listados).map((o) => <option key={o} value={o}>{o}</option>)}
