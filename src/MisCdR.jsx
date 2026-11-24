@@ -868,7 +868,7 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
       </div>
 
       {vistaPrevia ? (
-        <div className="cdr-aviso">👁 Vista previa: así se ve el formulario al ejecutarlo. Lo que escribas aquí no se guarda ni se envía.</div>
+        <div className="cdr-aviso">👁 Vista previa de solo lectura: así se ve el formulario. Aquí no se puede escribir ni marcar nada; para llenarlo, sal y empieza la evaluación.</div>
       ) : (
         <AvancePlan formularioId={ev.formularioId} rutinaSesionId={ev.rutinaSesionId} evaluador={{ uid: ev.evaluadorUid, personaId: ev.evaluadorPersonaId, nombre: ev.evaluadorNombre }} />
       )}
@@ -881,12 +881,15 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
         ))}
       </div>
 
-      {paso === 0 && <PasoDatos ev={ev} cambiar={cambiar} personas={personas} errorPersonas={errorPersonas} soloLectura={soloLectura} />}
-      {paso === 1 && <PasoNotas ev={ev} cambiar={cambiar} />}
-      {paso === 2 && <PasoRubrica ev={ev} cambiar={cambiar} />}
-      {paso === 3 && <PasoResultado ev={ev} cambiar={cambiar} />}
-      {paso === 4 && <PasoCompromiso ev={ev} cambiar={cambiar} anterior={anterior} />}
-      {paso === 5 && <PasoCierre ev={ev} cambiar={cambiar} anterior={anterior} errores={erroresEnvio} onEnviar={enviar} enviando={enviando} />}
+      {/* En la vista previa ("Revisar formulario") todo queda de solo lectura: se puede recorrer pero no escribir ni marcar. */}
+      <fieldset disabled={vistaPrevia} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, pointerEvents: vistaPrevia ? "none" : undefined, userSelect: vistaPrevia ? "text" : undefined }}>
+        {paso === 0 && <PasoDatos ev={ev} cambiar={cambiar} personas={personas} errorPersonas={errorPersonas} soloLectura={soloLectura} />}
+        {paso === 1 && <PasoNotas ev={ev} cambiar={cambiar} />}
+        {paso === 2 && <PasoRubrica ev={ev} cambiar={cambiar} />}
+        {paso === 3 && <PasoResultado ev={ev} cambiar={cambiar} />}
+        {paso === 4 && <PasoCompromiso ev={ev} cambiar={cambiar} anterior={anterior} />}
+        {paso === 5 && <PasoCierre ev={ev} cambiar={cambiar} anterior={anterior} errores={erroresEnvio} onEnviar={enviar} enviando={enviando} />}
+      </fieldset>
 
       <div className="cdr-barra-inferior">
         <button className="cdr-nav-btn" disabled={paso === 0} onClick={() => irAPaso(paso - 1)}>← Anterior</button>
