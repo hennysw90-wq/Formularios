@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { guardarListados, usosDeListados, lineasDeListado, parsearLineasListado, useEstadoPortalEO, filasDeListado, unirAreaNombre } from "./listados.js";
 import { useUsuariosDirectorio } from "./SelectorUsuario.jsx";
+import { buscarOpciones } from "./BuscarOpcion.jsx";
 import { NOMBRE_LISTADO_PORTAL } from "./firebasePortalEO.js";
 import { nuevoId } from "./formularios.js";
 
@@ -43,41 +44,60 @@ function TarjetaSincronizada({ l, usos, estado }) {
 }
 
 
-const normN = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 
 // Editor en tabla: Área · Nombre · Líderes (uno o varios, elegidos del directorio de usuarios).
 function EditorTabla({ filas, setFilas, nombreDato }) {
   const usuarios = useUsuariosDirectorio();
-  const nombresDir = (usuarios || []).filter((u) => u.rol !== "deshabilitado" && String(u.nombreUsuario || "").trim()).map((u) => String(u.nombreUsuario).trim());
-  const [aviso, setAviso] = useState("");
   const areas = [...new Set(filas.map((f) => f.area.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
   const cambiar = (i, parte) => setFilas(filas.map((f, j) => (j === i ? { ...f, ...parte } : f)));
-  function agregarLider(i, texto) {
-    const t = String(texto || "").trim();
-    if (!t) return;
-    const hallado = nombresDir.find((n) => normN(n) === normN(t));
-    if (!hallado) { setAviso(`«${t}» no está en el directorio de usuarios. Elígelo de la lista (si es nuevo, créalo antes en Administración).`); return; }
-    setAviso("");
-    if (!filas[i].lideres.includes(hallado)) cambiar(i, { lideres: [...filas[i].lideres, hallado] });
-  }
   const cab = { fontSize: 12, fontWeight: 800, color: "var(--texto-suave)", textTransform: "uppercase", letterSpacing: ".04em" };
   return (
     <div>
-      <datalist id="dl-usuarios-dir">{nombresDir.map((n) => <option key={n} value={n} />)}</datalist>
       <datalist id="dl-areas-tabla">{areas.map((a) => <option key={a} value={a} />)}</datalist>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(110px,1fr) minmax(160px,1.6fr) minmax(200px,2fr) 36px", gap: 8, alignItems: "start" }}>
-        <span style={cab}>Área</span><span style={cab}>{nombreDato}</span><span style={cab}>Líder(es)</span><span />
+        <span style={cab}>Área</span><span style={cab}>{nombreDato}</span><span style={cab}>Líder(es) · del panel de usuarios</span><span />
         {filas.map((f, i) => (
-          <FilaTabla key={i} f={f} i={i} cambiar={cambiar} agregarLider={agregarLider} quitar={() => setFilas(filas.filter((_, j) => j !== i))} nombreDato={nombreDato} />
+          <FilaTabla key={i} f={f} i={i} cambiar={cambiar} usuarios={usuarios} quitar={() => setFilas(filas.filter((_, j) => j !== i))} nombreDato={nombreDato} />
         ))}
       </div>
-      {aviso && <p style={{ color: "var(--rojo, #993C1D)", fontSize: 13, margin: "8px 0 0" }}>{aviso}</p>}
       <button type="button" style={{ ...btn, marginTop: 10 }} onClick={() => setFilas([...filas, { area: filas[filas.length - 1]?.area || "", nombre: "", lideres: [] }])}>+ Agregar {nombreDato.toLowerCase()}</button>
     </div>
   );
 }
-function FilaTabla({ f, i, cambiar, agregarLider, quitar, nombreDato }) {
+
+// Buscador de líderes: lista las personas del Panel de usuarios (directorio) y filtra al escribir.
+function BuscarLider({ usuarios, elegidos, placeholder, aria, onAgregar }) {
   const [texto, setTexto] = useState("");
+  const [abierto, setAbierto] = useState(false);
+  const validos = (usuarios || []).filter((u) => u.rol !== "deshabilitado" && String(u.nombreUsuario || "").trim() && !elegidos.includes(String(u.nombreUsuario).trim()));
+  const porNombre = new Map(validos.map((u) => [String(u.nombreUsuario).trim(), u]));
+  const nombres = [...porNombre.keys()];
+  const hallados = texto.trim() ? buscarOpciones(texto, nombres, 8) : nombres.slice(0, 8);
+  const elegir = (n) => { onAgregar(n); setTexto(""); setAbierto(false); };
+  return (
+    <div style={{ position: "relative" }}>
+      <input className="rp-input" value={texto} placeholder={placeholder} aria-label={aria} autoComplete="off"
+        onChange={(e) => { setTexto(e.target.value); setAbierto(true); }} onFocus={() => setAbierto(true)} onBlur={() => setTimeout(() => setAbierto(false), 150)}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (hallados.length) elegir(hallados[0]); } }} />
+      {abierto && (
+        <div style={{ position: "absolute", left: 0, right: 0, top: "100%", zIndex: 20, background: "#fff", border: "1px solid var(--borde, #D3D1C7)", borderRadius: 8, marginTop: 2, boxShadow: "0 6px 18px rgba(0,0,0,.15)", maxHeight: 260, overflowY: "auto" }}>
+          {usuarios === null ? <div style={{ padding: "9px 12px", fontSize: 13, color: "var(--texto-suave)" }}>Leyendo usuarios…</div>
+            : hallados.length === 0 ? <div style={{ padding: "9px 12px", fontSize: 13, color: "var(--texto-suave)" }}>{texto.trim() ? "Nadie coincide en el panel de usuarios." : "No hay usuarios."}</div>
+            : hallados.map((n) => {
+              const u = porNombre.get(n);
+              return (
+                <button key={n} type="button" onMouseDown={(e) => { e.preventDefault(); elegir(n); }} style={{ display: "block", width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid #F1EFE8", background: "#fff", padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13.5 }}>
+                  <b>{n}</b>{u?.estado === "pendiente" ? <span style={{ color: "#BA7517", fontSize: 11.5 }}> · por validar</span> : null}
+                  {(u?.area || u?.cargo) && <span style={{ display: "block", fontSize: 12, color: "var(--texto-suave)" }}>{[u.area, u.cargo].filter(Boolean).join(" · ")}</span>}
+                </button>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
+}
+function FilaTabla({ f, i, cambiar, usuarios, quitar, nombreDato }) {
   return (
     <>
       <input className="rp-input" list="dl-areas-tabla" value={f.area} onChange={(e) => cambiar(i, { area: e.target.value })} placeholder="Ej. Mina" aria-label={`Área, fila ${i + 1}`} />
@@ -91,10 +111,8 @@ function FilaTabla({ f, i, cambiar, agregarLider, quitar, nombreDato }) {
             </span>
           ))}
         </div>
-        <input className="rp-input" list="dl-usuarios-dir" value={texto} placeholder={f.lideres.length ? "+ Otro líder (escribe y elige)" : "Líder (escribe y elige)"} aria-label={`Agregar líder, fila ${i + 1}`}
-          onChange={(e) => { const v = e.target.value; setTexto(v); }}
-          onBlur={() => { if (texto.trim()) { agregarLider(i, texto); setTexto(""); } }}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregarLider(i, texto); setTexto(""); } }} />
+        <BuscarLider usuarios={usuarios} elegidos={f.lideres} placeholder={f.lideres.length ? "+ Otro líder (busca en usuarios)" : "Líder: busca en el panel de usuarios"} aria={`Agregar líder, fila ${i + 1}`}
+          onAgregar={(n) => cambiar(i, { lideres: [...f.lideres, n] })} />
       </div>
       <button type="button" aria-label={`Quitar fila ${i + 1}`} onClick={quitar} style={{ ...btn, padding: "6px 0", color: "var(--rojo, #993C1D)" }}>✕</button>
     </>
