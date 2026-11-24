@@ -630,7 +630,7 @@ function TabA({ form, cambiar, enUso, listados }) {
                     <option value="nombre">Muestra: el Patio (filtrado por el Área)</option>
                   </select>
                   {c.parte === "nombre" && !form.seccionA.some((x) => x.parte === "area") && (
-                    <button type="button" className="rp-btn" style={{ marginTop: 4 }} onClick={() => cambiar((f) => { f.seccionA.splice(i, 0, { id: nuevoId("c"), etiqueta: "Área", tipo: "seleccion", obligatorio: !!c.obligatorio, listadoId: c.listadoId, parte: "area", opciones: [] }); })}>➕ Agregar el campo Área encima</button>
+                    <button type="button" style={{ ...{ border: "1px solid var(--borde)", background: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600, color: "var(--texto)", cursor: "pointer" }, marginTop: 4 }} onClick={() => cambiar((f) => { f.seccionA.splice(i, 0, { id: nuevoId("c"), etiqueta: "Área", tipo: "seleccion", obligatorio: !!c.obligatorio, listadoId: c.listadoId, parte: "area", opciones: [] }); })}>➕ Agregar el campo Área encima</button>
                   )}
                   {c.parte === "nombre" && <div style={{ fontSize: 12, color: "var(--texto-suave)" }}>El Patio se filtra por el campo Área; el líder se sugiere desde el listado.</div>}
                 </div>
