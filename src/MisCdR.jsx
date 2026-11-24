@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import BuscarOpcion from "./BuscarOpcion.jsx";
-import SelectorUsuario from "./SelectorUsuario.jsx";
+import SelectorUsuario, { useUsuariosDirectorio } from "./SelectorUsuario.jsx";
 import EtiquetaOpcion, { nombreOpcion, partesOpcion } from "./EtiquetaOpcion.jsx";
 import FotoRespaldo, { pesoFotos } from "./FotoRespaldo.jsx";
 import { useListados, opcionesDePregunta, campoAsignable, esAsignacionPorValor, esAsignacionPorAlcance, datosDePregunta, opcionesQueTocan, opcionesDelAlcance, numeroDePeriodo, filasDeListado } from "./listados.js";
@@ -1111,14 +1111,21 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
   const cambioSugerido = porAlcance && valorAsig && !tocan.includes(valorAsig);
   // Asignado por listado: no hay líderes en la asignación, así que el evaluador indica quién lidera la actividad.
   const liderLibre = !!campoAsig && esAsignacionPorValor(ev.rutinaSesionId) && lideres.length === 0;
-  // Si el listado trae líderes por opción (ej. patio), el líder sale del patio elegido: uno solo se pone solo; varios, se elige entre ellos.
-  const lideresDelValor = valorAsig && campoAsig ? datosDePregunta(campoAsig, listados).lideres?.[valorAsig] || [] : [];
+  // Si el listado trae líderes por opción (ej. patio), el líder sale del patio elegido: uno solo se pone solo; varios, se elige entre ellos
+  // (y siempre se puede indicar a otra persona). Vale para el dato asignado por listado y para un listado en tabla elegido en el formulario.
+  const campoTabla = campoAsig || f.seccionA.find((c) => (c.tipo === "busqueda" || c.tipo === "seleccion") && datosDePregunta(c, listados).tabla) || null;
+  const valorTabla = campoTabla ? ev.datos[campoTabla.id] || "" : "";
+  const liderPorTabla = !campoAsig && !!campoTabla && !f.seccionA.some((c) => c.tipo === "rutina");
+  const liderDeListado = liderLibre || liderPorTabla;
+  const lideresDelValor = valorTabla && campoTabla ? datosDePregunta(campoTabla, listados).lideres?.[valorTabla] || [] : [];
+  const usuariosDir = useUsuariosDirectorio();
+  const uidDe = (n) => (usuariosDir || []).find((u) => u.nombreUsuario === n)?.uid || "";
   const [otroLider, setOtroLider] = useState(false);
   useEffect(() => {
-    if (soloLectura || !liderLibre || !lideresDelValor.length || otroLider) return;
-    if (lideresDelValor.length === 1) { if (ev.lider !== lideresDelValor[0]) cambiar((x) => { x.lider = lideresDelValor[0]; x.liderUid = ""; }); }
+    if (soloLectura || !liderDeListado || !lideresDelValor.length || otroLider) return;
+    if (lideresDelValor.length === 1) { if (ev.lider !== lideresDelValor[0]) cambiar((x) => { x.lider = lideresDelValor[0]; x.liderUid = uidDe(lideresDelValor[0]); }); }
     else if (ev.lider && !lideresDelValor.includes(ev.lider)) cambiar((x) => { x.lider = ""; x.liderUid = ""; });
-  }, [soloLectura, liderLibre, lideresDelValor.join("|"), otroLider, ev.lider]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [soloLectura, liderDeListado, lideresDelValor.join("|"), otroLider, ev.lider, usuariosDir === null]); // eslint-disable-line react-hooks/exhaustive-deps
   const etiquetaPeriodo = { diaria: "hoy", semanal: "esta semana", quincenal: "esta quincena", mensual: "este mes", unica: "en esta asignación" }[yoEnAsig?.frecuencia] || "en este periodo";
   function elegirRutina(id) {
     const r = f.rutinas.find((x) => x.sesionId === id);
@@ -1159,17 +1166,21 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                   {f.rutinas.map((r) => <option key={r.sesionId} value={r.sesionId}>{r.nombre}</option>)}
                 </select>
               )}
-              {c.tipo === "lider" && liderLibre && lideresDelValor.length > 0 && !otroLider && !soloLectura && (
+              {c.tipo === "lider" && liderDeListado && lideresDelValor.length > 0 && !otroLider && !soloLectura && (
                 <>
-                  <OpcionesLider lideres={lideresDelValor} valor={ev.lider} area={datosDePregunta(campoAsig, listados).subareas?.[valorAsig] || ""} onElegir={lideresDelValor.length > 1 ? (l) => cambiar((x) => { x.lider = l; x.liderUid = ""; }) : undefined} />
+                  <OpcionesLider lideres={lideresDelValor} valor={ev.lider} area={datosDePregunta(campoTabla, listados).subareas?.[valorTabla] || ""} onElegir={(l) => cambiar((x) => { x.lider = l; x.liderUid = uidDe(l); })} />
                   <button type="button" onClick={() => setOtroLider(true)} style={{ border: 0, background: "none", color: "var(--verde-oscuro, #0F6E56)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}>El líder es otra persona</button>
                 </>
               )}
-              {c.tipo === "lider" && liderLibre && !(lideresDelValor.length > 0 && !otroLider && !soloLectura) && (
+              {c.tipo === "lider" && liderPorTabla && !valorTabla && !soloLectura && <input className="rp-input" disabled readOnly value={`Primero elige ${String(campoTabla.etiqueta || "").toLowerCase()}`} />}
+              {c.tipo === "lider" && liderDeListado && !(liderPorTabla && !valorTabla && !soloLectura) && !(lideresDelValor.length > 0 && !otroLider && !soloLectura) && (
                 soloLectura ? <div className="rp-input" style={{ background: "var(--fondo)" }}>{ev.lider || "—"}</div>
-                : <SelectorUsuario valor={ev.lider || ""} etiqueta={etiquetaCampo(c, f)} onCambiar={(n, uid) => cambiar((x) => { x.lider = n; x.liderUid = uid || ""; })} />
+                : <>
+                    <SelectorUsuario valor={ev.lider || ""} etiqueta={etiquetaCampo(c, f)} onCambiar={(n, uid) => cambiar((x) => { x.lider = n; x.liderUid = uid || ""; })} />
+                    {lideresDelValor.length > 0 && <button type="button" onClick={() => { setOtroLider(false); cambiar((x) => { x.lider = ""; x.liderUid = ""; }); }} style={{ border: 0, background: "none", color: "var(--verde-oscuro, #0F6E56)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}>Volver al líder del listado</button>}
+                  </>
               )}
-              {c.tipo === "lider" && !liderLibre && (
+              {c.tipo === "lider" && !liderDeListado && (
                 !ev.rutinaSesionId ? <input className="rp-input" disabled value="Primero elige la reunión" readOnly />
                 : lideres.length === 1 ? <OpcionesLider lideres={lideres} valor={lideres[0]} area={rutina.area} />
                 : lideresComoTarjetas ? <OpcionesLider lideres={lideres} valor={ev.lider} area={rutina.area} onElegir={(l) => cambiar((x) => { x.lider = l; })} />

@@ -16,7 +16,7 @@ export default function Cabecera({ usuario, vista, onCambiarVista, onSalir, comp
         <img src={logoOems} alt="OEMS" style={{ height: 34 }} />
         <img src={logoLomasBayas} alt="Lomas Bayas" style={{ height: 34 }} />
       </div>
-      <p className="ca-eyebrow">Formularios · v0.18.18 · Henny</p>
+      <p className="ca-eyebrow">Formularios · v0.18.19 · Henny</p>
       <p className="ca-titulo">Formularios</p>
 
       <div className="ca-nav">

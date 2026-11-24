@@ -639,13 +639,18 @@ function TabA({ form, cambiar, enUso, listados }) {
             </div>
           )}
           {(c.tipo === "busqueda" || c.tipo === "seleccion") && (
-            <label style={E.check} title="El Plan de evaluadores asignará este formulario por los valores de esta lista (en vez de por reunión)">
+            <label style={E.check} title="Marcado: el Plan de evaluadores asigna este formulario por los valores de esta lista. Sin marcar: el evaluador elige el valor al llenar el formulario (si el listado es una tabla, filtra por área → nombre y el líder sale del listado).">
               <input
                 type="checkbox"
                 checked={!!c.asignable}
-                disabled={enUso}
                 aria-label={`Asignar por ${c.etiqueta}`}
-                onChange={(e) => cambiar((f) => f.seccionA.forEach((x, k) => (x.asignable = k === i ? e.target.checked : false)))}
+                onChange={(e) => {
+                  const marcar = e.target.checked;
+                  if (enUso && !window.confirm(marcar
+                    ? `¿Asignar este formulario por «${c.etiqueta}» en el Plan de evaluadores?`
+                    : `¿Dejar de asignar este formulario por «${c.etiqueta}»? Las evaluaciones ya hechas se mantienen. El evaluador elegirá el valor al llenar el formulario y las asignaciones por este dato dejarán de usarse.`)) return;
+                  cambiar((f) => f.seccionA.forEach((x, k) => (x.asignable = k === i ? marcar : false)));
+                }}
               />{" "}
               Se asigna en el Plan de evaluadores
             </label>
