@@ -1178,7 +1178,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
               {c.tipo === "lider" && liderDeListado && lideresDelValor.length > 0 && !otroLider && !soloLectura && (
                 <>
                   <OpcionesLider lideres={lideresDelValor} valor={ev.lider} area={datosDePregunta(campoTabla, listados).subareas?.[valorTabla] || ""} onElegir={(l) => cambiar((x) => { x.lider = l; x.liderUid = uidDe(l); })} />
-                  <button type="button" onClick={() => setOtroLider(true)} style={{ border: 0, background: "none", color: "var(--verde-oscuro, #0F6E56)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}>El líder es otra persona</button>
+                  <button type="button" onClick={() => setOtroLider(true)} style={{ border: 0, background: "none", color: "var(--verde-oscuro, #0F6E56)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}>{`${receptorEval(f).charAt(0).toUpperCase()}${receptorEval(f).slice(1)} es otra persona`}</button>
                 </>
               )}
               {c.tipo === "lider" && liderPorTabla && !valorTabla && !soloLectura && <input className="rp-input" disabled readOnly value={`Primero elige ${String(campoTabla.etiqueta || "").toLowerCase()}`} />}
@@ -1186,7 +1186,7 @@ function PasoDatos({ ev, cambiar, personas, errorPersonas, soloLectura }) {
                 soloLectura ? <div className="rp-input" style={{ background: "var(--fondo)" }}>{ev.lider || "—"}</div>
                 : <>
                     <SelectorUsuario valor={ev.lider || ""} etiqueta={etiquetaCampo(c, f)} onCambiar={(n, uid) => cambiar((x) => { x.lider = n; x.liderUid = uid || ""; })} />
-                    {lideresDelValor.length > 0 && <button type="button" onClick={() => { setOtroLider(false); cambiar((x) => { x.lider = ""; x.liderUid = ""; }); }} style={{ border: 0, background: "none", color: "var(--verde-oscuro, #0F6E56)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}>Volver al líder del listado</button>}
+                    {lideresDelValor.length > 0 && <button type="button" onClick={() => { setOtroLider(false); cambiar((x) => { x.lider = ""; x.liderUid = ""; }); }} style={{ border: 0, background: "none", color: "var(--verde-oscuro, #0F6E56)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}>{`Volver al ${receptorEval(f)} del listado`}</button>}
                   </>
               )}
               {c.tipo === "lider" && !liderDeListado && (
