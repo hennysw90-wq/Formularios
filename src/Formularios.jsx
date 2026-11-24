@@ -982,7 +982,7 @@ function CampoPrevio({ c, form }) {
       </select>
     );
   }
-  if (c.tipo === "lider") return <input {...base} readOnly value="(según la rutina; si tiene varios líderes, eliges quién lideró)" />;
+  if (c.tipo === "lider") return <input {...base} readOnly value="(se sugiere el líder del patio según el listado; si no hay, se elige a la persona)" />;
   if (c.tipo === "busqueda") return <input {...base} readOnly placeholder={`Escribe para buscar (${(c.opciones || []).length} opciones)`} />;
   if (c.tipo === "seleccion") return <select className="rp-select" disabled><option>{(c.opciones || []).join(" / ") || "Opciones…"}</option></select>;
   if (c.tipo === "fecha") return <input type="date" {...base} />;
