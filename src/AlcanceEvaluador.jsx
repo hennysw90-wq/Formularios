@@ -50,7 +50,7 @@ export default function AlcanceEvaluador({ etiqueta, datos, alcance, onCambiar, 
         {vacio && <span style={{ fontSize: 12.5, color: "var(--rojo)" }}>Elige al menos una opción o sub área.</span>}
       </div>
       <div style={{ marginBottom: 6 }}>
-        <button type="button" style={ border: "1px solid var(--borde)", background: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600, color: "var(--texto)", cursor: "pointer" } onClick={() => setLista((v) => !v)}>{lista ? "▲ Ocultar listado" : `☑ Elegir del listado (${cubre.length}/${todas.length})`}</button>
+        <button type="button" style={{ border: "1px solid var(--borde)", background: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600, color: "var(--texto)", cursor: "pointer" }} onClick={() => setLista((v) => !v)}>{lista ? "▲ Ocultar listado" : `☑ Elegir del listado (${cubre.length}/${todas.length})`}</button>
         {!vacio && <button type="button" style={{ ...{ border: "1px solid var(--borde)", background: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 13, fontWeight: 600, color: "var(--texto)", cursor: "pointer" }, marginLeft: 6 }} onClick={() => ponerOpciones([])}>Quitar todos</button>}
       </div>
       {lista && (
