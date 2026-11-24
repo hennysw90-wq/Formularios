@@ -91,7 +91,7 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
   const n = (e) => delMes.filter((i) => i.estado === e).length;
   const exigidoMes = delMes.filter((i) => i.estado !== "futura").length;
   const cumplimiento = programada && exigidoMes ? Math.round((n("hecha") * 100) / exigidoMes) : null;
-  const moverMes = (k) => { const i = meses.indexOf(mes); const x = meses[i + k]; if (x) setMes(x); };
+  const moverMes = (k) => { const [yy, mm] = mes.split("-").map(Number); const d = new Date(yy, mm - 1 + k, 1); setMes(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`); };
 
   const movible = (it) => editando && it.estado !== "hecha" && it.fecha >= hoy;
   function moverA(destino) {
@@ -158,8 +158,8 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
       {modalClave}
       {/* Controles (fuera del área para pantallazo) */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-        <button style={btn} onClick={() => moverMes(-1)} disabled={meses.indexOf(mes) <= 0} aria-label="Mes anterior">‹</button>
-        <button style={btn} onClick={() => moverMes(1)} disabled={meses.indexOf(mes) >= meses.length - 1} aria-label="Mes siguiente">›</button>
+        <button style={btn} onClick={() => moverMes(-1)} aria-label="Mes anterior">‹</button>
+        <button style={btn} onClick={() => moverMes(1)} aria-label="Mes siguiente">›</button>
         <div style={{ display: "flex", border: "1px solid var(--borde, #D3D1C7)", borderRadius: 8, overflow: "hidden" }}>
           {[["calendario", "📅 Calendario"], ["gantt", "▤ Gantt"]].map(([v, t]) => (
             <button key={v} type="button" onClick={() => setVista(v)} style={{ border: "none", padding: "6px 11px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: vista === v ? "var(--verde, #009899)" : "#fff", color: vista === v ? "#fff" : "inherit" }}>{t}</button>
