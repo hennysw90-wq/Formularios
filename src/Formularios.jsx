@@ -5,7 +5,7 @@ import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistenc
 import { PLANTILLA_PAUTA_V3, formularioEnBlanco } from "./plantillas.js";
 import ModalQR from "./ModalQR.jsx";
 import { Ejecutar, nuevaEvaluacion } from "./MisCdR.jsx";
-import { useListados, opcionesDePregunta } from "./listados.js";
+import { useListados, opcionesDePregunta, datosDePregunta, filasDeListado } from "./listados.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
 import { contarEvaluacionesDeFormulario } from "./evaluaciones.js";
 import { etiquetaCampo } from "./referencia.js";
@@ -980,8 +980,16 @@ function TabE({ form, cambiar, formularios = [] }) {
 
 /* --------------------------- Vista previa -------------------------- */
 
-function CampoPrevio({ c, form }) {
+function CampoPrevio({ c, form, listados }) {
   const base = { className: "rp-input", disabled: true };
+  if ((c.tipo === "seleccion" || c.tipo === "busqueda") && c.listadoId && c.parte === "area") {
+    const filas = filasDeListado(datosDePregunta(c, listados));
+    const areas = [...new Set(filas.map((x) => x.area).filter(Boolean))];
+    return <select className="rp-select" disabled><option>{areas.length ? `Elige el área (${areas.length}: ${areas.slice(0, 3).join(", ")}${areas.length > 3 ? "…" : ""})` : "Elige el área (el listado no tiene áreas)"}</option></select>;
+  }
+  if ((c.tipo === "seleccion" || c.tipo === "busqueda") && c.listadoId && c.parte === "nombre") {
+    return <select className="rp-select" disabled><option>{form.seccionA.some((x) => x.parte === "area") ? "Elige el patio (solo los del área elegida)" : "Elige el patio (falta el campo Área: usa «Agregar el campo Área encima»)"}</option></select>;
+  }
   const porListado = (form.seccionA || []).find((x) => x.asignable);
   if (c.tipo === "rutina" && porListado) return <input {...base} readOnly value={`(no se usa: se asigna por «${porListado.etiqueta}»; puedes quitarlo)`} />;
   if (c.tipo === "lider" && porListado) return <input {...base} readOnly value="Busca a la persona en el directorio (o la crea por validar)" />;
@@ -1027,7 +1035,7 @@ function VistaPrevia({ form, listados }) {
         {form.seccionA.map((c) => (
           <div key={c.id}>
             <label className="ca-label">{etiquetaCampo(c, form) || "(sin etiqueta)"}{c.obligatorio ? " *" : ""}</label>
-            <CampoPrevio c={{ ...c, opciones: opcionesDePregunta(c, listados) }} form={form} />
+            <CampoPrevio c={{ ...c, opciones: opcionesDePregunta(c, listados) }} form={form} listados={listados} />
           </div>
         ))}
       </div>
