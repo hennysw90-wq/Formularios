@@ -122,7 +122,7 @@ export function parsearLineasListado(texto) {
 /** Opciones y sub áreas de una pregunta (de su listado, o la copia guardada en la pregunta). */
 export function datosDePregunta(c, listados) {
   const l = c?.listadoId ? (listados || []).find((x) => x.id === c.listadoId) : null;
-  return { opciones: l ? l.opciones || [] : c?.opciones || [], subareas: l ? l.subareas || {} : c?.subareas || {}, lideres: l ? l.lideres || {} : c?.lideres || {}, tabla: l ? !!l.tabla : !!c?.tabla };
+  return { opciones: l ? l.opciones || [] : c?.opciones || [], subareas: l ? l.subareas || {} : c?.subareas || {}, lideres: l ? l.lideres || {} : c?.lideres || {}, tabla: l ? !!l.tabla || Object.values(l.subareas || {}).some(Boolean) || Object.values(l.lideres || {}).some((x) => x && x.length) : !!c?.tabla };
 }
 
 // ---------- Listados en forma de tabla: Área · Nombre (ej. patio) · Líderes ----------
