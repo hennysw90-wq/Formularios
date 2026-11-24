@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import AlcanceEvaluador from "./AlcanceEvaluador.jsx";
-import { useListados, datosDePregunta, campoAsignable, esAsignacionPorValor, PREFIJO_VALOR, textoAlcance } from "./listados.js";
+import { useListados, datosDePregunta, campoAsignable, patiosProgramados, opcionesDelAlcance, esAsignacionPorValor, PREFIJO_VALOR, textoAlcance } from "./listados.js";
 import { APP_ACTUAL_ID, cambiarAppsUsuario } from "./auth.js";
 import PlanMasivo from "./PlanMasivo.jsx";
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
@@ -801,9 +801,17 @@ function EditorAsignacion({ inicial, formularios, reuniones, directorio, onCance
                   </div>
                 );
               })()}
+              {campo && p.frecuencia === "programada" && (p.fechas || []).length > 0 && (() => {
+                const lista = patiosProgramados({ asignacionId: a.id, persona: p, alcance: p.alcance, datos: datosCampo });
+                return lista.length ? (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 2px" }}>
+                    {lista.map((x) => <span key={x.fecha} style={{ fontSize: 12, background: "#E1F5EE", border: "1px solid #9fd8c6", borderRadius: 12, padding: "2px 9px" }}><b>{x.fecha.split("-").reverse().slice(0, 2).join("-")}</b> → {x.opcion}</span>)}
+                  </div>
+                ) : null;
+              })()}
               {!p.personalizado ? (
                 <div style={{ fontSize: 12.5, color: "var(--texto-suave)", marginTop: 2 }}>
-                  Plan común · {p.frecuencia === "programada" ? `${(p.fechas || []).length} días programados${(() => { const hoy = new Date().toISOString().slice(0, 10); const prox = [...(p.fechas || [])].sort().find((f) => f >= hoy); return prox ? ` · próximo ${prox.split("-").reverse().join("-")}` : ""; })()}` : etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{campo && p.alcance ? ` · ${textoAlcance(p.alcance) || "sin alcance"}` : ""}
+                  Plan común · {p.frecuencia === "programada" ? `${(p.fechas || []).length} días programados${(() => { const hoy = new Date().toISOString().slice(0, 10); const prox = [...(p.fechas || [])].sort().find((f) => f >= hoy); return prox ? ` · próximo ${prox.split("-").reverse().join("-")}` : ""; })()}` : etiquetaCadencia(p.cantidad ?? 1, p.frecuencia || "semanal", p.frecuencia === "unica" ? p.hasta : "")}{p.desde ? ` · desde ${p.desde.split("-").reverse().join("-")}` : ""}{campo && p.alcance ? ` · ${opcionesDelAlcance(p.alcance, datosCampo).length} patios` : ""}
                 </div>
               ) : (<>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 6 }}>

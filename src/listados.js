@@ -193,7 +193,23 @@ export function opcionesQueTocan({ asignacionId, persona, alcance, datos, frecue
   const cubre = opcionesDelAlcance(alcance, datos);
   if (!cubre.length) return [];
   const orden = barajar(cubre, `${asignacionId}|${persona?.uid || persona?.nombre || ""}`);
+  // Programado: un patio por cada día programado (en orden de fechas; sin repetir hasta pasar por todos).
+  const fl = [...new Set(persona?.fechas || [])].sort();
+  if (frecuencia === "programada" && fl.length) {
+    const hoy = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
+    const idx = Math.max(0, fl.filter((f) => f <= hoy).length - 1);
+    return [orden[idx % orden.length]];
+  }
   const n = Math.max(1, Math.min(Number(cantidad) || 1, orden.length));
   const base = numeroDePeriodo(frecuencia, fecha) * n;
   return Array.from({ length: n }, (_, k) => orden[(base + k) % orden.length]);
+}
+
+/** Patio que le toca a una persona en cada uno de sus días programados: [{ fecha, opcion }]. */
+export function patiosProgramados({ asignacionId, persona, alcance, datos }) {
+  const fl = [...new Set(persona?.fechas || [])].sort();
+  const cubre = opcionesDelAlcance(alcance, datos);
+  if (!fl.length || !cubre.length) return [];
+  const orden = barajar(cubre, `${asignacionId}|${persona?.uid || persona?.nombre || ""}`);
+  return fl.map((fecha, i) => ({ fecha, opcion: orden[i % orden.length] }));
 }
