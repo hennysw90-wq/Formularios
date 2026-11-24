@@ -70,7 +70,15 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
     // Sin programación: cada evaluación hecha, en su día.
     return hechasEnAsignacion(asignacion, p, evals, p.frecuencia || "semanal").map((h) => ({ fecha: String(h.fecha).slice(0, 10), nombre: p.nombre, clave: claveDe(p), estado: "hecha" }));
   });
-  const meses = [...new Set([...items.map((i) => i.fecha.slice(0, 7)), hoy.slice(0, 7)])].sort();
+  const mesesConDatos = [...items.map((i) => i.fecha.slice(0, 7)), hoy.slice(0, 7)].sort();
+  // Todos los meses entre el primero y el último con datos (aunque alguno quede vacío), para poder recorrerlos.
+  const meses = (() => {
+    const out = [];
+    let [y, m] = mesesConDatos[0].split("-").map(Number);
+    const fin = mesesConDatos[mesesConDatos.length - 1];
+    while (`${y}-${String(m).padStart(2, "0")}` <= fin && out.length < 60) { out.push(`${y}-${String(m).padStart(2, "0")}`); m++; if (m > 12) { m = 1; y++; } }
+    return out;
+  })();
   const [mes, setMes] = useState(hoy.slice(0, 7));
   const [a, m] = mes.split("-").map(Number);
   const offset = (new Date(a, m - 1, 1).getDay() + 6) % 7; // lunes primero

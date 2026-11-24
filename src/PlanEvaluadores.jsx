@@ -225,7 +225,7 @@ function estadoPlazo(a, p, evals, hoy) {
 }
 const COLOR_PLAZO = { ok: { background: "#E1F5EE", color: "#0F6E56" }, mal: { background: "#FCEBEB", color: "#A32D2D" }, curso: { background: "#FAEEDA", color: "#854F0B" } };
 
-function patioDeAsignacion(asig, form, listados) {
+export function patioDeAsignacion(asig, form, listados) {
   const campo = campoAsignable(form);
   if (!campo || !asig) return null;
   const datos = datosDePregunta(campo, listados);

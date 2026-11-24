@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import logoLomasBayas from "./assets/logo-lomasbayas.png";
 import { obtenerFormulario, obtenerEvaluacion, listarEvaluacionesDesde, listarFormulariosPublicados, guardarEvaluacion } from "./evaluaciones.js";
 import CumplimientoPlan from "./CumplimientoPlan.jsx";
+import CalendarioProgramado from "./CalendarioProgramado.jsx";
+import { patioDeAsignacion } from "./PlanEvaluadores.jsx";
+import { useListados } from "./listados.js";
 import ResultadosQR, { VISTA_RESULTADOS_INICIAL } from "./ResultadosQR.jsx";
 import { listarUsuarios, verificarClave, cerrarSesion } from "./auth.js";
 import { sugerirUsuarios } from "./buscarUsuarios.js";
@@ -40,6 +43,7 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
   const [persona, setPersona] = useState(usuario ? { uid: usuario.uid, nombreUsuario: usuario.nombreUsuario, area: usuario.area || "" } : null);
   const [desbloqueado, setDesbloqueado] = useState(!!usuario); // con sesión iniciada ya se conoce la clave
   const [pestana, setPestana] = useState("pendientes");
+  const listadosQR = useListados();
   const [ejecutando, setEjecutando] = useState(null);
   const [previa, setPrevia] = useState(false); // "Revisar formulario": recorrido de solo lectura, sin guardar
   const [anonima, setAnonima] = useState(false); // al abrir una evaluación recibida no se muestra quién evaluó
@@ -226,7 +230,19 @@ export default function PaginaQR({ formularioId, rutinaId = "", usuario = null }
             <span aria-label={`${compromisosAbiertos} compromisos abiertos`} data-vencidos={hayVencidos ? "si" : "no"} style={{ ...numerito, background: hayVencidos ? "#c0392b" : "#0f6e56" }}>{compromisosAbiertos}</span>
           )}
         </button>
+        <button type="button" onClick={() => setPestana("calendario")} style={pestanaEstilo(pestana === "calendario")}>📅 Calendario</button>
       </div>
+
+      {pestana === "calendario" && (
+        <div>
+          {asignacionesDelForm.filter((a) => a.activa !== false).length === 0 && <p style={{ color: "var(--texto-suave)" }}>Este formulario no tiene asignaciones activas.</p>}
+          {asignacionesDelForm.filter((a) => a.activa !== false).map((a) => (
+            <div key={a.id} style={{ marginBottom: 16 }}>
+              <CalendarioProgramado asignacion={a} evals={evalsDelForm} formularioNombre={form.nombre} patioDe={patioDeAsignacion(a, form, listadosQR)} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {pestana === "pendientes" && (
         <Pendientes grupos={grupos} rutinaId={rutinaId} borrador={borrador} onEjecutar={ejecutar} onRevisar={revisar} onContinuar={() => { const b = borrador && bloqueoHoy(borrador.formularioId, borrador.rutinaSesionId); if (b) return window.alert(b); setEjecutando(borrador); }} onBorrar={descartarBorrador} />
