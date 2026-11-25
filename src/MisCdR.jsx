@@ -670,7 +670,8 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
     setEv((prev) => {
       const c = clonar(prev);
       fn(c);
-      return c;
+      // Vista previa: solo se puede cambiar de paso; las respuestas no se modifican (las ayudas sí se pueden abrir).
+      return vistaPrevia ? { ...prev, paso: c.paso } : c;
     });
     verRef.current += 1;
     setVer(verRef.current);
@@ -882,7 +883,8 @@ export function Ejecutar({ evaluacionInicial, onCerrar, retrasoMs = 1500, textoV
       </div>
 
       {/* En la vista previa ("Revisar formulario") todo queda de solo lectura: se puede recorrer pero no escribir ni marcar. */}
-      <fieldset disabled={vistaPrevia} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, pointerEvents: vistaPrevia ? "none" : undefined, userSelect: vistaPrevia ? "text" : undefined }}>
+      <fieldset className={vistaPrevia ? "cdr-previa" : undefined} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        {vistaPrevia && <style>{`.cdr-previa input,.cdr-previa textarea,.cdr-previa select,.cdr-previa .cdr-nivel{cursor:not-allowed;pointer-events:none}`}</style>}
         {paso === 0 && <PasoDatos ev={ev} cambiar={cambiar} personas={personas} errorPersonas={errorPersonas} soloLectura={soloLectura} />}
         {paso === 1 && <PasoNotas ev={ev} cambiar={cambiar} />}
         {paso === 2 && <PasoRubrica ev={ev} cambiar={cambiar} />}
