@@ -4,6 +4,7 @@ import { listarFormularios, guardarFormulario, eliminarFormulario, nuevoId, cont
 import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistencia.js";
 import { PLANTILLA_PAUTA_V3, formularioEnBlanco } from "./plantillas.js";
 import ModalQR from "./ModalQR.jsx";
+import RecuperarFormularios from "./RecuperarFormularios.jsx";
 import { Ejecutar, nuevaEvaluacion } from "./MisCdR.jsx";
 import { useListados, opcionesDePregunta, datosDePregunta, filasDeListado } from "./listados.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
@@ -70,6 +71,7 @@ export default function Formularios({ usuario }) {
   const [editando, setEditando] = useState(null); // { form, esNuevo }
   const [modalNuevo, setModalNuevo] = useState(false);
   const [qrDe, setQrDe] = useState(null);
+  const [recuperando, setRecuperando] = useState(false);
   const [previa, setPrevia] = useState(null); // "Revisar formulario": recorrido sin guardar
   const inputArchivo = useRef(null);
   const [modalClave, pedirClave] = useConfirmarConClave(usuario);
@@ -192,7 +194,10 @@ export default function Formularios({ usuario }) {
         <p className="ca-conteo" style={{ margin: 0 }}>
           Formularios {lista ? `(${lista.length})` : ""}
         </p>
-        <button style={{ ...btnPrim, marginLeft: "auto" }} onClick={() => setModalNuevo(true)}>
+        <button style={{ ...btn, marginLeft: "auto" }} title="Vuelve a crear formularios borrados por error, desde la copia que guardó cada evaluación" onClick={() => setRecuperando(true)}>
+          ♻ Recuperar borrados
+        </button>
+        <button style={btnPrim} onClick={() => setModalNuevo(true)}>
           + Nuevo formulario
         </button>
       </div>
@@ -255,6 +260,7 @@ export default function Formularios({ usuario }) {
 
       {qrDe && <ModalQR form={qrDe} onCerrar={() => setQrDe(null)} />}
       {modalClave}
+      {recuperando && <RecuperarFormularios usuario={usuario} pedirClave={pedirClave} onCerrar={() => setRecuperando(false)} />}
 
       {modalNuevo && (
         <Modal titulo="Nuevo formulario" onCerrar={() => setModalNuevo(false)}>
