@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { collection, doc, getDocs, setDoc } from "firebase/firestore";
 import { db, asegurarSesionCdR } from "./firebase.js";
+import { listarPapelera, restaurarDePapelera, DIAS_PAPELERA } from "./papelera.js";
 
 const COL_FORMS = "cdrFormularios";
 const COL_EVALS = "cdrEvaluaciones";
@@ -48,6 +49,13 @@ export default function RecuperarFormularios({ usuario, pedirClave, onCerrar }) 
   const [sel, setSel] = useState(() => new Set());
   const [msg, setMsg] = useState("");
   const [haciendo, setHaciendo] = useState(false);
+  const [papelera, setPapelera] = useState(null);
+  useEffect(() => { listarPapelera().then(setPapelera).catch(() => setPapelera([])); }, []);
+  async function sacar(item) {
+    if (!(await pedirClave(`Restaurar «${item.nombre}»`, "Vuelve a quedar como estaba antes de eliminarlo."))) return;
+    try { await restaurarDePapelera(item); setPapelera((l) => l.filter((x) => x.id !== item.id)); setMsg(`Listo: se restauró «${item.nombre}».`); }
+    catch (e) { setMsg(`No se pudo restaurar (${e.code || e.message}).`); }
+  }
   useEffect(() => {
     buscarRecuperables().then((l) => { setLista(l); setSel(new Set(l.map((x) => x.id))); }).catch((e) => { setLista([]); setMsg(`No se pudo leer (${e.code || e.message}).`); });
   }, []);
@@ -81,6 +89,20 @@ export default function RecuperarFormularios({ usuario, pedirClave, onCerrar }) 
             </span>
           </label>
         ))}
+        <div style={{ marginTop: 16, borderTop: "1px solid #E6ECEA", paddingTop: 10 }}>
+          <b style={{ fontSize: 15 }}>🗑 Papelera</b> <span style={{ fontSize: 12.5, color: "#4A5C59" }}>· lo eliminado se guarda {DIAS_PAPELERA} días</span>
+          {papelera === null && <p style={{ fontSize: 13.5 }}>Cargando…</p>}
+          {papelera && !papelera.length && <p style={{ fontSize: 13.5, color: "#4A5C59", margin: "6px 0" }}>La papelera está vacía.</p>}
+          {papelera && papelera.map((x) => (
+            <div key={x.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 10px", border: "1px solid #CBD6D3", borderRadius: 10, marginTop: 6 }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13.5 }}>
+                <b>{x.tipo === "evaluacion" ? "Evaluación" : "Formulario"}</b> · {x.nombre}<br />
+                <span style={{ fontSize: 12, color: "#4A5C59" }}>eliminada el {fechaCorta(x.eliminadoEn)}{x.eliminadoPor ? ` por ${x.eliminadoPor}` : ""}{x.detalle ? ` · evaluación del ${fechaCorta(x.detalle)}` : ""}</span>
+              </span>
+              <button type="button" onClick={() => sacar(x)} style={{ minHeight: 36, padding: "0 12px", border: "1px solid #1D7A5F", borderRadius: 8, background: "#fff", color: "#1D7A5F", fontWeight: 800, cursor: "pointer" }}>Restaurar</button>
+            </div>
+          ))}
+        </div>
         {msg && <p style={{ fontWeight: 700, fontSize: 13.5, color: /^Listo/.test(msg) ? "#1D7A5F" : "#C0392B" }}>{msg}</p>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
           <button type="button" onClick={onCerrar} style={{ minHeight: 40, padding: "0 14px", border: "1px solid #BFCBC8", borderRadius: 8, background: "#fff", fontWeight: 700, cursor: "pointer" }}>Cerrar</button>

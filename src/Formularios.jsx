@@ -166,7 +166,13 @@ export default function Formularios({ usuario }) {
   async function borrar(f) {
     if (!(await pedirClave(`Eliminar el formulario «${f.nombre}»`, "Esta acción no se puede deshacer."))) return;
     try {
-      await eliminarFormulario(f.id);
+      try {
+        await eliminarFormulario(f.id, { quien: usuario.nombreUsuario });
+      } catch (e2) {
+        if (e2.code !== "sin-papelera") throw e2;
+        if (!window.confirm("No se pudo guardar una copia en la papelera (falta publicar su regla en Firestore). ¿Eliminar igual, SIN copia? No se podrá recuperar.")) return;
+        await eliminarFormulario(f.id, { quien: usuario.nombreUsuario, sinCopia: true });
+      }
     } catch (e) {
       window.alert(`No se pudo eliminar (${e.code || e.message}).`);
     }

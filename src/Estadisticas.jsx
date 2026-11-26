@@ -378,7 +378,13 @@ function EliminarConClave({ ev, usuario, onCancelar, onEliminada }) {
         setTrabajando(false);
         return;
       }
-      await eliminarEvaluacion(ev.id);
+      try {
+        await eliminarEvaluacion(ev.id, { quien: usuario.nombreUsuario });
+      } catch (e2) {
+        if (e2.code !== "sin-papelera") throw e2;
+        if (!window.confirm("No se pudo guardar una copia en la papelera (falta publicar su regla en Firestore). ¿Eliminar igual, SIN copia? No se podrá recuperar.")) { setTrabajando(false); setError("No se eliminó: la papelera no está activa."); return; }
+        await eliminarEvaluacion(ev.id, { quien: usuario.nombreUsuario, sinCopia: true });
+      }
       onEliminada();
     } catch (err) {
       setError(

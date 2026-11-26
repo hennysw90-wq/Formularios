@@ -1,6 +1,7 @@
 // Acceso a la colección "formularios" de la base propia de la CdR.
 import { collection, doc, onSnapshot, setDoc, deleteDoc } from "firebase/firestore";
 import { db, asegurarSesionCdR } from "./firebase.js";
+import { enviarAPapelera } from "./papelera.js";
 
 export const COLECCION_FORMULARIOS = "cdrFormularios";
 
@@ -46,8 +47,9 @@ export async function guardarFormulario(form) {
   await setDoc(doc(db, "cdrFormularios", id), resto);
 }
 
-export async function eliminarFormulario(id) {
+export async function eliminarFormulario(id, { quien = "", sinCopia = false } = {}) {
   await asegurarSesionCdR();
+  if (!sinCopia) await enviarAPapelera("formulario", id, quien);
   await deleteDoc(doc(db, "cdrFormularios", id));
 }
 

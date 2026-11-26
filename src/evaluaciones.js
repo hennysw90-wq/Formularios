@@ -1,5 +1,6 @@
 // Acceso a "formularios publicados" y "evaluaciones" en la base propia de la CdR.
 import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { enviarAPapelera } from "./papelera.js";
 import { db, asegurarSesionCdR } from "./firebase.js";
 import { elegirCompromisoAnterior } from "./compromisos.js";
 import { valorAsignado } from "./referencia.js";
@@ -131,8 +132,9 @@ export async function obtenerEvaluacion(id) {
 }
 
 /** Elimina una CdR para siempre (solo el Master, después de confirmar su clave). No se puede deshacer. */
-export async function eliminarEvaluacion(id) {
+export async function eliminarEvaluacion(id, { quien = "", sinCopia = false } = {}) {
   await asegurarSesionCdR();
+  if (!sinCopia) await enviarAPapelera("evaluacion", id, quien); // si no se puede guardar la copia, no se borra (lanza "sin-papelera")
   await deleteDoc(doc(db, "cdrEvaluaciones", id));
 }
 
