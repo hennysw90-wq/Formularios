@@ -5,6 +5,7 @@ import { listarRutinasAsistencia, describirFrecuencia } from "./firebaseAsistenc
 import { PLANTILLA_PAUTA_V3, formularioEnBlanco } from "./plantillas.js";
 import ModalQR from "./ModalQR.jsx";
 import RecuperarFormularios from "./RecuperarFormularios.jsx";
+import Papelera from "./Papelera.jsx";
 import { Ejecutar, nuevaEvaluacion } from "./MisCdR.jsx";
 import { useListados, opcionesDePregunta, datosDePregunta, filasDeListado } from "./listados.js";
 import { listarAsignaciones, proyectarFormulario } from "./asignaciones.js";
@@ -72,6 +73,7 @@ export default function Formularios({ usuario }) {
   const [modalNuevo, setModalNuevo] = useState(false);
   const [qrDe, setQrDe] = useState(null);
   const [recuperando, setRecuperando] = useState(false);
+  const [verPapelera, setVerPapelera] = useState(false);
   const [previa, setPrevia] = useState(null); // "Revisar formulario": recorrido sin guardar
   const inputArchivo = useRef(null);
   const [modalClave, pedirClave] = useConfirmarConClave(usuario);
@@ -203,6 +205,7 @@ export default function Formularios({ usuario }) {
         <button style={{ ...btn, marginLeft: "auto" }} title="Vuelve a crear formularios borrados por error, desde la copia que guardó cada evaluación" onClick={() => setRecuperando(true)}>
           ♻ Recuperar borrados
         </button>
+        {usuario?.rol === "master" && <button style={btn} title="Lo eliminado en los últimos 30 días: restaurar o borrar para siempre" onClick={() => setVerPapelera(true)}>🗑 Papelera</button>}
         <button style={btnPrim} onClick={() => setModalNuevo(true)}>
           + Nuevo formulario
         </button>
@@ -266,6 +269,7 @@ export default function Formularios({ usuario }) {
 
       {qrDe && <ModalQR form={qrDe} onCerrar={() => setQrDe(null)} />}
       {modalClave}
+      {verPapelera && <Papelera usuario={usuario} pedirClave={pedirClave} onCerrar={() => setVerPapelera(false)} />}
       {recuperando && <RecuperarFormularios usuario={usuario} pedirClave={pedirClave} onCerrar={() => setRecuperando(false)} />}
 
       {modalNuevo && (

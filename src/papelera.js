@@ -49,3 +49,9 @@ export async function restaurarDePapelera(item) {
   await setDoc(doc(db, COLS[item.tipo], item.origenId), datos);
   await deleteDoc(doc(db, COLECCION_PAPELERA, item.id));
 }
+
+/** Borra para siempre una copia de la papelera. */
+export async function eliminarDePapelera(id) {
+  await asegurarSesionCdR();
+  await deleteDoc(doc(db, COLECCION_PAPELERA, id));
+}
