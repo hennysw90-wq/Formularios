@@ -93,7 +93,7 @@ export default function CalendarioProgramado({ asignacion, evals, usuario = null
   const cumplimiento = programada && exigidoMes ? Math.round((n("hecha") * 100) / exigidoMes) : null;
   const moverMes = (k) => { const [yy, mm] = mes.split("-").map(Number); const d = new Date(yy, mm - 1 + k, 1); setMes(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`); };
 
-  const movible = (it) => editando && it.estado !== "hecha" && it.fecha >= hoy;
+  const movible = (it) => editando && it.estado !== "hecha"; // también las atrasadas (para poder eliminarlas); mover solo a hoy o después
   function moverA(destino) {
     if (!elegido || destino < hoy || destino === elegido.fecha) return setElegido(null);
     const p = borrador.find((x) => claveDe(x) === elegido.clave);
